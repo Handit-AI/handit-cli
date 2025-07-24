@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs-extra');
 
 // Import modules
+const { authenticate } = require('./auth');
 const { detectLanguage } = require('./setup/detectLanguage');
 const { runPrompts } = require('./setup/prompts');
 const { extractCallGraph } = require('./parser');
@@ -28,35 +29,42 @@ async function runSetup(options = {}) {
   };
 
   try {
-    // Step 1: Detect project language
+    // Step 1: Authentication
+    console.log(chalk.blue.bold('🚀 Handit Setup CLI'));
+    console.log(chalk.gray('Setting up Handit instrumentation for your agent...\n'));
+    
+    const authResult = await authenticate();
+    if (!authResult.authenticated) {
+      throw new Error('Authentication required to continue');
+    }
+
+    // Step 2: Detect project language
     const languageSpinner = ora('Detecting project language...').start();
     const language = await detectLanguage(config.projectRoot);
     languageSpinner.succeed(`Detected ${chalk.blue(language)} project`);
 
-    // Step 2: Run setup prompts
-    const promptSpinner = ora('Gathering project information...').start();
+    // Step 3: Run setup prompts
     const projectInfo = await runPrompts(config, language);
-    promptSpinner.succeed('Project information collected');
 
-    // Step 3: Extract call graph
+    // Step 4: Extract call graph
     const graphSpinner = ora('Analyzing function call graph...').start();
     const callGraph = await extractCallGraph(projectInfo.entryFile, projectInfo.entryFunction, language);
     graphSpinner.succeed(`Found ${chalk.blue(callGraph.nodes.length)} functions`);
 
-    // Step 4: Analyze functions for tracking
+    // Step 5: Analyze functions for tracking
     const analysisSpinner = ora('Analyzing functions for instrumentation...').start();
     const analyzedGraph = await analyzeFunctions(callGraph, language);
     analysisSpinner.succeed(`Identified ${chalk.blue(analyzedGraph.selectedNodes.length)} functions to track`);
 
-    // Step 5: User confirmation
+    // Step 6: User confirmation
     const confirmedGraph = await confirmSelection(analyzedGraph, config.nonInteractive);
 
-    // Step 6: Instrument code
+    // Step 7: Instrument code
     const instrumentSpinner = ora('Instrumenting code with Handit...').start();
     const instrumentedFiles = await instrumentCode(confirmedGraph, language);
     instrumentSpinner.succeed(`Instrumented ${chalk.blue(instrumentedFiles.length)} files`);
 
-    // Step 7: Write configuration
+    // Step 8: Write configuration
     const configSpinner = ora('Writing Handit configuration...').start();
     await writeConfig(projectInfo, confirmedGraph);
     configSpinner.succeed('Configuration written');
@@ -64,6 +72,7 @@ async function runSetup(options = {}) {
     // Success summary
     console.log('\n' + chalk.green.bold('✅ Handit setup completed successfully!'));
     console.log(chalk.gray('Summary:'));
+    console.log(`  • Agent: ${chalk.blue(projectInfo.agentName)}`);
     console.log(`  • Functions tracked: ${chalk.blue(confirmedGraph.selectedNodes.length)}`);
     console.log(`  • Files modified: ${chalk.blue(instrumentedFiles.length)}`);
     console.log(`  • Configuration: ${chalk.blue('handit.config.json')}`);

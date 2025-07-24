@@ -102,4 +102,10 @@ coverage/
 
 # Temporary files
 tmp/
-temp/ 
+temp/
+
+# Handit files
+.handit-auth.json
+handit.config.json
+traces.json
+evaluation.json 
