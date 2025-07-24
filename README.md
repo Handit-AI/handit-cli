@@ -12,6 +12,9 @@ npm install
 
 # Make the CLI executable
 chmod +x bin/handit-cli.js
+
+# Set up OpenAI API key (required for smart file detection)
+export OPENAI_API_KEY="your-openai-api-key-here"
 ```
 
 ### Testing the CLI

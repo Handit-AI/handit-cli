@@ -2,6 +2,7 @@ const inquirer = require('inquirer').default;
 const chalk = require('chalk');
 const fs = require('fs-extra');
 const path = require('path');
+const { detectFileAndFunction } = require('../utils/fileDetector');
 
 /**
  * Run setup prompts to gather project information
@@ -57,9 +58,8 @@ async function runPrompts(config, language) {
       message: `What is the path to the file containing your agent's entry function?`,
       default: config.entryFile || (language === 'javascript' ? 'index.js' : 'main.py'),
       validate: async (input) => {
-        const filePath = path.resolve(input);
-        if (!await fs.pathExists(filePath)) {
-          return `File not found: ${input}`;
+        if (!input.trim()) {
+          return 'File path cannot be empty';
         }
         return true;
       }
@@ -77,11 +77,13 @@ async function runPrompts(config, language) {
         if (!input.trim()) {
           return 'Function name cannot be empty';
         }
-        
         return true;
       }
     }
   ]);
+
+  // Use smart detection to find the correct file and function
+  const detected = await detectFileAndFunction(entryFile, entryFunction, config.projectRoot);
 
   // Confirm setup
   console.log(chalk.cyan.bold('\n✅ Step 3: Confirm Setup'));
@@ -109,8 +111,8 @@ async function runPrompts(config, language) {
 
   return {
     agentName,
-    entryFile,
-    entryFunction
+    entryFile: detected.file,
+    entryFunction: detected.function
   };
 }
 
