@@ -1,0 +1,78 @@
+[
+  {
+    "timestamp": "2025-07-24T17:03:22.916Z",
+    "function": "main",
+    "file": "index.js",
+    "line": 1,
+    "duration": 150,
+    "calls": [
+      "fetch_data",
+      "process_data"
+    ],
+    "metadata": {
+      "input": {
+        "query": "test"
+      },
+      "output": {
+        "result": "success"
+      }
+    }
+  },
+  {
+    "timestamp": "2025-07-24T17:03:22.917Z",
+    "function": "fetch_data",
+    "file": "index.js",
+    "line": 10,
+    "duration": 200,
+    "calls": [
+      "call_api"
+    ],
+    "metadata": {
+      "url": "https://api.example.com/data",
+      "method": "GET",
+      "status": 200
+    }
+  },
+  {
+    "timestamp": "2025-07-24T17:03:22.917Z",
+    "function": "call_api",
+    "file": "index.js",
+    "line": 20,
+    "duration": 180,
+    "calls": [],
+    "metadata": {
+      "response_size": 1024,
+      "cache_hit": false
+    }
+  },
+  {
+    "timestamp": "2025-07-24T17:03:22.917Z",
+    "function": "process_data",
+    "file": "index.js",
+    "line": 30,
+    "duration": 300,
+    "calls": [
+      "predict_model"
+    ],
+    "metadata": {
+      "data_size": 512,
+      "preprocessing_steps": [
+        "normalize",
+        "encode"
+      ]
+    }
+  },
+  {
+    "timestamp": "2025-07-24T17:03:22.917Z",
+    "function": "predict_model",
+    "file": "index.js",
+    "line": 40,
+    "duration": 500,
+    "calls": [],
+    "metadata": {
+      "model": "gpt-3.5-turbo",
+      "tokens_used": 150,
+      "confidence": 0.95
+    }
+  }
+]

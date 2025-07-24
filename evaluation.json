@@ -1,0 +1,76 @@
+{
+  "analyzedFunctions": 5,
+  "totalTraces": 5,
+  "averageDuration": 266,
+  "slowestFunctions": [
+    {
+      "name": "predict_model",
+      "averageDuration": 500,
+      "count": 1
+    },
+    {
+      "name": "process_data",
+      "averageDuration": 300,
+      "count": 1
+    },
+    {
+      "name": "fetch_data",
+      "averageDuration": 200,
+      "count": 1
+    },
+    {
+      "name": "call_api",
+      "averageDuration": 180,
+      "count": 1
+    },
+    {
+      "name": "main",
+      "averageDuration": 150,
+      "count": 1
+    }
+  ],
+  "mostCalledFunctions": [
+    {
+      "name": "main",
+      "count": 1,
+      "averageDuration": 150
+    },
+    {
+      "name": "fetch_data",
+      "count": 1,
+      "averageDuration": 200
+    },
+    {
+      "name": "call_api",
+      "count": 1,
+      "averageDuration": 180
+    },
+    {
+      "name": "process_data",
+      "count": 1,
+      "averageDuration": 300
+    },
+    {
+      "name": "predict_model",
+      "count": 1,
+      "averageDuration": 500
+    }
+  ],
+  "suggestions": [
+    {
+      "type": "instrumentation",
+      "priority": "high",
+      "description": "Function \"fetch_data\" makes API calls. Ensure proper error handling and timeout configuration.",
+      "action": "add_error_handling",
+      "target": "fetch_data"
+    },
+    {
+      "type": "ai_monitoring",
+      "priority": "high",
+      "description": "Function \"predict_model\" uses AI models. Monitor token usage and response quality.",
+      "action": "add_ai_monitoring",
+      "target": "predict_model"
+    }
+  ],
+  "timestamp": "2025-07-24T17:03:26.708Z"
+}

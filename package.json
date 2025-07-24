@@ -1,0 +1,58 @@
+{
+  "name": "handit-cli",
+  "version": "1.0.0",
+  "description": "CLI tool to set up Handit by detecting and instrumenting agent execution graphs",
+  "main": "src/index.js",
+  "bin": {
+    "handit-cli": "./bin/handit-cli.js"
+  },
+  "scripts": {
+    "start": "node bin/handit-cli.js setup",
+    "dev": "node bin/handit-cli.js setup",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/ bin/",
+    "format": "prettier --write src/ bin/",
+    "build": "echo 'No build step needed for Node.js CLI'",
+    "prepublishOnly": "npm run lint && npm run test"
+  },
+  "keywords": [
+    "cli",
+    "handit",
+    "agent",
+    "instrumentation",
+    "ai",
+    "ml",
+    "monitoring"
+  ],
+  "author": "Handit Team",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^11.0.0",
+    "inquirer": "^9.2.0",
+    "chalk": "^4.1.2",
+    "ora": "^7.0.0",
+    "simple-git": "^3.20.0",
+    "@babel/parser": "^7.23.0",
+    "@babel/traverse": "^7.23.0",
+    "ast-types": "^0.14.0",
+    "fs-extra": "^11.0.0",
+    "glob": "^10.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "eslint": "^8.0.0",
+    "prettier": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/handit/handit-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/handit/handit-cli/issues"
+  },
+  "homepage": "https://github.com/handit/handit-cli#readme"
+} 
