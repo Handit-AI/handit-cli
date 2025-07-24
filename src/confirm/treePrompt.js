@@ -1,5 +1,4 @@
-const inquirer = require('inquirer').default;
-const chalk = require('chalk');
+const { simpleTreeSelection } = require('./interactiveTree');
 
 /**
  * Show interactive tree for user confirmation
@@ -12,28 +11,28 @@ async function confirmSelection(analyzedGraph, nonInteractive = false) {
     return analyzedGraph;
   }
 
-  console.log(chalk.blue.bold('\n🌳 Function Selection'));
-  console.log(chalk.gray('Review and select which functions to track:\n'));
-
-  // Display tree structure
-  displayTree(analyzedGraph.nodes);
-
-  const questions = [
-    {
-      type: 'confirm',
-      name: 'proceed',
-      message: 'Proceed with the selected functions?',
-      default: true
-    }
-  ];
-
-  const answers = await inquirer.prompt(questions);
-  
-  if (!answers.proceed) {
-    throw new Error('User cancelled the operation');
+  try {
+    // Use simple tree selection with proper indentation
+    const selectedNodeIds = await simpleTreeSelection(
+      analyzedGraph.nodes, 
+      analyzedGraph.edges, 
+      analyzedGraph.nodes[0]?.id
+    );
+    
+    // Update the graph with the selected nodes
+    const confirmedNodes = analyzedGraph.nodes.map(node => ({
+      ...node,
+      selected: selectedNodeIds.includes(node.id)
+    }));
+    
+    return {
+      ...analyzedGraph,
+      nodes: confirmedNodes,
+      selectedNodes: confirmedNodes.filter(node => node.selected)
+    };
+  } catch (error) {
+    throw new Error(`Confirmation failed: ${error.message}`);
   }
-
-  return analyzedGraph;
 }
 
 /**

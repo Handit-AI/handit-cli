@@ -47,9 +47,17 @@ async function runSetup(options = {}) {
     const projectInfo = await runPrompts(config, language);
 
     // Step 4: Extract call graph
-    const graphSpinner = ora('Analyzing function call graph...').start();
+    const graphSpinner = ora('Building execution tree...').start();
     const callGraph = await extractCallGraph(projectInfo.entryFile, projectInfo.entryFunction, language);
     graphSpinner.succeed(`Found ${chalk.blue(callGraph.nodes.length)} functions`);
+    
+    // Show execution tree
+    try {
+      const { visualizeExecutionTree } = require('./utils/simpleTreeVisualizer');
+      visualizeExecutionTree(callGraph.nodes, callGraph.edges, callGraph.nodes[0]?.id);
+    } catch (error) {
+      console.warn(`Warning: Could not visualize execution tree: ${error.message}`);
+    }
 
     // Step 5: Analyze functions for tracking
     const analysisSpinner = ora('Analyzing functions for instrumentation...').start();

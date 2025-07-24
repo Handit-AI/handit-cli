@@ -5,26 +5,16 @@
  * @returns {Promise<Object>} - Analyzed graph with selected nodes
  */
 async function analyzeFunctions(callGraph, language) {
-  // TODO: Implement actual function analysis
-  // For now, mark functions with AI/API patterns as selected
-  
-  const selectedNodes = callGraph.nodes.filter(node => {
-    // Simple heuristics for now
-    const aiPatterns = ['predict', 'generate', 'completion', 'embedding', 'model'];
-    const apiPatterns = ['api', 'fetch', 'request', 'call'];
-    
-    const name = node.name.toLowerCase();
-    return aiPatterns.some(pattern => name.includes(pattern)) ||
-           apiPatterns.some(pattern => name.includes(pattern));
-  });
+  // Mark all functions as selected by default
+  const selectedNodes = callGraph.nodes;
 
   return {
     ...callGraph,
     selectedNodes,
     nodes: callGraph.nodes.map(node => ({
       ...node,
-      selected: selectedNodes.some(n => n.id === node.id),
-      reason: selectedNodes.some(n => n.id === node.id) ? 'Contains AI/API patterns' : 'Not selected'
+      selected: true,
+      reason: 'Selected for tracking'
     }))
   };
 }
