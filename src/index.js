@@ -10,7 +10,7 @@ const { runPrompts } = require('./setup/prompts');
 const { extractCallGraph } = require('./parser');
 const { analyzeFunctions } = require('./analyzer');
 const { confirmSelection } = require('./confirm/treePrompt');
-const { instrumentCode } = require('./generator');
+// Code generation is now handled inline in the setup flow
 const { writeConfig } = require('./config/writeConfig');
 const { monitorTraces } = require('./monitor');
 const { evaluateTraces } = require('./evaluate');
@@ -67,10 +67,16 @@ async function runSetup(options = {}) {
     // Step 6: User confirmation
     const confirmedGraph = await confirmSelection(analyzedGraph, config.nonInteractive);
 
-    // Step 7: Instrument code
-    const instrumentSpinner = ora('Instrumenting code with Handit...').start();
-    const instrumentedFiles = await instrumentCode(confirmedGraph, language);
-    instrumentSpinner.succeed(`Instrumented ${chalk.blue(instrumentedFiles.length)} files`);
+    // Step 7: Generate instrumented code with AI
+    const { generateInstrumentedCode } = require('./generator');
+    const selectedFunctionIds = confirmedGraph.nodes.filter(node => node.selected).map(node => node.id);
+    const instrumentedFunctions = await generateInstrumentedCode(
+      selectedFunctionIds,
+      confirmedGraph.nodes,
+      language,
+      projectInfo.agentName,
+      config.projectRoot
+    );
 
     // Step 8: Write configuration
     const configSpinner = ora('Writing Handit configuration...').start();
@@ -81,13 +87,15 @@ async function runSetup(options = {}) {
     console.log('\n' + chalk.green.bold('✅ Handit setup completed successfully!'));
     console.log(chalk.gray('Summary:'));
     console.log(`  • Agent: ${chalk.blue(projectInfo.agentName)}`);
-    console.log(`  • Functions tracked: ${chalk.blue(confirmedGraph.selectedNodes.length)}`);
-    console.log(`  • Files modified: ${chalk.blue(instrumentedFiles.length)}`);
+    console.log(`  • Functions tracked: ${chalk.blue(confirmedGraph.nodes.filter(node => node.selected).length)}`);
+    console.log(`  • Code generated: ${chalk.blue(instrumentedFunctions.length)} instrumented functions`);
     console.log(`  • Configuration: ${chalk.blue('handit.config.json')}`);
     console.log('\n' + chalk.yellow('Next steps:'));
-    console.log('  1. Run your agent to collect traces');
-    console.log('  2. Use "handit-cli monitor" to collect execution traces');
-    console.log('  3. Use "handit-cli evaluate" to analyze traces and improve setup');
+    console.log('  1. Install Handit.ai SDK and set your API key');
+    console.log('  2. Replace your functions with the generated instrumented code');
+    console.log('  3. Run your agent to start collecting traces');
+    console.log('  4. Use "handit-cli monitor" to collect execution traces');
+    console.log('  5. Use "handit-cli evaluate" to analyze traces and improve setup');
 
   } catch (error) {
     throw new Error(`Setup failed: ${error.message}`);

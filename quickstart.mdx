@@ -1,0 +1,635 @@
+---
+title: Quickstart
+description: Get started with Handit.ai's complete AI observability and optimization platform in under 30 minutes.
+sidebarTitle: Quickstart
+---
+
+import { Callout } from "nextra/components";
+import { Steps } from "nextra/components";
+import { Tabs } from "nextra/components";
+
+# Complete Handit.ai Quickstart
+
+> **The Open Source Engine that Auto-Improves Your AI.** <br />
+> Handit evaluates every agent decision, auto-generates better prompts and datasets, A/B-tests the fix, and lets you control what goes live.
+
+<Callout type="info">
+  **What you'll build:** A fully observable, continuously evaluated, and automatically optimizing AI system that improves itself based on real production data.
+</Callout>
+
+## Overview: The Complete Journey
+
+Here's what we'll accomplish in three phases:
+
+<Steps>
+### [Phase 1: AI Observability](#phase-1-ai-observability-5-minutes) ⏱️ 5 minutes
+Set up comprehensive tracing to see inside your AI agents and understand what they're doing
+
+### [Phase 2: Quality Evaluation](#phase-2-quality-evaluation-10-minutes) ⏱️ 10 minutes
+Add automated evaluation to continuously assess performance across multiple quality dimensions
+
+### [Phase 3: Self-Improving AI](#phase-3-self-improving-ai-15-minutes) ⏱️ 15 minutes
+Enable automatic optimization that generates better prompts, tests them, and provides proven improvements
+</Steps>
+
+<Callout type="success">
+  **The Result**: Complete visibility into performance with automated optimization recommendations based on real production data.
+</Callout>
+
+## Prerequisites
+
+Before we start, make sure you have:
+
+- A [Handit.ai Account](https://beta.handit.ai) (sign up if needed)
+- 15-30 minutes to complete the setup
+
+## Phase 1: AI Observability (5 minutes)
+
+Let's add comprehensive tracing to see exactly what your AI is doing.
+
+### Step 1: Install the SDK
+
+<Tabs items={["Python", "JavaScript"]} defaultIndex="0">
+<Tabs.Tab>
+```bash filename="terminal"
+pip install -U "handit-sdk>=1.16.0"
+```
+</Tabs.Tab>
+<Tabs.Tab>
+```bash filename="terminal"
+npm install @handit.ai/node
+```
+</Tabs.Tab>
+</Tabs>
+
+### Step 2: Get Your Integration Token
+
+1. Log into your [Handit.ai Dashboard](https://beta.handit.ai)
+2. Go to **Settings** → **Integrations**
+3. Copy your integration token
+
+<video 
+  width="100%" 
+  autoPlay 
+  loop 
+  muted 
+  playsInline
+  style={{ borderRadius: '8px', border: '1px solid #e5e7eb' }}
+>
+  <source src="/assets/quickstart/integration_token.mp4" type="video/mp4" />
+  Your browser does not support the video tag.
+</video>
+
+### Step 3: Add Basic Tracing
+
+Now, let's set up your main agent function, LLM calls and tool usage with tracing. You'll need to set up four key components:
+
+1. Initialize Handit.ai service
+
+2. Set up your start tracing
+
+3. **Track LLMs calls, tools in your workflow**
+
+4. Set up your end tracing 
+
+<Tabs items={["Python", "JavaScript"]} defaultIndex="0">
+<Tabs.Tab>
+
+Create a `handit_service.py` file to initialize the Handit.ai tracker:
+
+```python filename="handit_service.py"
+"""
+Handit.ai service initialization and configuration.
+This file creates a singleton tracker instance that can be imported across your application.
+"""
+import os
+from dotenv import load_dotenv
+from handit import HanditTracker
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Create a singleton tracker instance
+tracker = HanditTracker()  # Creates a global tracker instance for consistent tracing across the app
+
+# Configure with your API key from environment variables
+tracker.config(api_key=os.getenv("HANDIT_API_KEY"))  # Sets up authentication for Handit.ai services
+
+```
+
+**Now, set up your main agent function with tracing:**
+
+**The example uses three main Handit.ai tracing functions:**
+
+1. `startTracing({ agentName })`: Starts a new trace session
+   - `agentName`: The name of your AI Application
+
+2. `trackNode({ input, output, nodeName, agentName, nodeType, executionId })`: Records individual operations
+   - `input`: The input data for the operation (e.g., user message)
+   - `output`: The result of the operation (e.g., generated response)
+   - `nodeName`: Unique identifier for this operation (e.g., "response_generator")
+   - `agentName`: The name of your AI Application
+   - `nodeType`: Type of operation ("llm" for language model, "tool" for functions)
+   - `executionId`: ID from startTracing to link operations together
+
+3. `endTracing({ executionId, agentName })`: Ends the trace session
+   - `executionId`: The ID from startTracing to end
+   - `agentName`: Must match the name used in startTracing
+
+```python filename="customer_service_agent.py"
+"""
+Simple customer service agent with Handit.ai tracing.
+"""
+from typing import Dict, Any
+from handit_service import tracker
+from langchain.chat_models import ChatOpenAI
+
+class CustomerServiceAgent:
+    def __init__(self):
+        # Initialize LLM for response generation
+        self.llm = ChatOpenAI(model="gpt-4")
+
+    async def generate_response(self, user_message: str) -> Dict[str, Any]:
+        """
+        Generate a response using LLM.
+        """
+        prompt = f"Generate a helpful response to: {user_message}"
+        try:
+            response = await self.llm.agenerate([prompt])
+            return response.generations[0][0].text
+        except Exception as e:
+            raise
+
+    async def process_customer_request(self, user_message: str, execution_id: str) -> Dict[str, Any]:
+        """
+        Process a customer request with Handit.ai tracing.
+        """
+        try:
+            # Generate response
+            response = await self.generate_response(user_message)
+            # Track the response generation
+            tracker.track_node(
+                input=user_message,           # The original user message
+                output=response,              # The generated response
+                node_name="response_generator", # Unique identifier for this operation
+                agent_name="customer_service_agent", # Name of this AI Application
+                node_type="llm",              # Indicates this is a language model operation
+                execution_id=execution_id     # Links this operation to the current trace session
+            )
+            
+            return {
+                "response": response
+            }
+            
+        except Exception as e:
+            raise
+
+async def main():
+    """Example of using the CustomerServiceAgent with Handit.ai tracing."""
+    # Initialize the agent
+    agent = CustomerServiceAgent()
+    
+    # Start a new trace session
+    tracing_response = tracker.start_tracing(
+        agent_name="customer_service_agent"  # Identifies this agent in the Handit.ai dashboard
+    )
+    execution_id = tracing_response.get("executionId")  # Unique ID for this trace session
+    
+    try:
+        # Process a customer request
+        result = await agent.process_customer_request(
+            user_message="I can't access my account",
+            execution_id=execution_id
+        )
+        print(f"Response: {result['response']}")
+    except Exception as e:
+        print(f"Error processing request: {e}")
+    finally:
+        # End the trace session
+        tracker.end_tracing(
+            execution_id=execution_id,           # The ID of the trace session to end
+            agent_name="customer_service_agent"  # Must match the name used in start_tracing
+        )
+```
+</Tabs.Tab>
+<Tabs.Tab>
+
+Create a `handit_service.js` file to initialize the Handit.ai tracker:
+
+```javascript filename="handit_service.js"
+/**
+ * Handit.ai service initialization.
+ */
+import { config } from '@handit.ai/node';
+
+// Configure Handit.ai with your API key
+config({ 
+    apiKey: process.env.HANDIT_API_KEY  // Sets up authentication for Handit.ai services
+});
+```
+
+Now, set up your main agent function with tracing:
+
+The example uses three main Handit.ai tracing functions:
+
+1. `startTracing({ agentName })`: Starts a new trace session
+   - `agentName`: The name of your AI Application
+
+2. `trackNode({ input, output, nodeName, agentName, nodeType, executionId })`: Records individual operations
+   - `input`: The input data for the operation (e.g., user message)
+   - `output`: The result of the operation (e.g., generated response)
+   - `nodeName`: Unique identifier for this operation (e.g., "response_generator")
+   - `agentName`: Name of your agent AI Application
+   - `nodeType`: Type of operation ("llm" for language model, "tool" for functions)
+   - `executionId`: ID from startTracing to link operations together
+
+3. `endTracing({ executionId, agentName })`: Ends the trace session
+   - `executionId`: The ID from startTracing to end
+   - `agentName`: Must match the name used in startTracing
+
+```javascript filename="customer_service_agent.js"
+/**
+ * Simple customer service agent with Handit.ai tracing.
+ */
+import { startTracing, trackNode, endTracing } from '@handit.ai/node';
+import { ChatOpenAI } from 'langchain/chat_models';
+
+class CustomerServiceAgent {
+    constructor() {
+        // Initialize LLM for response generation
+        this.llm = new ChatOpenAI({ model: 'gpt-4' });
+    }
+
+    async generateResponse(userMessage) {
+        const prompt = `Generate a helpful response to: ${userMessage}`;
+        try {
+            const response = await this.llm.generate([prompt]);
+            return response.generations[0][0].text;
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    async processCustomerRequest(userMessage, executionId) {
+        try {
+            // Generate response
+            const response = await this.generateResponse(userMessage);
+            // Track the response generation
+            await trackNode({
+                input: userMessage,           // The original user message
+                output: response,             // The generated response
+                nodeName: 'response_generator', // Unique identifier for this operation
+                agentName: 'customer_service_agent', // Name of this AI Application
+                nodeType: 'llm',              // Indicates this is a language model operation
+                executionId                   // Links this operation to the current trace session
+            });
+            
+            return {
+                response
+            };
+            
+        } catch (error) {
+            throw error;
+        }
+    }
+}
+
+async function main() {
+    // Initialize the agent
+    const agent = new CustomerServiceAgent();
+    
+    // Start a new trace session
+    const tracingResponse = await startTracing({ 
+        agentName: 'customer_service_agent'  // Identifies this agent in the Handit.ai dashboard
+    });
+    const executionId = tracingResponse.executionId;  // Unique ID for this trace session
+    
+    try {
+        // Process a customer request
+        const result = await agent.processCustomerRequest(
+            "I can't access my account",
+            executionId
+        );
+        console.log('Response:', result.response);
+    } catch (error) {
+        console.error('Error processing request:', error);
+    } finally {
+        // End the trace session
+        await endTracing({ 
+            executionId,                         // The ID of the trace session to end
+            agentName: 'customer_service_agent'  // Must match the name used in startTracing
+        });
+    }
+}
+```
+</Tabs.Tab>
+</Tabs>
+
+
+<Callout type="warning">
+  **Important:** Each node in your workflow should have a unique `node_name` to properly track its execution in the dashboard.
+</Callout>
+
+<Callout type="success">
+  **Phase 1 Complete!** 🎉 You now have full observability with every operation, timing, input, output, and error visible in your dashboard.
+</Callout>
+
+**➡️ Want to dive deeper?** Check out our [detailed Tracing Quickstart](/tracing/quickstart) for advanced features and best practices.
+
+## Phase 2: Quality Evaluation (10 minutes)
+
+Now let's add automated evaluation to continuously assess quality across multiple dimensions.
+
+### Step 1: Connect Evaluation Models
+
+1. Go to **Settings** → **Model Tokens**
+2. Add your OpenAI or other model credentials
+3. These models will act as "judges" to evaluate responses
+
+
+<video 
+  width="100%" 
+  autoPlay 
+  loop 
+  muted 
+  playsInline
+  style={{ borderRadius: '8px', border: '1px solid #e5e7eb' }}
+>
+  <source src="/assets/quickstart/model_token.mp4" type="video/mp4" />
+  Your browser does not support the video tag.
+</video>
+
+
+### Step 2: Create Focused Evaluators
+
+Create separate evaluators for each quality aspect. **Critical principle**: One evaluator = one quality dimension.
+
+1. Go to **Evaluation** → **Evaluation Suite**
+2. Click **Create New Evaluator**
+
+**Example Evaluator 1: Response Completeness**
+```
+You are evaluating whether an AI response completely addresses the user's question.
+
+Focus ONLY on completeness - ignore other quality aspects.
+
+User Question: {input}
+AI Response: {output}
+
+Rate on a scale of 1-10:
+1-2 = Missing major parts of the question
+3-4 = Addresses some parts but incomplete
+5-6 = Addresses most parts adequately  
+7-8 = Addresses all parts well
+9-10 = Thoroughly addresses every aspect
+
+Output format:
+Score: [1-10]
+Reasoning: [Brief explanation]
+```
+
+**Example Evaluator 2: Accuracy Check**
+```
+You are checking if an AI response contains accurate information.
+
+Focus ONLY on factual accuracy - ignore other aspects.
+
+User Question: {input}
+AI Response: {output}
+
+Rate on a scale of 1-10:
+1-2 = Contains obvious false information
+3-4 = Contains questionable claims
+5-6 = Mostly accurate with minor concerns
+7-8 = Accurate information
+9-10 = Completely accurate and verifiable
+
+Output format:
+Score: [1-10]
+Reasoning: [Brief explanation]
+```
+
+<video 
+  width="100%" 
+  autoPlay 
+  loop 
+  muted 
+  playsInline
+  style={{ borderRadius: '8px', border: '1px solid #e5e7eb' }}
+>
+  <source src="/assets/quickstart/evaluator_creation.mp4" type="video/mp4" />
+  Your browser does not support the video tag.
+</video>
+
+### Step 3: Associate Evaluators to Your LLM Nodes
+
+1. Go to **Agent Performance**
+2. Select your LLM node (e.g., "response-generator")
+3. Click on Manage Evaluators on the menu
+4. Add your evaluators
+
+<video 
+  width="100%" 
+  autoPlay 
+  loop 
+  muted 
+  playsInline
+  style={{ borderRadius: '8px', border: '1px solid #e5e7eb' }}
+>
+  <source src="/assets/quickstart/associate_evaluator.mp4" type="video/mp4" />
+  Your browser does not support the video tag.
+</video>
+### Step 4: Monitor Results
+
+View real-time evaluation results in:
+- **Tracing** tab: Individual evaluation scores
+- **Agent Performance**: Quality trends over time
+
+**Tracing Dashboard - Individual Evaluation Scores:**
+![AI Agent Tracing Dashboard](/assets/overview/tracing.png)
+
+**Agent Performance Dashboard - Quality Trends:**
+![Agent Performance Dashboard](/assets/overview/general-handit.png)
+
+<Callout type="success">
+  **Phase 2 Complete!** 🎉 Continuous evaluation is now running across multiple quality dimensions with real-time insights into performance trends.
+</Callout>
+
+**➡️ Want more sophisticated evaluators?** Check out our [detailed Evaluation Quickstart](/evaluation/quickstart) for advanced techniques.
+
+## Phase 3: Self-Improving AI (15 minutes)
+
+Finally, let's enable automatic optimization that generates better prompts and provides proven improvements.
+
+### Step 1: Connect Optimization Models
+
+1. Go to **Settings** → **Model Tokens**
+2. Select optimization model tokens
+3. Self-improving AI automatically activates once configured
+
+<video 
+  width="100%" 
+  autoPlay 
+  loop 
+  muted 
+  playsInline
+  style={{ borderRadius: '8px', border: '1px solid #e5e7eb' }}
+>
+  <source src="/assets/quickstart/model_token.mp4" type="video/mp4" />
+  Your browser does not support the video tag.
+</video>
+
+<Callout type="tip">
+  **Automatic Activation**: Once optimization tokens are configured, the system automatically begins analyzing evaluation data and generating optimizations. No additional setup required!
+</Callout>
+
+### Step 2: Monitor Optimization Results
+
+The system is now automatically generating and testing improved prompts. Monitor results in two places:
+
+**Agent Performance Dashboard:**
+- View agent performance metrics
+- Compare current vs optimized versions
+- See improvement percentages
+
+![Agent Performance Dashboard](/assets/overview/general-handit.png)
+
+**Release Hub:**
+- Go to **Optimization** → **Release Hub**
+- View detailed prompt comparisons
+- See statistical confidence and recommendations
+
+![Release Hub - Prompt Performance Comparison](/assets/overview/prompt-comparison.png)
+
+### Step 3: Deploy Optimizations
+
+1. **Review Recommendations** in Release Hub
+2. **Compare Performance** between current and optimized prompts
+3. **Mark as Production** for prompts you want to deploy
+4. **Fetch via SDK** in your application
+
+<video 
+  width="100%" 
+  autoPlay 
+  loop 
+  muted 
+  playsInline
+  style={{ borderRadius: '8px', border: '1px solid #e5e7eb' }}
+>
+  <source src="/assets/quickstart/ci:cd.mp4" type="video/mp4" />
+  Your browser does not support the video tag.
+</video>
+
+**Fetch Optimized Prompts:**
+
+<Tabs items={["Python", "JavaScript"]} defaultIndex="0">
+<Tabs.Tab>
+```python filename="optimization_integration.py"
+from handit import HanditTracker
+
+# Initialize tracker
+tracker = HanditTracker(api_key="your-api-key")
+
+# Fetch current production prompt
+optimized_prompt = tracker.fetch_optimized_prompt(
+    model_id="response-generator"
+)
+
+# Use in your LLM calls
+response = your_llm_client.chat.completions.create(
+    model="gpt-4",
+    messages=[
+        {"role": "system", "content": optimized_prompt},
+        {"role": "user", "content": user_query}
+    ]
+)
+```
+</Tabs.Tab>
+<Tabs.Tab>
+```javascript filename="optimization_integration.js"
+import { HanditClient } from '@handit/sdk';
+
+const handit = new HanditClient({ apiKey: 'your-api-key' });
+
+// Fetch current production prompt
+const optimizedPrompt = await handit.fetchOptimizedPrompt({ 
+  modelId: 'response-generator' 
+});
+
+// Use in your LLM calls
+const response = await openai.chat.completions.create({
+  model: 'gpt-4',
+  messages: [
+    { role: 'system', content: optimizedPrompt },
+    { role: 'user', content: userQuery }
+  ]
+});
+```
+</Tabs.Tab>
+</Tabs>
+
+<Callout type="success">
+  **Phase 3 Complete!** 🎉 You now have a self-improving AI that automatically detects quality issues, generates better prompts, tests them in the background, and provides proven improvements.
+</Callout>
+
+**➡️ Want advanced optimization features?** Check out our [detailed Optimization Quickstart](/optimization/quickstart) for CI/CD integration and deployment strategies.
+
+## What You've Accomplished
+
+Congratulations! You now have a complete AI observability and optimization system:
+
+### ✅ Full Observability
+- Complete visibility into operations
+- Real-time monitoring of all LLM calls and tools
+- Detailed execution traces with timing and error tracking
+
+### ✅ Continuous Evaluation  
+- Automated quality assessment across multiple dimensions
+- Real-time evaluation scores and trends
+- Quality insights to identify improvement opportunities
+
+### ✅ Self-Improving AI
+- Automatic detection of quality issues
+- AI-generated prompt optimizations
+- Background A/B testing with statistical confidence
+- Production-ready improvements delivered via SDK
+
+## Next Steps
+
+- Join our [Discord community](https://discord.gg/wZbW9Bu5) for support
+- Check out [GitHub Issues](https://github.com/Handit-AI/handit.ai-docs/issues) for additional help
+- Explore [Tracing](/tracing) to monitor your AI agents
+- Set up [Evaluation](/evaluation) to grade your AI outputs
+- Configure [Optimization](/optimization) for continuous improvement
+
+## Resources
+
+- [Tracing Documentation](/tracing) - Monitor AI agent performance
+- [Evaluation Documentation](/evaluation) - Grade AI outputs automatically  
+- [Optimization Documentation](/optimization) - Improve prompts continuously
+- Visit our [GitHub Issues](https://github.com/Handit-AI/handit.ai-docs/issues) page
+
+<Callout type="info">
+  **Ready to transform your AI?** Visit [beta.handit.ai](https://beta.handit.ai) to get started with the complete Handit.ai platform today.
+</Callout>
+
+## Troubleshooting
+
+**Tracing Not Working?**
+- Verify your API key is correct and set as environment variable
+- Ensure you're using the functions correct
+
+**Evaluations Not Running?**
+- Confirm model tokens are valid and have sufficient credits
+- Verify LLM nodes are receiving traffic
+- Check evaluation percentages are > 0%
+
+**Optimizations Not Generating?**
+- Ensure evaluation data shows quality issues (scores below threshold)
+- Verify optimization model tokens are configured
+- Confirm sufficient evaluation data has been collected
+
+**Need Help?**
+- Visit our [Support](/more/contact) page
+- Join our [Discord community](https://discord.gg/wZbW9Bu5)
+- Check individual quickstart guides for detailed troubleshooting
