@@ -16,6 +16,205 @@ const { monitorTraces } = require('./monitor');
 const { evaluateTraces } = require('./evaluate');
 
 /**
+ * Test connection with agent name
+ */
+async function testConnectionWithAgent(agentName) {
+  const inquirer = require('inquirer').default;
+  const { HanditApi } = require('./api/handitApi');
+  const { TokenStorage } = require('./auth/tokenStorage');
+
+  try {
+    // Get stored tokens
+    const tokenStorage = new TokenStorage();
+    const tokens = await tokenStorage.loadTokens();
+    
+    if (!tokens || !tokens.authToken) {
+      console.log(chalk.yellow('⚠️  No authentication token found. Skipping connection test.'));
+      return;
+    }
+
+    // Initialize Handit API with stored tokens
+    const handitApi = new HanditApi();
+    handitApi.authToken = tokens.authToken;
+    handitApi.apiToken = tokens.apiToken;
+
+    console.log(chalk.blue.bold('\n🔗 Testing connection with Handit...'));
+    console.log(chalk.gray(`Testing agent: ${agentName}`));
+    console.log(chalk.gray('This will verify that your agent can connect to Handit services.\n'));
+
+    const { shouldTest } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'shouldTest',
+        message: 'Would you like to test the connection now?',
+        default: true
+      }
+    ]);
+
+    if (!shouldTest) {
+      console.log(chalk.gray('Connection test skipped.'));
+      return;
+    }
+
+    const testSpinner = ora('Testing connection...').start();
+    let attempts = 0;
+    const maxAttempts = 10;
+    const intervalMs = 3000; // 3 seconds
+
+    const testInterval = setInterval(async () => {
+      attempts++;
+      
+      try {
+        const result = await handitApi.testConnectionWithAgent(agentName);
+        
+        if (result.connected) {
+          clearInterval(testInterval);
+          testSpinner.succeed(chalk.green('✅ Connection successful!'));
+          console.log(chalk.green(`Agent "${agentName}" is now connected to Handit.`));
+          return;
+        } else {
+          testSpinner.text = `Testing connection... (attempt ${attempts}/${maxAttempts})`;
+        }
+      } catch (error) {
+        testSpinner.text = `Testing connection... (attempt ${attempts}/${maxAttempts}) - ${error.message}`;
+      }
+
+      if (attempts >= maxAttempts) {
+        clearInterval(testInterval);
+        testSpinner.fail(chalk.red('❌ Connection test failed'));
+        console.log(chalk.yellow('The connection test was unsuccessful.'));
+        console.log(chalk.gray('This might be because:'));
+        console.log(chalk.gray('  • Your agent is not running yet'));
+        console.log(chalk.gray('  • The agent name does not match'));
+        console.log(chalk.gray('  • Network connectivity issues'));
+        console.log(chalk.gray('\nYou can retry the test or continue with the setup.'));
+        
+        const { action } = await inquirer.prompt([
+          {
+            type: 'list',
+            name: 'action',
+            message: 'What would you like to do?',
+            choices: [
+              { name: '🔄 Retry connection test', value: 'retry' },
+              { name: '⏭️  Skip test and continue', value: 'skip' },
+              { name: '❌ Cancel setup', value: 'cancel' }
+            ],
+            default: 'retry'
+          }
+        ]);
+
+        if (action === 'cancel') {
+          throw new Error('Setup cancelled by user');
+        } else if (action === 'skip') {
+          console.log(chalk.gray('Connection test skipped. Continuing with setup...'));
+          return;
+        } else if (action === 'retry') {
+          // Reset and retry
+          attempts = 0;
+          testSpinner.start('Retrying connection test...');
+          
+          const retryInterval = setInterval(async () => {
+            attempts++;
+            
+            try {
+              const result = await handitApi.testConnectionWithAgent(agentName);
+              
+              if (result.connected) {
+                clearInterval(retryInterval);
+                testSpinner.succeed(chalk.green('✅ Connection successful!'));
+                console.log(chalk.green(`Agent "${agentName}" is now connected to Handit.`));
+                return;
+              } else {
+                testSpinner.text = `Retrying connection... (attempt ${attempts}/${maxAttempts})`;
+              }
+            } catch (error) {
+              testSpinner.text = `Retrying connection... (attempt ${attempts}/${maxAttempts}) - ${error.message}`;
+            }
+
+            if (attempts >= maxAttempts) {
+              clearInterval(retryInterval);
+              testSpinner.fail(chalk.red('❌ Connection test failed again'));
+              console.log(chalk.yellow('The connection test was unsuccessful again.'));
+              
+              const { finalAction } = await inquirer.prompt([
+                {
+                  type: 'list',
+                  name: 'finalAction',
+                  message: 'What would you like to do?',
+                  choices: [
+                    { name: '🔄 Try one more time', value: 'retry' },
+                    { name: '⏭️  Skip test and continue', value: 'skip' },
+                    { name: '❌ Cancel setup', value: 'cancel' }
+                  ],
+                  default: 'skip'
+                }
+              ]);
+
+              if (finalAction === 'cancel') {
+                throw new Error('Setup cancelled by user');
+              } else if (finalAction === 'skip') {
+                console.log(chalk.gray('Connection test skipped. Continuing with setup...'));
+                return;
+              } else if (finalAction === 'retry') {
+                // One final retry
+                attempts = 0;
+                testSpinner.start('Final connection test attempt...');
+                
+                const finalInterval = setInterval(async () => {
+                  attempts++;
+                  
+                  try {
+                    const result = await handitApi.testConnectionWithAgent(agentName);
+                    
+                    if (result.connected) {
+                      clearInterval(finalInterval);
+                      testSpinner.succeed(chalk.green('✅ Connection successful!'));
+                      console.log(chalk.green(`Agent "${agentName}" is now connected to Handit.`));
+                      return;
+                    } else {
+                      testSpinner.text = `Final attempt... (${attempts}/${maxAttempts})`;
+                    }
+                  } catch (error) {
+                    testSpinner.text = `Final attempt... (${attempts}/${maxAttempts}) - ${error.message}`;
+                  }
+
+                  if (attempts >= maxAttempts) {
+                    clearInterval(finalInterval);
+                    testSpinner.fail(chalk.red('❌ Connection test failed'));
+                    console.log(chalk.yellow('Connection test unsuccessful after multiple attempts.'));
+                    console.log(chalk.gray('Continuing with setup...'));
+                    return;
+                  }
+                }, intervalMs);
+              }
+            }
+          }, intervalMs);
+        }
+      }
+    }, intervalMs);
+
+    // Wait for the first test to complete
+    await new Promise((resolve) => {
+      const checkComplete = () => {
+        if (attempts >= maxAttempts) {
+          resolve();
+        } else {
+          setTimeout(checkComplete, 100);
+        }
+      };
+      checkComplete();
+    });
+
+  } catch (error) {
+    if (error.message === 'Setup cancelled by user') {
+      throw error;
+    }
+    console.log(chalk.yellow(`⚠️  Connection test error: ${error.message}`));
+    console.log(chalk.gray('Continuing with setup...'));
+  }
+}
+
+/**
  * Setup workflow - Initial agent setup
  */
 async function runSetup(options = {}) {
@@ -80,7 +279,10 @@ async function runSetup(options = {}) {
     
     const instrumentedFunctions = result.appliedFunctions;
 
-    // Step 8: Write configuration
+    // Step 8: Test connection with agent
+    await testConnectionWithAgent(projectInfo.agentName);
+
+    // Step 9: Write configuration
     const configSpinner = ora('Writing Handit configuration...').start();
     await writeConfig(projectInfo, confirmedGraph);
     configSpinner.succeed('Configuration written');
@@ -93,11 +295,9 @@ async function runSetup(options = {}) {
     console.log(`  • Code generated: ${chalk.blue(instrumentedFunctions.length)} instrumented functions`);
     console.log(`  • Configuration: ${chalk.blue('handit.config.json')}`);
     console.log('\n' + chalk.yellow('Next steps:'));
-    console.log('  1. Install Handit.ai SDK and set your API key');
-    console.log('  2. Replace your functions with the generated instrumented code');
-    console.log('  3. Run your agent to start collecting traces');
-    console.log('  4. Use "handit-cli monitor" to collect execution traces');
-    console.log('  5. Use "handit-cli evaluate" to analyze traces and improve setup');
+    console.log('  1. Start your agent to begin collecting traces');
+    console.log('  2. Use "handit-cli monitor" to collect execution traces');
+    console.log('  3. Use "handit-cli evaluate" to analyze traces and improve setup');
 
   } catch (error) {
     throw new Error(`Setup failed: ${error.message}`);

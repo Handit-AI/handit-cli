@@ -120,6 +120,34 @@ class HanditApi {
       throw new Error(`Network error: ${error.message}`);
     }
   }
+
+  /**
+   * Test connection with agent name
+   */
+  async testConnectionWithAgent(agentName) {
+    try {
+      console.log('Testing connection with agent:', agentName);
+      console.log('apiUrl', this.apiUrl);
+      console.log('getAuthHeaders', this.getAuthHeaders());
+      const response = await axios.post(`${this.apiUrl}/setup/test-connection-cli`, {
+        agentName: agentName
+      }, {
+        headers: this.getAuthHeaders()
+      });
+      console.log('response', response);
+
+      if (response.data && response.data.connected === true) {
+        return { success: true, connected: true };
+      } else {
+        return { success: true, connected: false };
+      }
+    } catch (error) {
+      if (error.response) {
+        throw new Error(`Handit API error: ${error.response.data.message || error.response.statusText}`);
+      }
+      throw new Error(`Network error: ${error.message}`);
+    }
+  }
 }
 
 module.exports = { HanditApi }; 
