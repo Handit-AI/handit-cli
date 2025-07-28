@@ -126,15 +126,11 @@ class HanditApi {
    */
   async testConnectionWithAgent(agentName) {
     try {
-      console.log('Testing connection with agent:', agentName);
-      console.log('apiUrl', this.apiUrl);
-      console.log('getAuthHeaders', this.getAuthHeaders());
       const response = await axios.post(`${this.apiUrl}/setup/test-connection-cli`, {
         agentName: agentName
       }, {
         headers: this.getAuthHeaders()
       });
-      console.log('response', response);
 
       if (response.data && response.data.connected === true) {
         return { success: true, connected: true };
