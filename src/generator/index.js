@@ -3,9 +3,10 @@ const path = require('path');
 const chalk = require('chalk');
 const ora = require('ora').default;
 const { CodeGenerator } = require('./codeGenerator');
+const { IterativeCodeGenerator } = require('./iterativeGenerator');
 
 /**
- * Generate instrumented code for all selected functions
+ * Generate instrumented code for all selected functions (LEGACY - use iterative instead)
  */
 async function generateInstrumentedCode(selectedFunctionIds, allNodes, language, agentName, projectRoot) {
   const spinner = ora('Generating instrumented code with AI...').start();
@@ -51,6 +52,14 @@ async function generateInstrumentedCode(selectedFunctionIds, allNodes, language,
     spinner.fail('Failed to generate instrumented code');
     throw error;
   }
+}
+
+/**
+ * Generate instrumented code iteratively with user confirmation
+ */
+async function generateInstrumentedCodeIteratively(selectedFunctionIds, allNodes, language, agentName, projectRoot) {
+  const generator = new IterativeCodeGenerator(language, agentName, projectRoot);
+  return await generator.generateIteratively(selectedFunctionIds, allNodes);
 }
 
 /**
@@ -112,5 +121,6 @@ ${func.instrumentedCode}`;
 
 module.exports = {
   generateInstrumentedCode,
+  generateInstrumentedCodeIteratively,
   saveInstrumentedCode
 }; 

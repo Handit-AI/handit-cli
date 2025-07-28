@@ -67,16 +67,18 @@ async function runSetup(options = {}) {
     // Step 6: User confirmation
     const confirmedGraph = await confirmSelection(analyzedGraph, config.nonInteractive);
 
-    // Step 7: Generate instrumented code with AI
-    const { generateInstrumentedCode } = require('./generator');
+    // Step 7: Generate instrumented code iteratively with user confirmation
+    const { generateInstrumentedCodeIteratively } = require('./generator');
     const selectedFunctionIds = confirmedGraph.nodes.filter(node => node.selected).map(node => node.id);
-    const instrumentedFunctions = await generateInstrumentedCode(
+    const result = await generateInstrumentedCodeIteratively(
       selectedFunctionIds,
       confirmedGraph.nodes,
       language,
       projectInfo.agentName,
       config.projectRoot
     );
+    
+    const instrumentedFunctions = result.appliedFunctions;
 
     // Step 8: Write configuration
     const configSpinner = ora('Writing Handit configuration...').start();
