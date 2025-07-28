@@ -144,6 +144,188 @@ class HanditApi {
       throw new Error(`Network error: ${error.message}`);
     }
   }
+
+  /**
+   * Get list of existing integration tokens
+   */
+  async getIntegrationTokensList(limit, offset) {
+    try {
+      const params = {};
+      if (limit) params.limit = limit;
+      if (offset) params.offset = offset;
+
+      const response = await axios.get(`${this.apiUrl}/integration-tokens`, {
+        params,
+        headers: this.getAuthHeaders()
+      });
+
+      return response.data;
+    } catch (error) {
+      if (error.response) {
+        throw new Error(`Handit API error: ${error.response.data.message || error.response.statusText}`);
+      }
+      throw new Error(`Network error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Create a new integration token
+   */
+  async createIntegrationToken(providerId, name, token, type) {
+    try {
+      const requestBody = {
+        providerId,
+        name,
+        token
+      };
+      if (type) requestBody.type = type;
+
+      const response = await axios.post(`${this.apiUrl}/integration-tokens`, requestBody, {
+        headers: this.getAuthHeaders()
+      });
+
+      return response.data;
+    } catch (error) {
+      if (error.response) {
+        throw new Error(`Handit API error: ${error.response.data.message || error.response.statusText}`);
+      }
+      throw new Error(`Network error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get list of available providers
+   */
+  async getProviders(limit, offset) {
+    try {
+      const params = {};
+      if (limit) params.limit = limit;
+      if (offset) params.offset = offset;
+
+      const response = await axios.get(`${this.apiUrl}/providers`, {
+        params,
+        headers: this.getAuthHeaders()
+      });
+
+      return response.data.data;
+    } catch (error) {
+      if (error.response) {
+        throw new Error(`Handit API error: ${error.response.data.message || error.response.statusText}`);
+      }
+      throw new Error(`Network error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get available evaluators/evaluation prompts
+   */
+  async getEvaluationPrompts(category, limit, offset) {
+    try {
+      const params = {};
+      if (category) params.category = category;
+      if (limit) params.limit = limit;
+      if (offset) params.offset = offset;
+
+      const response = await axios.get(`${this.apiUrl}/reviewers-template/evaluation-prompts`, {
+        params,
+        headers: this.getAuthHeaders()
+      });
+
+      return response.data.data;
+    } catch (error) {
+      if (error.response) {
+        throw new Error(`Handit API error: ${error.response.data.message || error.response.statusText}`);
+      }
+      throw new Error(`Network error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get user's models/nodes
+   */
+  async getUserModels(limit, offset) {
+    try {
+      const params = {};
+      if (limit) params.limit = limit;
+      if (offset) params.offset = offset;
+
+      const response = await axios.get(`${this.apiUrl}/models/me`, {
+        params,
+        headers: this.getAuthHeaders()
+      });
+
+      return response.data;
+    } catch (error) {
+      if (error.response) {
+        throw new Error(`Handit API error: ${error.response.data.message || error.response.statusText}`);
+      }
+      throw new Error(`Network error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Associate an evaluator to a model
+   */
+  async associateEvaluatorToModel(modelId, evaluationPromptId) {
+    try {
+      const response = await axios.post(`${this.apiUrl}/reviewers-template/models/${modelId}/evaluation-prompts`, {
+        evaluationPromptId
+      }, {
+        headers: this.getAuthHeaders()
+      });
+
+      return response.data;
+    } catch (error) {
+      if (error.response) {
+        throw new Error(`Handit API error: ${error.response.data.message || error.response.statusText}`);
+      }
+      throw new Error(`Network error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Update evaluator with default integration token and provider model
+   */
+  async updateEvaluatorDefaults(id, defaultIntegrationTokenId, defaultProviderModel) {
+    try {
+      const response = await axios.put(`${this.apiUrl}/reviewers-template/evaluation-prompts/${id}`, {
+        defaultIntegrationTokenId,
+        defaultProviderModel
+      }, {
+        headers: this.getAuthHeaders()
+      });
+
+      return response.data;
+    } catch (error) {
+      if (error.response) {
+        throw new Error(`Handit API error: ${error.response.data.message || error.response.statusText}`);
+      }
+      throw new Error(`Network error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get list of agents
+   */
+  async getAgents(limit, offset) {
+    try {
+      const params = {};
+      if (limit) params.limit = limit;
+      if (offset) params.offset = offset;
+
+      const response = await axios.get(`${this.apiUrl}/agents`, {
+        params,
+        headers: this.getAuthHeaders()
+      });
+
+      return response.data;
+    } catch (error) {
+      if (error.response) {
+        throw new Error(`Handit API error: ${error.response.data.message || error.response.statusText}`);
+      }
+      throw new Error(`Network error: ${error.message}`);
+    }
+  }
 }
 
 module.exports = { HanditApi }; 

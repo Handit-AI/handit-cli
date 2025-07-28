@@ -138,6 +138,219 @@ async function testConnectionWithAgent(agentName) {
 }
 
 /**
+ * Setup evaluators for an agent
+ */
+async function setupEvaluators(agentName) {
+  const inquirer = require('inquirer').default;
+  const { HanditApi } = require('./api/handitApi');
+  const { TokenStorage } = require('./auth/tokenStorage');
+
+  try {
+    // Get stored tokens
+    const tokenStorage = new TokenStorage();
+    const tokens = await tokenStorage.loadTokens();
+    
+    if (!tokens || !tokens.authToken) {
+      console.log(chalk.yellow('⚠️  No authentication token found. Skipping evaluator setup.'));
+      return;
+    }
+
+    // Initialize Handit API with stored tokens
+    const handitApi = new HanditApi();
+    handitApi.authToken = tokens.authToken;
+    handitApi.apiToken = tokens.apiToken;
+
+    console.log(chalk.blue.bold('\n🔍 Setting up evaluators...'));
+    console.log(chalk.gray('Evaluators help analyze and improve your agent\'s performance.\n'));
+
+    const { shouldSetupEvaluators } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'shouldSetupEvaluators',
+        message: 'Would you like to add evaluators to your agent?',
+        default: true
+      }
+    ]);
+
+    if (!shouldSetupEvaluators) {
+      console.log(chalk.gray('Evaluator setup skipped.'));
+      return;
+    }
+
+    // Get agents and find the one with matching name
+    const agentsSpinner = ora('Finding your agent...').start();
+    const agents = await handitApi.getAgents();
+    agentsSpinner.succeed('Agents retrieved');
+
+    const agent = agents.find(a => a.name === agentName);
+    if (!agent) {
+      console.log(chalk.yellow('⚠️  Agent not found. You need to send traces first before adding evaluators.'));
+      console.log(chalk.gray('Run your agent and collect traces, then try again.'));
+      return;
+    }
+
+    console.log(chalk.green(`✅ Found agent: ${agent.name}`));
+
+    // Main evaluator setup loop
+    while (true) {
+      // Get available evaluators
+      const evaluatorsSpinner = ora('Loading available evaluators...').start();
+      const evaluators = await handitApi.getEvaluationPrompts();
+
+      evaluatorsSpinner.succeed(`Found ${evaluators.length} evaluators`);
+
+      // Let user select an evaluator
+      const { selectedEvaluator } = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'selectedEvaluator',
+          message: 'Select an evaluator to add:',
+          choices: evaluators.map(evaluator => ({
+            name: `${evaluator.name}`,
+            value: evaluator
+          }))
+        }
+      ]);
+
+      console.log(chalk.blue(`Selected: ${selectedEvaluator.name}`));
+
+      // Check if evaluator has default integration token
+      if (selectedEvaluator.defaultIntegrationTokenId) {
+        console.log(chalk.green('✅ Evaluator has default integration token'));
+      } else {
+        console.log(chalk.yellow('⚠️  Evaluator needs integration token setup'));
+        
+        // Get providers
+        const providersSpinner = ora('Loading providers...').start();
+        const providers = await handitApi.getProviders();
+        providersSpinner.succeed(`Found ${providers.length} providers`);
+
+        // Let user select provider
+        const { selectedProvider } = await inquirer.prompt([
+          {
+            type: 'list',
+            name: 'selectedProvider',
+            message: 'Select a provider:',
+            choices: providers.map(provider => ({
+              name: `${provider.name}`,
+              value: provider
+            }))
+          }
+        ]);
+
+        // Let user select default model from provider config
+        const { selectedModel } = await inquirer.prompt([
+          {
+            type: 'list',
+            name: 'selectedModel',
+            message: 'Select default model:',
+            choices: selectedProvider.config.models.map(model => ({
+              name: model,
+              value: model
+            }))
+          }
+        ]);
+
+        // Get integration token from user
+        const { integrationToken } = await inquirer.prompt([
+          {
+            type: 'password',
+            name: 'integrationToken',
+            message: `Enter your ${selectedProvider.name} API token:`,
+            validate: (input) => {
+              if (!input.trim()) return 'API token is required';
+              return true;
+            }
+          }
+        ]);
+
+        // Create integration token
+        const tokenSpinner = ora('Creating integration token...').start();
+        const integrationTokenResult = await handitApi.createIntegrationToken(
+          selectedProvider.id,
+          `${selectedProvider.name} - ${selectedEvaluator.name}`,
+          integrationToken,
+          'evaluator'
+        );
+        tokenSpinner.succeed('Integration token created');
+
+        // Update evaluator with default token and model
+        const updateSpinner = ora('Updating evaluator defaults...').start();
+        await handitApi.updateEvaluatorDefaults(
+          selectedEvaluator.id,
+          integrationTokenResult.id,
+          selectedModel
+        );
+        updateSpinner.succeed('Evaluator defaults updated');
+
+        console.log(chalk.green('✅ Integration token configured for evaluator'));
+      }
+
+      // Get agent nodes with models
+      const agentNodes = agent.AgentNodes || [];
+      const nodesWithModels = agentNodes.filter(node => node.Model);
+      
+      if (nodesWithModels.length === 0) {
+        console.log(chalk.yellow('⚠️  No models found in agent nodes.'));
+        console.log(chalk.gray('You need to have models in your agent to add evaluators.'));
+        break;
+      }
+
+      // Let user select models to associate with evaluator
+      const { selectedModels } = await inquirer.prompt([
+        {
+          type: 'checkbox',
+          name: 'selectedModels',
+          message: 'Select models to associate with this evaluator:',
+          choices: nodesWithModels.map(node => ({
+            name: `${node.Model.name || 'Unnamed Node'}`,
+            value: node.id
+          }))
+        }
+      ]);
+
+      if (selectedModels.length === 0) {
+        console.log(chalk.yellow('⚠️  No models selected. Skipping evaluator association.'));
+      } else {
+        // Associate evaluator with selected models
+        const associateSpinner = ora('Associating evaluator with models...').start();
+        
+        for (const modelId of selectedModels) {
+          try {
+            await handitApi.associateEvaluatorToModel(modelId, selectedEvaluator.id);
+          } catch (error) {
+            console.log(chalk.yellow(`⚠️  Failed to associate with model ${modelId}: ${error.message}`));
+          }
+        }
+        
+        associateSpinner.succeed(`Associated evaluator with ${selectedModels.length} model(s)`);
+        console.log(chalk.green(`✅ Evaluator "${selectedEvaluator.name}" added successfully!`));
+      }
+
+      // Ask if user wants to add more evaluators
+      const { addMoreEvaluators } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'addMoreEvaluators',
+          message: 'Would you like to add another evaluator?',
+          default: false
+        }
+      ]);
+
+      if (!addMoreEvaluators) {
+        break;
+      }
+    }
+
+    console.log(chalk.green('✅ Evaluator setup completed!'));
+
+  } catch (error) {
+    console.log(chalk.yellow(`⚠️  Evaluator setup error: ${error.message}`));
+    console.log(chalk.gray('Continuing with setup...'));
+  }
+}
+
+/**
  * Setup workflow - Initial agent setup
  */
 async function runSetup(options = {}) {
@@ -205,6 +418,8 @@ async function runSetup(options = {}) {
     // Step 8: Test connection with agent
     await testConnectionWithAgent(projectInfo.agentName);
 
+    // Step 9: Setup evaluators
+    await setupEvaluators(projectInfo.agentName);
 
     // Success summary
     console.log('\n' + chalk.green.bold('✅ Handit setup completed successfully!'));
