@@ -85,12 +85,13 @@ tracker.config(api_key=os.getenv("HANDIT_API_KEY"))  # Sets up authentication fo
   /**
    * Generate structured changes for instrumenting a function
    */
-  async generateInstrumentedFunction(node, originalCode, allNodes) {
+  async generateInstrumentedFunction(node, originalCode, allNodes, apiKey) {
     try {
       const prompt = this.createStructuredInstrumentationPrompt(
         node,
         originalCode,
-        allNodes
+        allNodes,
+        apiKey
       );
 
       const response = await this.openai.chat.completions.create({
@@ -169,7 +170,7 @@ json
   /**
    * Create structured instrumentation prompt
    */
-  createStructuredInstrumentationPrompt(node, originalCode, allNodes) {
+  createStructuredInstrumentationPrompt(node, originalCode, allNodes, apiKey) {
     const isEntryPoint = allNodes[0]?.id === node.id;
     // load quickstart.mdx as string
     const documentation = fs.readFileSync(
@@ -206,6 +207,7 @@ REQUIREMENTS:
 8. We need additions and removals:
     a. Additions: When we need to add new code to the function.
     b. Removals: When we need to remove code from the function.
+9. Check the full code and always add removasls and additions where needed.
 
 THIS IS THE FULL STRUCTURE OF THE NODES WE ARE TRACING:
 ${JSON.stringify(allNodes, null, 2)}
@@ -227,7 +229,7 @@ Return ONLY a JSON object with this structure:
   ],
 }
 
-${isEntryPoint ? 'ENTRY POINT: Add startTracing() at beginning and endTracing() in finally block' : 'CHILD FUNCTION: Accept executionId parameter and use trackNode()'}
+${isEntryPoint ? `ENTRY POINT: Add startTracing() at beginning and endTracing() in finally block, also add the file add config({ apiKey: process.env.HANDIT_API_KEY }) the api key must be  ${apiKey} ` : 'CHILD FUNCTION: Accept executionId parameter and use trackNode()'}
 
 Return ONLY the JSON object, no explanations.`;
 

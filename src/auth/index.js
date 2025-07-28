@@ -3,6 +3,8 @@ const chalk = require('chalk');
 const fs = require('fs-extra');
 const path = require('path');
 const ora = require('ora').default;
+const { HanditApi } = require('../api/handitApi');
+const { TokenStorage } = require('./tokenStorage');
 
 /**
  * Check if user is authenticated with Handit
@@ -10,30 +12,25 @@ const ora = require('ora').default;
  */
 async function isAuthenticated() {
   try {
-    const configPath = path.join(process.cwd(), '.handit-auth.json');
-    if (await fs.pathExists(configPath)) {
-      const auth = await fs.readJson(configPath);
-      // TODO: Validate token with Handit API
-      return auth.token && auth.token !== 'expired';
-    }
-    return false;
+    const tokenStorage = new TokenStorage();
+    return await tokenStorage.hasValidTokens();
   } catch (error) {
     return false;
   }
 }
 
 /**
- * Save authentication token
- * @param {string} token - Authentication token
- * @param {Object} user - User information
+ * Save authentication data
+ * @param {Object} authData - Authentication data with tokens and user info
  */
-async function saveAuth(token, user) {
-  const configPath = path.join(process.cwd(), '.handit-auth.json');
-  await fs.writeJson(configPath, {
-    token,
-    user,
-    createdAt: new Date().toISOString()
-  }, { spaces: 2 });
+async function saveAuth(authData) {
+  try {
+    const tokenStorage = new TokenStorage();
+    await tokenStorage.storeTokens(authData);
+    return true;
+  } catch (error) {
+    throw new Error(`Failed to save authentication: ${error.message}`);
+  }
 }
 
 /**
@@ -41,7 +38,7 @@ async function saveAuth(token, user) {
  * @returns {Promise<Object>} - Authentication result
  */
 async function authenticate() {
-  console.log(chalk.blue.bold('🔐 Handit Authentication'));
+  console.log(chalk.blue.bold('\n🔐 Handit Authentication'));
   console.log(chalk.gray('Let\'s get you set up with Handit...\n'));
 
   // Check if already authenticated
@@ -73,189 +70,88 @@ async function authenticate() {
  * @returns {Promise<Object>} - Login result
  */
 async function handleLogin() {
-  console.log(chalk.blue('\n📝 Login to Handit'));
-  
-  const { loginMethod } = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'loginMethod',
-      message: 'How would you like to log in?',
-      choices: [
-        { name: 'Open Handit in browser (recommended)', value: 'browser' },
-        { name: 'Enter credentials manually', value: 'manual' }
-      ]
-    }
-  ]);
-
-  if (loginMethod === 'browser') {
-    return await handleBrowserLogin();
-  } else {
-    return await handleManualLogin();
-  }
+  console.log(chalk.blue('\n🔑 Login to Handit'));
+  return await handleBrowserLogin();
 }
 
 /**
- * Handle browser-based login
+ * Handle browser-based login with CLI code
  * @returns {Promise<Object>} - Login result
  */
 async function handleBrowserLogin() {
-  const spinner = ora('Opening Handit in your browser...').start();
+  const handitApi = new HanditApi();
+  const cliAuthUrl = handitApi.getCliAuthUrl();
   
+  console.log(chalk.cyan('\n🌐 Opening Handit CLI authentication...'));
+  console.log(chalk.gray('Please complete the authentication process in your browser.\n'));
+  
+  // Try to open browser (cross-platform)
   try {
-    // TODO: Implement actual browser opening
-    console.log(chalk.yellow('\n🌐 Please open: https://handit.com/login'));
-    console.log(chalk.gray('After logging in, you\'ll receive a token to paste here.\n'));
-    
-    const { token } = await inquirer.prompt([
-      {
-        type: 'password',
-        name: 'token',
-        message: 'Paste your authentication token:',
-        validate: (input) => {
-          if (!input.trim()) {
-            return 'Token cannot be empty';
-          }
-          return true;
-        }
-      }
-    ]);
-
-    spinner.succeed('Authentication successful!');
-    
-    // Mock user data
-    const user = {
-      email: 'user@example.com',
-      name: 'Handit User'
-    };
-    
-    await saveAuth(token, user);
-    return { authenticated: true, user };
-    
+    const open = require('open');
+    await open(cliAuthUrl);
+    console.log(chalk.green(`✅ Opened: ${cliAuthUrl}`));
   } catch (error) {
-    spinner.fail('Authentication failed');
-    throw error;
+    console.log(chalk.yellow(`⚠️  Please manually open: ${cliAuthUrl}`));
   }
-}
-
-/**
- * Handle manual login
- * @returns {Promise<Object>} - Login result
- */
-async function handleManualLogin() {
-  const credentials = await inquirer.prompt([
+  
+  console.log(chalk.gray('\nSteps:'));
+  console.log(chalk.gray('1. Complete authentication in your browser'));
+  console.log(chalk.gray('2. Copy the CLI code from the dashboard'));
+  console.log(chalk.gray('3. Paste it below\n'));
+  
+  const { cliCode } = await inquirer.prompt([
     {
       type: 'input',
-      name: 'email',
-      message: 'Email:',
+      name: 'cliCode',
+      message: 'Enter the CLI code from Handit dashboard:',
       validate: (input) => {
-        if (!input.includes('@')) {
-          return 'Please enter a valid email address';
-        }
-        return true;
-      }
-    },
-    {
-      type: 'password',
-      name: 'password',
-      message: 'Password:',
-      validate: (input) => {
-        if (input.length < 6) {
-          return 'Password must be at least 6 characters';
-        }
+        const code = input.trim();
+        if (code.length === 0) return 'CLI code is required';
+        if (code.length < 7) return 'CLI code seems too short';
         return true;
       }
     }
   ]);
 
-  const spinner = ora('Logging in to Handit...').start();
+  const spinner = ora('Authenticating with Handit...').start();
   
   try {
-    // TODO: Implement actual login API call
-    await new Promise(resolve => setTimeout(resolve, 2000)); // Mock API delay
+    const authResult = await handitApi.authenticateWithCode(cliCode.trim());
     
-    // Mock successful login
-    const token = 'mock_token_' + Date.now();
-    const user = {
-      email: credentials.email,
-      name: 'Handit User'
-    };
-    
-    await saveAuth(token, user);
-    spinner.succeed('Login successful!');
-    
-    return { authenticated: true, user };
-    
+    if (authResult.success) {
+      await saveAuth(authResult);
+      spinner.succeed('Authentication successful!');
+      
+      console.log(chalk.green('✅ Successfully authenticated with Handit!'));
+      console.log(chalk.gray(`Welcome, ${authResult.user.firstName} ${authResult.user.lastName}`));
+      console.log(chalk.gray(`Company: ${authResult.company.name}`));
+      
+      return { authenticated: true, user: authResult.user };
+    } else {
+      throw new Error('Authentication failed');
+    }
   } catch (error) {
-    spinner.fail('Login failed');
-    throw new Error('Invalid email or password');
+    spinner.fail('Authentication failed');
+    throw new Error(`Login failed: ${error.message}`);
   }
 }
+
+
 
 /**
  * Handle signup flow
  * @returns {Promise<Object>} - Signup result
  */
 async function handleSignup() {
+  const handitApi = new HanditApi();
+  
   console.log(chalk.blue('\n🚀 Create your Handit account'));
+  console.log(chalk.gray('Please create your account at the Handit dashboard first.\n'));
   
-  const userData = await inquirer.prompt([
-    {
-      type: 'input',
-      name: 'email',
-      message: 'Email:',
-      validate: (input) => {
-        if (!input.includes('@')) {
-          return 'Please enter a valid email address';
-        }
-        return true;
-      }
-    },
-    {
-      type: 'password',
-      name: 'password',
-      message: 'Password:',
-      validate: (input) => {
-        if (input.length < 8) {
-          return 'Password must be at least 8 characters';
-        }
-        return true;
-      }
-    },
-    {
-      type: 'password',
-      name: 'confirmPassword',
-      message: 'Confirm password:',
-      validate: (input, answers) => {
-        if (input !== answers.password) {
-          return 'Passwords do not match';
-        }
-        return true;
-      }
-    }
-  ]);
-
-  const spinner = ora('Creating your Handit account...').start();
-  
-  try {
-    // TODO: Implement actual signup API call
-    await new Promise(resolve => setTimeout(resolve, 3000)); // Mock API delay
-    
-    // Mock successful signup
-    const token = 'mock_token_' + Date.now();
-    const user = {
-      email: userData.email,
-      name: userData.email.split('@')[0] // Use email prefix as name
-    };
-    
-    await saveAuth(token, user);
-    spinner.succeed('Account created successfully!');
-    
-    return { authenticated: true, user };
-    
-  } catch (error) {
-    spinner.fail('Signup failed');
-    throw new Error('Failed to create account. Please try again.');
-  }
+  console.log(chalk.blue('🌐 Visit the Handit dashboard to create your account:'));
+  console.log(chalk.cyan(handitApi.getDashboardUrl() + '/signup'));
+  console.log(chalk.gray('\nAfter creating your account, run this command again to login.'));
+  process.exit(0);
 }
 
 module.exports = {
