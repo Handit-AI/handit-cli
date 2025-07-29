@@ -325,216 +325,240 @@ async function parseJavaScriptFile(content, functionName) {
 }
 
 /**
- * Parse Python file to find function calls
+ * Parse Python file to find function calls using AST
  * @param {string} content - File content
  * @param {string} functionName - Function to analyze
  * @returns {Array} - Array of function calls
  */
 async function parsePythonFile(content, functionName) {
-  console.log('content', content);
-  console.log('functionName', functionName);
+  
+  // Extract just the function name from method calls like "processor.process_document"
+  const targetFunctionName = functionName.includes('.') ? functionName.split('.')[1] : functionName;
+  
   const functionCalls = [];
-  const lines = content.split('\n');
 
   try {
-    let inTargetFunction = false;
-    let functionIndent = 0;
+    // Use Python's built-in ast module to parse the code
+    const { spawn } = require('child_process');
+    
+    // Create a Python script to parse the AST
+    const pythonScript = `
+import ast
+import json
+import sys
 
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const trimmedLine = line.trim();
-      // Find function definition
-      if (
-        trimmedLine.startsWith('def ') ||
-        trimmedLine.startsWith('async def ') ||
-        trimmedLine.startsWith('@app')
-      ) {
-        const defMatch = trimmedLine.match(/^(?:async\s+)?def\s+(\w+)/);
-        if (defMatch && defMatch[1] === functionName) {
-          inTargetFunction = true;
-          functionIndent = line.length - line.trimStart().length;
-          continue;
+def find_function_calls_and_definitions(code, target_function):
+    try:
+        tree = ast.parse(code)
+        calls = []
+        definitions = []
+        
+        class FunctionVisitor(ast.NodeVisitor):
+            def __init__(self):
+                self.calls = []
+                self.definitions = []
+                self.in_target_function = False
+                self.current_function = None
+            
+            def visit_FunctionDef(self, node):
+                # Check if this is our target function
+                if node.name == target_function:
+                    self.in_target_function = True
+                    self.current_function = node.name
+                
+                # Visit all nodes in this function
+                self.generic_visit(node)
+                
+                # If we were in the target function, we're done
+                if self.current_function == target_function:
+                    self.in_target_function = False
+                    self.current_function = None
+            
+            def visit_AsyncFunctionDef(self, node):
+                # Same as FunctionDef but for async functions
+                if node.name == target_function:
+                    self.in_target_function = True
+                    self.current_function = node.name
+                
+                self.generic_visit(node)
+                
+                if self.current_function == target_function:
+                    self.in_target_function = False
+                    self.current_function = None
+            
+            def visit_Call(self, node):
+                if self.in_target_function:
+                    call_info = {}
+                    
+                    if isinstance(node.func, ast.Name):
+                        # Simple function call: function_name()
+                        call_info = {
+                            'name': node.func.id,
+                            'line': node.lineno,
+                            'type': 'function'
+                        }
+                    elif isinstance(node.func, ast.Attribute):
+                        # Method call: object.method()
+                        call_info = {
+                            'name': f"{self._get_attribute_name(node.func)}.{node.func.attr}",
+                            'line': node.lineno,
+                            'type': 'method'
+                        }
+                    
+                    # Skip built-in functions and common keywords
+                    skip_list = [
+                        'print', 'len', 'str', 'int', 'float', 'list', 'dict', 'set',
+                        'if', 'for', 'while', 'try', 'except', 'finally', 'with', 'as',
+                        'import', 'from', 'return', 'yield', 'await', 'raise',
+                        'HTTPException', 'logger', 'File', 'Form', 'image', 'email',
+                        'startswith', 'file', 'read', 'info', 'error'
+                    ]
+                    
+                    skip_objects = ['file', 'result', 'logger']
+                    skip_methods = ['read', 'startswith', 'split', 'strip', 'join', 'append', 'extend', 'pop', 'get', 'set', 'keys', 'values', 'items', 'update', 'copy', 'clear']
+                    
+                    if call_info.get('name'):
+                        if 'type' in call_info and call_info['type'] == 'function':
+                            if call_info['name'] not in skip_list:
+                                self.calls.append(call_info)
+                        elif 'type' in call_info and call_info['type'] == 'method':
+                            parts = call_info['name'].split('.')
+                            if len(parts) == 2:
+                                obj_name, method_name = parts
+                                if obj_name not in skip_objects and method_name not in skip_methods:
+                                    self.calls.append(call_info)
+                
+                self.generic_visit(node)
+            
+            def visit_Assign(self, node):
+                # Find variable assignments like "processor = DocumentProcessor()"
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name):
+                            assignment_info = {
+                                'variable': target.id,
+                                'class': node.value.func.id,
+                                'line': node.lineno,
+                                'type': 'assignment'
+                            }
+                            self.definitions.append(assignment_info)
+                
+                self.generic_visit(node)
+            
+            def visit_ImportFrom(self, node):
+                # Find imports like "from document_processor import DocumentProcessor"
+                for alias in node.names:
+                    import_info = {
+                        'module': node.module,
+                        'name': alias.name,
+                        'asname': alias.asname,
+                        'line': node.lineno,
+                        'type': 'import'
+                    }
+                    self.definitions.append(import_info)
+                
+                self.generic_visit(node)
+            
+            def _get_attribute_name(self, node):
+                """Get the full attribute name (e.g., 'processor.process_document')"""
+                if isinstance(node.value, ast.Name):
+                    return node.value.id
+                elif isinstance(node.value, ast.Attribute):
+                    return f"{self._get_attribute_name(node.value)}.{node.value.attr}"
+                else:
+                    return "unknown"
+        
+        visitor = FunctionVisitor()
+        visitor.visit(tree)
+        
+        
+        return {
+            'calls': visitor.calls,
+            'definitions': visitor.definitions
         }
+        
+    except Exception as e:
+        return {'calls': [], 'definitions': []}
 
-        const decoratorMatch = trimmedLine.match(
-          /^@(\w+)\.(post|get|put|delete|patch)\s*\(\s*["']([^"']+)["']/
-        );
+# Read input from stdin
+code = sys.stdin.read()
+target_function = sys.argv[1] if len(sys.argv) > 1 else ''
 
-        if (
-          decoratorMatch &&
-          (decoratorMatch[3] == functionName ||
-            decoratorMatch[3] == functionName.replace('_', '-') ||
-            decoratorMatch[3] == functionName.replace('-', '_') ||
-            decoratorMatch[3] == '/' + functionName.replace('_', '-') ||
-            decoratorMatch[3] == '/' + functionName.replace('-', '_') ||
-            '/' + decoratorMatch[3] == functionName ||
-            '/' + decoratorMatch[3] == functionName.replace('_', '-') ||
-            '/' + decoratorMatch[3] == functionName.replace('-', '_'))
-        ) {
-          inTargetFunction = true;
-          functionIndent = line.length - line.trimStart().length;
-          continue;
+result = find_function_calls_and_definitions(code, target_function)
+print(json.dumps(result))
+`;
+
+    return new Promise((resolve, reject) => {
+      const pythonProcess = spawn('python3', ['-c', pythonScript, targetFunctionName]);
+      
+      let stdout = '';
+      let stderr = '';
+      
+      pythonProcess.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+      
+      pythonProcess.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+      
+      pythonProcess.on('close', (code) => {
+        if (code === 0) {
+          try {
+            const result = JSON.parse(stdout);
+            
+            // Use the definitions to resolve function calls
+            const resolvedCalls = [];
+            
+            for (const call of result.calls) {
+              if (call.type === 'method') {
+                // For method calls, try to resolve using definitions
+                const parts = call.name.split('.');
+                const objectName = parts[0];
+                const methodName = parts[1];
+                
+                // Find the object definition
+                const objectDef = result.definitions.find(def => 
+                  def.type === 'assignment' && def.variable === objectName
+                );
+                
+                if (objectDef) {
+                  
+                  // Find the class import
+                  const classImport = result.definitions.find(def => 
+                    def.type === 'import' && def.name === objectDef.class
+                  );
+                  
+                  if (classImport) {
+                    // Add the module information to the call
+                    call.module = classImport.module;
+                    call.className = objectDef.class;
+                  }
+                }
+              }
+              
+              resolvedCalls.push(call);
+            }
+            
+            resolve(resolvedCalls);
+          } catch (error) {
+            console.warn('Error parsing Python AST output:', error);
+            resolve([]);
+          }
+        } else {
+          console.warn('Python AST parsing failed:', stderr);
+          resolve([]);
         }
-      }
+      });
+      
+      pythonProcess.stdin.write(content);
+      pythonProcess.stdin.end();
+    });
 
-      // If we're in the target function, look for function calls
-      if (inTargetFunction) {
-        const currentIndent = line.length - line.trimStart().length;
-        // Check if we've left the function
-        if (
-          !trimmedLine.startsWith('def ') &&
-          !trimmedLine.startsWith('async def ') &&
-          !trimmedLine.startsWith('@app') &&
-          !trimmedLine.startsWith('(') &&
-          !trimmedLine.startsWith(')') &&
-          !trimmedLine.startsWith('*') &&
-          !trimmedLine.startsWith('**') &&
-          !trimmedLine.startsWith('"""') &&
-          !trimmedLine.startsWith("'''")
-        ) {
-          if (currentIndent <= functionIndent) {
-            inTargetFunction = false;
-            break;
-          }
-
-          // Pattern 2: Method calls like object.method()
-          const methodMatch = trimmedLine.match(/(\w+)\.(\w+)\s*\(/);
-          if (methodMatch) {
-            const objectName = methodMatch[1];
-            const methodName = methodMatch[2];
-            // Skip common object methods that we don't want to track
-            const skipObjects = ['file', 'result', 'logger'];
-            const skipMethods = [
-              'read',
-              'startswith',
-              'split',
-              'strip',
-              'join',
-              'append',
-              'extend',
-              'pop',
-              'get',
-              'set',
-              'keys',
-              'values',
-              'items',
-              'update',
-              'copy',
-              'clear',
-            ];
-
-            if (
-              !skipObjects.includes(objectName) &&
-              !skipMethods.includes(methodName)
-            ) {
-              console.log('methodMatch', methodMatch);
-              console.log('entroooooo')
-              functionCalls.push({
-                name: `${objectName}.${methodName}`,
-                line: i + 1,
-                type: 'method',
-              });
-              continue;
-            }
-          }
-
-          // Look for function calls - handle multiple patterns
-          // Pattern 1: Simple function calls like function_name()
-          let callMatch = trimmedLine.match(/(\w+)\s*\(/);
-          if (callMatch) {
-            const callName = callMatch[1];
-            // Skip built-in functions and common keywords
-            const skipList = [
-              'print',
-              'len',
-              'str',
-              'int',
-              'float',
-              'list',
-              'dict',
-              'set',
-              'if',
-              'for',
-              'while',
-              'try',
-              'except',
-              'finally',
-              'with',
-              'as',
-              'import',
-              'from',
-              'return',
-              'yield',
-              'await',
-              'raise',
-              'HTTPException',
-              'logger',
-              'File',
-              'Form',
-              'image',
-              'email',
-              'startswith',
-              'file',
-              'read',
-              'info',
-              'error',
-            ];
-
-            if (!skipList.includes(callName)) {
-              functionCalls.push({
-                name: callName,
-                line: i + 1,
-                type: 'function',
-              });
-            }
-          }
-
-          
-
-          // Pattern 3: await function calls like await function_name()
-          const awaitMatch = trimmedLine.match(/await\s+(\w+)\s*\(/);
-          if (awaitMatch) {
-            const callName = awaitMatch[1];
-            const skipList = ['file.read', 'result.success', 'result.message'];
-
-            if (!skipList.includes(callName)) {
-              functionCalls.push({
-                name: callName,
-                line: i + 1,
-                type: 'async_function',
-              });
-            }
-          }
-
-          // Pattern 4: await method calls like await object.method()
-          const awaitMethodMatch = trimmedLine.match(
-            /await\s+(\w+)\.(\w+)\s*\(/
-          );
-          if (awaitMethodMatch) {
-            const objectName = awaitMethodMatch[1];
-            const methodName = awaitMethodMatch[2];
-            const skipObjects = ['file', 'result'];
-            const skipMethods = ['read'];
-
-            if (
-              !skipObjects.includes(objectName) &&
-              !skipMethods.includes(methodName)
-            ) {
-              functionCalls.push({
-                name: `${objectName}.${methodName}`,
-                line: i + 1,
-                type: 'async_method',
-              });
-            }
-          }
-        }
-      }
-    }
   } catch (error) {
     console.warn(`Warning: Could not parse Python file: ${error.message}`);
+    return [];
   }
-  console.log('functionCalls', functionCalls);
-  return functionCalls;
 }
 
 /**
@@ -545,12 +569,15 @@ async function parsePythonFile(content, functionName) {
  * @returns {Promise<ExecutionNode|null>} - Resolved node or null
  */
 async function resolveFunctionCall(call, projectRoot, nodeMap) {
+  
   // Handle method calls (e.g., "processor.process_document")
   let searchName = call.name;
   let isMethodCall = false;
+  let objectName = null;
 
   if (call.name.includes('.')) {
     const parts = call.name.split('.');
+    objectName = parts[0];
     searchName = parts[1]; // Use the method name for searching
     isMethodCall = true;
   }
@@ -569,6 +596,74 @@ async function resolveFunctionCall(call, projectRoot, nodeMap) {
   try {
     const filePath = path.join(projectRoot, currentFile);
     const content = await fs.readFile(filePath, 'utf8');
+
+    // For method calls, try to find the object definition first
+    if (isMethodCall && objectName) {
+      
+      // If the call has module information from AST, use it directly
+      if (call.module) {
+        const importedFile = await findImportedFile(call.module, projectRoot);
+        if (importedFile) {
+          const importedContent = await fs.readFile(path.join(projectRoot, importedFile), 'utf8');
+          const functionDef = await findFunctionDefinition(searchName, importedContent, importedFile);
+          if (functionDef) {
+            const nodeId = `${importedFile}:${call.name}`;
+            if (nodeMap.has(nodeId)) {
+              return nodeMap.get(nodeId);
+            }
+            const newNode = new ExecutionNode(call.name, importedFile, functionDef.line, call.type);
+            newNode.metadata = functionDef.metadata;
+            nodeMap.set(nodeId, newNode);
+            return newNode;
+          }
+        }
+      }
+      
+      // Fallback to the old method if no module info from AST
+      const objectDef = await findObjectDefinition(objectName, content, currentFile);
+      if (objectDef) {
+        // If it's an import, search in the imported file
+        if (objectDef.type === 'import' && objectDef.module) {
+          const importedFile = await findImportedFile(objectDef.module, projectRoot);
+          if (importedFile) {
+            const importedContent = await fs.readFile(path.join(projectRoot, importedFile), 'utf8');
+            const functionDef = await findFunctionDefinition(searchName, importedContent, importedFile);
+            if (functionDef) {
+              const nodeId = `${importedFile}:${call.name}`;
+              if (nodeMap.has(nodeId)) {
+                return nodeMap.get(nodeId);
+              }
+              const newNode = new ExecutionNode(call.name, importedFile, functionDef.line, call.type);
+              newNode.metadata = functionDef.metadata;
+              nodeMap.set(nodeId, newNode);
+              return newNode;
+            }
+          }
+        }
+        // If it's an assignment, search for the class definition
+        else if (objectDef.type === 'assignment' && objectDef.className) {
+          // First, try to find the class import
+          const classImport = await findObjectDefinition(objectDef.className, content, currentFile);
+          if (classImport && classImport.type === 'import' && classImport.module) {
+            const importedFile = await findImportedFile(classImport.module, projectRoot);
+            if (importedFile) {
+              const importedContent = await fs.readFile(path.join(projectRoot, importedFile), 'utf8');
+              const functionDef = await findFunctionDefinition(searchName, importedContent, importedFile);
+              if (functionDef) {
+                const nodeId = `${importedFile}:${call.name}`;
+                if (nodeMap.has(nodeId)) {
+                  return nodeMap.get(nodeId);
+                }
+                const newNode = new ExecutionNode(call.name, importedFile, functionDef.line, call.type);
+                newNode.metadata = functionDef.metadata;
+                return newNode;
+              }
+            }
+          }
+        }
+      } else {
+      }
+    }
 
     // For method calls, search for the method name in the file
     const functionDef = await findFunctionDefinition(
@@ -594,6 +689,7 @@ async function resolveFunctionCall(call, projectRoot, nodeMap) {
       return newNode;
     }
   } catch (error) {
+    console.warn(`Error searching in same file: ${error.message}`);
     // Continue searching other files
   }
 
@@ -658,6 +754,121 @@ async function findFunctionDefinition(functionName, content, filePath) {
     return findPythonFunction(functionName, content);
   }
 
+  return null;
+}
+
+/**
+ * Find object definition (import, class, etc.)
+ * @param {string} objectName - Object name to find
+ * @param {string} content - File content
+ * @param {string} filePath - File path
+ * @returns {Promise<Object|null>} - Object definition or null
+ */
+async function findObjectDefinition(objectName, content, filePath) {
+  const fileExt = path.extname(filePath);
+  
+  if (fileExt === '.py') {
+    return findPythonObject(objectName, content);
+  }
+  
+  return null;
+}
+
+/**
+ * Find Python object definition
+ * @param {string} objectName - Object name
+ * @param {string} content - File content
+ * @returns {Object|null} - Object definition
+ */
+function findPythonObject(objectName, content) {
+  const lines = content.split('\n');
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // Check for imports
+    const importMatch = line.match(/^from\s+(\S+)\s+import\s+(\w+)/);
+    if (importMatch) {
+      const module = importMatch[1];
+      const importedName = importMatch[2];
+      if (importedName === objectName) {
+        return {
+          type: 'import',
+          module: module,
+          line: i + 1
+        };
+      }
+    }
+    
+    // Check for direct imports
+    const directImportMatch = line.match(/^import\s+(\w+)/);
+    if (directImportMatch) {
+      const module = directImportMatch[1];
+      if (module === objectName) {
+        return {
+          type: 'import',
+          module: module,
+          line: i + 1
+        };
+      }
+    }
+    
+    // Check for class definitions
+    const classMatch = line.match(/^class\s+(\w+)/);
+    if (classMatch && classMatch[1] === objectName) {
+      return {
+        type: 'class',
+        line: i + 1
+      };
+    }
+    
+    // Check for variable assignments like "processor = DocumentProcessor()"
+    const assignmentMatch = line.match(/^(\w+)\s*=\s*(\w+)\s*\(/);
+    if (assignmentMatch) {
+      const varName = assignmentMatch[1];
+      const className = assignmentMatch[2];
+      if (varName === objectName) {
+        return {
+          type: 'assignment',
+          className: className,
+          line: i + 1
+        };
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Find imported file based on module name
+ * @param {string} moduleName - Module name
+ * @param {string} projectRoot - Project root
+ * @returns {Promise<string|null>} - File path or null
+ */
+async function findImportedFile(moduleName, projectRoot) {
+  // Common Python file extensions
+  const extensions = ['.py', '.pyx', '.pyi'];
+  
+  for (const ext of extensions) {
+    const possibleFiles = [
+      `${moduleName}${ext}`,
+      `${moduleName}/__init__${ext}`,
+      `${moduleName.replace(/\./g, '/')}${ext}`,
+      `${moduleName.replace(/\./g, '/')}/__init__${ext}`
+    ];
+    
+    for (const file of possibleFiles) {
+      const filePath = path.join(projectRoot, file);
+      try {
+        await fs.access(filePath);
+        return file;
+      } catch (error) {
+        // File doesn't exist, try next
+      }
+    }
+  }
+  
   return null;
 }
 
@@ -782,7 +993,6 @@ function findJavaScriptFunction(functionName, content) {
  */
 function findPythonFunction(functionName, content) {
   const lines = content.split('\n');
-  console.log(`Searching for Python function: ${functionName}`);
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -799,9 +1009,6 @@ function findPythonFunction(functionName, content) {
         const defMatch = nextLine.match(/^(?:async\s+)?def\s+(\w+)/);
 
         if (defMatch && defMatch[1] === functionName) {
-          console.log(
-            `Found FastAPI endpoint: ${functionName} at line ${i + 2}`
-          );
           // Extract parameters from the function definition
           const paramMatch = nextLine.match(/\(([^)]*)\)/);
           const parameters = paramMatch
@@ -828,7 +1035,6 @@ function findPythonFunction(functionName, content) {
     // Handle class method definitions (for method calls like processor.process_document)
     const classMethodMatch = line.match(/^\s*def\s+(\w+)\s*\(/);
     if (classMethodMatch && classMethodMatch[1] === functionName) {
-      console.log(`Found class method: ${functionName} at line ${i + 1}`);
       // Extract parameters
       const paramMatch = line.match(/\(([^)]*)\)/);
       const parameters = paramMatch
@@ -853,7 +1059,6 @@ function findPythonFunction(functionName, content) {
     // Handle regular function definitions
     const defMatch = line.match(/^(?:async\s+)?def\s+(\w+)/);
     if (defMatch && defMatch[1] === functionName) {
-      console.log(`Found regular function: ${functionName} at line ${i + 1}`);
       // Extract parameters
       const paramMatch = line.match(/\(([^)]*)\)/);
       const parameters = paramMatch
