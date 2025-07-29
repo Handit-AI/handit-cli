@@ -121,9 +121,14 @@ For each function in the call graph:
 3. If Handit initialization is missing, include code to:
    - Import the SDK
    - Initialize/configure it
+4. Return the full code with the changes applied. And make sure it compiles.
+
+Be sure that the code is valid and compiles, check removals and additions and make sure the code is valid and compiles.
+
 
 IMPORTANT: Always check all the code, do not add to additions code that is already present. Also always keep the standard that when adding an no removing then the code that is already present will go to the end of the adding.
 
+If the code already has the handit integration, do not add it again.
 ---
 
 ## 📦 OUTPUT FORMAT
@@ -144,6 +149,7 @@ json
       "content": "<code_being_removed>"
     }
   ],
+  "full_code": "<full_code_with_changes>"
 }`,
           },
           {
@@ -177,7 +183,7 @@ json
       path.join(__dirname, '..', '..', 'quickstart.mdx'),
       'utf8'
     );
-    console.log('originalCode', originalCode);
+
     const basePrompt = `
 Generate structured changes to instrument this ${this.language} function with Handit.ai tracing.
 

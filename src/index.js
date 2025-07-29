@@ -415,10 +415,15 @@ async function runSetup(options = {}) {
     
     const instrumentedFunctions = result.appliedFunctions;
 
-    // Step 8: Test connection with agent
+    // Step 8: Apply all pending code changes
+    const applySpinner = ora('Applying code changes to files...').start();
+    await result.generator.applyAllPendingChanges();
+    applySpinner.succeed('Code changes applied');
+
+    // Step 9: Test connection with agent
     await testConnectionWithAgent(projectInfo.agentName);
 
-    // Step 9: Setup evaluators
+    // Step 10: Setup evaluators
     await setupEvaluators(projectInfo.agentName);
 
     // Success summary

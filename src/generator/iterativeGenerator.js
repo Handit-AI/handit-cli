@@ -91,7 +91,8 @@ class IterativeCodeGenerator {
     
     return {
       appliedFunctions: this.appliedFunctions,
-      skippedFunctions: this.skippedFunctions
+      skippedFunctions: this.skippedFunctions,
+      generator: this
     };
   }
 
@@ -867,6 +868,28 @@ class IterativeCodeGenerator {
       console.error(chalk.red(`❌ Error applying changes to ${node.file}: ${error.message}`));
       throw error;
     }
+  }
+
+  /**
+   * Apply all pending changes to files
+   */
+  async applyAllPendingChanges() {
+    if (this.appliedFunctions.length === 0) {
+      console.log(chalk.yellow('No changes to apply.'));
+      return;
+    }
+
+    console.log(chalk.blue.bold('\n📝 Applying all accepted changes...'));
+    
+    for (const func of this.appliedFunctions) {
+      try {
+        await this.applyStructuredChangesToFile(func.node, func.structuredChanges);
+      } catch (error) {
+        console.error(chalk.red(`Failed to apply changes for ${func.node.name}: ${error.message}`));
+      }
+    }
+    
+    console.log(chalk.green('✅ All changes applied successfully!'));
   }
 }
 
