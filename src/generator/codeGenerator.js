@@ -96,6 +96,10 @@ tracker.config(api_key=os.getenv("HANDIT_API_KEY"))  # Sets up authentication fo
         apiKey
       );
 
+      if (instrumentedCode === originalCode) {
+        return { changes: { additions: [], removals: [] }, originalArray: [], instrumentedArray: [] };
+      }
+
       // Step 2: Generate additions/removals by comparing original vs new code
       const { changes, originalArray, instrumentedArray } =
         await this.generateChangesFromComparison(
@@ -103,9 +107,7 @@ tracker.config(api_key=os.getenv("HANDIT_API_KEY"))  # Sets up authentication fo
           instrumentedCode,
           node
         );
-      console.log('changes', changes);
-      console.log('originalArray', originalArray);
-      console.log('instrumentedArray', instrumentedArray);
+     
       return { changes, originalArray, instrumentedArray };
     } catch (error) {
       console.warn(
@@ -129,7 +131,7 @@ tracker.config(api_key=os.getenv("HANDIT_API_KEY"))  # Sets up authentication fo
     );
 
     const response = await this.openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o',
       messages: [
         {
           role: 'system',
@@ -151,8 +153,15 @@ IMPORTANT RULES:
 9. If Handit integration already exists, don't add it again
 10. Never add additional imports that are not needed, just import handit functions. 
 11. Use the apiKey provided to you to configure the Handit.ai SDK, but just add it to the entry point.
+12. If handit is already configured or called in the function, return the parameter of required changes as false, else return true.
 
-Return ONLY the complete instrumented code as a single code block.`,
+Return everything in the following json format:
+
+
+{
+    "code": "instrumented code",
+    "requiredChanges": true/false
+}`,
         },
         {
           role: 'user',
@@ -160,9 +169,16 @@ Return ONLY the complete instrumented code as a single code block.`,
         },
       ],
       temperature: 0.1,
+      response_format: { type: 'json_object' },
     });
 
-    return response.choices[0].message.content.trim();
+    const answer = JSON.parse(response.choices[0].message.content);
+
+    if (answer.requiredChanges) {
+      return answer.code;
+    } else {
+      return originalCode;
+    }
   }
 
   /**
@@ -395,7 +411,7 @@ Return ONLY a JSON array like this:
 
     // Add imports/config additions (lines 1-5)
     for (const item of instrumentedArray) {
-      if (item.lineNumber >= 1 && item.lineNumber <= functionStartLine) {
+      if (item.lineNumber >= 1 && item.lineNumber < functionStartLine) {
         if (newLines.includes(item.code)) {
           additions.push({
             line: item.lineNumber,
@@ -441,12 +457,19 @@ Return ONLY a JSON array like this:
           });
           const addsBefore = fullCode.filter(
             (tm) =>
-              tm.lineNumber <= item.lineNumber &&
+              tm.lineNumber < item.lineNumber &&
               tm.type === 'add' &&
               tm.lineNumber >= functionStartLine
           );
+
+          const removalsBefore = fullCode.filter(
+            (tm) =>
+              tm.lineNumber < item.lineNumber &&
+              tm.type === 'remove' &&
+              tm.lineNumber >= functionStartLine
+          );
           fullCode.push({
-            lineNumber: item.lineNumber + addsBefore.length + 1,
+            lineNumber: item.lineNumber + addsBefore.length - removalsBefore.length,
             code: item.code,
             type: 'remove',
           });
@@ -582,14 +605,25 @@ REQUIREMENTS:
 8. If Handit integration already exists, don't add it again
 9. Add the executionId to the parameters of the function, and pass it to the child functions, use the full structure of the nodes to determine the parameters.
 10. Items are processed in the order they are added, so you need to add the executionId to the parameters of the function, and pass it to the child functions, use the full structure of the nodes to determine the parameters.
+11. If handit is already configured, return the parameter of required changes as false, else return true.
 
 
 THIS IS THE FULL STRUCTURE OF THE NODES WE ARE TRACING:
 ${JSON.stringify(allNodes, null, 2)}
 
+ALSO DO NOT ADD ADDITIONAL FUNCTIONS OR CODE WE DO NOT NEED. REMEMBER THAT THE FULL STRUCTURE FUNCTIONS IS ALREADY IMPLEMENTED.
+
+
 ${isEntryPoint ? `ENTRY POINT: Add startTracing() at beginning and endTracing() in finally block, also add config({ apiKey: process.env.HANDIT_API_KEY })` : 'CHILD FUNCTION: Accept executionId parameter and use trackNode()'}
 
-Return ONLY the complete instrumented code, no explanations.`;
+Return everything in the format
+
+
+{
+    "code": "instrumented code",
+    "requiredChanges": true/false
+}
+`;
 
     return basePrompt;
   }

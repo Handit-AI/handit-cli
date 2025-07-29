@@ -108,8 +108,12 @@ class IterativeCodeGenerator {
      
      // Debug: Show the AI response
      console.log(chalk.bgBlack.cyan.bold('\n🤖 AI Response:'));
-     console.log(chalk.bgBlack.gray(JSON.stringify(changes, null, 2)));
      
+     if (changes.additions.length === 0) {
+      console.log(chalk.bgBlack.red('No changes required'));
+      return { applied: false };
+     }
+
      // Show visual diff
      this.showStructuredDiff(node, originalArray, changes);
      

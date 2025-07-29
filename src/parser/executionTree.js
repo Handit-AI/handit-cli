@@ -172,51 +172,49 @@ async function parseJavaScriptFile(content, functionName) {
     let targetFunction = null;
     
     // Check if this is an Express route (contains hyphens or slashes)
-    const isExpressRoute = functionName.includes('-') || functionName.includes('/');
-    
-    if (isExpressRoute) {
-      // Find Express route handler
-      traverse(ast, {
-        CallExpression(path) {
-          if (path.node.callee.type === 'MemberExpression' &&
-              path.node.callee.object.name === 'app' &&
-              (path.node.callee.property.name === 'post' || 
-               path.node.callee.property.name === 'get' ||
-               path.node.callee.property.name === 'put' ||
-               path.node.callee.property.name === 'delete')) {
-            
-            // Check if this is the route we're looking for
-            const args = path.node.arguments;
-            if (args.length >= 2) {
-              const routePath = args[0];
-              if (routePath.type === 'StringLiteral' && 
-                  routePath.value === `/${functionName}`) {
-                // Found the route, the handler is the last argument
-                const handler = args[args.length - 1];
-                if (handler.type === 'FunctionExpression' || 
-                    handler.type === 'ArrowFunctionExpression') {
-                  // For Express routes, we need to find the path to the handler
-                  traverse(ast, {
-                    FunctionExpression(handlerPath) {
-                      if (handlerPath.node === handler) {
-                        targetFunction = handlerPath;
-                      }
-                    },
-                    ArrowFunctionExpression(handlerPath) {
-                      if (handlerPath.node === handler) {
-                        targetFunction = handlerPath;
-                      }
+        // Try Express route detection first
+    traverse(ast, {
+      CallExpression(path) {
+        if (path.node.callee.type === 'MemberExpression' &&
+            path.node.callee.object.name === 'app' &&
+            (path.node.callee.property.name === 'post' || 
+             path.node.callee.property.name === 'get' ||
+             path.node.callee.property.name === 'put' ||
+             path.node.callee.property.name === 'delete')) {
+          
+          // Check if this is the route we're looking for
+          const args = path.node.arguments;
+          if (args.length >= 2) {
+            const routePath = args[0];
+            if (routePath.type === 'StringLiteral' && 
+                (routePath.value === `/${functionName}` || routePath.value === functionName)) {
+              // Found the route, the handler is the last argument
+              const handler = args[args.length - 1];
+              if (handler.type === 'FunctionExpression' || 
+                  handler.type === 'ArrowFunctionExpression') {
+                // For Express routes, we need to find the path to the handler
+                traverse(ast, {
+                  FunctionExpression(handlerPath) {
+                    if (handlerPath.node === handler) {
+                      targetFunction = handlerPath;
                     }
-                  });
-                  // console.log(`Found Express route handler for ${functionName} at line ${path.node.loc?.start.line}`);
-                }
+                  },
+                  ArrowFunctionExpression(handlerPath) {
+                    if (handlerPath.node === handler) {
+                      targetFunction = handlerPath;
+                    }
+                  }
+                });
+                // console.log(`Found Express route handler for ${functionName} at line ${path.node.loc?.start.line}`);
               }
             }
           }
         }
-      });
-    } else {
-      // Find regular function
+      }
+    });
+
+    // If Express route not found, try regular function detection
+    if (!targetFunction) {
       traverse(ast, {
         FunctionDeclaration(path) {
           if (path.node.id && path.node.id.name === functionName) {
