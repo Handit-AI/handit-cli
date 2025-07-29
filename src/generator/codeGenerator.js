@@ -4,7 +4,7 @@ const chalk = require('chalk');
 const OpenAI = require('openai');
 
 /**
- * Generates instrumented code for selected functions using GPT-4.1-mini
+ * Generates instrumented code for selected functions using GPT-4o-mini
  */
 class CodeGenerator {
   constructor(language, agentName) {
@@ -84,85 +84,17 @@ tracker.config(api_key=os.getenv("HANDIT_API_KEY"))  # Sets up authentication fo
 
   /**
    * Generate structured changes for instrumenting a function
+   * Two-step approach: 1) Generate complete code, 2) Compare to create additions/removals
    */
   async generateInstrumentedFunction(node, originalCode, allNodes, apiKey) {
     try {
-      const prompt = this.createStructuredInstrumentationPrompt(
-        node,
-        originalCode,
-        allNodes,
-        apiKey
-      );
+      // Step 1: Generate the complete instrumented code
+      const instrumentedCode = await this.generateCompleteInstrumentedCode(node, originalCode, allNodes, apiKey);
 
-      const response = await this.openai.chat.completions.create({
-        model: 'gpt-4.1',
-        messages: [
-          {
-            role: 'system',
-            content: `You are an expert code instrumentation assistant. Your job is to integrate the Handit.ai observability SDK into a user’s codebase **without a configuration file**. You are given:
-
-- A complete **call graph** (list of all functions that must be traced)
-- The **source code of those functions**, each with filename and line numbers
-- The **Handit SDK documentation**, including initialization and tracing usage
-- The assumption that the SDK has already been installed
-
-Your output must be a **single JSON object** describing the minimal, line-precise changes required to instrument the given functions.
-
----
-
-## 🔍 Your Job
-
-For each function in the call graph:
-1. **Add tracing code using the Handit.ai SDK**, following the patterns in the documentation.
-2. Add:
-   - startTracing() at the beginning of the agent
-   - trackNode() inside model/tool nodes
-   - endTracing() at the end of the agent (or final call)
-3. If Handit initialization is missing, include code to:
-   - Import the SDK
-   - Initialize/configure it
-4. Return the full code with the changes applied. And make sure it compiles.
-
-Be sure that the code is valid and compiles, check removals and additions and make sure the code is valid and compiles.
-
-
-IMPORTANT: Always check all the code, do not add to additions code that is already present. Also always keep the standard that when adding an no removing then the code that is already present will go to the end of the adding.
-
-If the code already has the handit integration, do not add it again.
----
-
-## 📦 OUTPUT FORMAT
-
-Return ONLY a JSON object with this structure:
-
-json
-{
-  "additions": [
-    {
-      "line": <line_number_where_to_add>,
-      "content": "<code_to_add>"
-    }
-  ],
-  "removals": [
-    {
-      "line": <line_number_to_remove>,
-      "content": "<code_being_removed>"
-    }
-  ],
-  "full_code": "<full_code_with_changes>"
-}`,
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        temperature: 0.1,
-        max_tokens: 2000,
-      });
-
-      const structuredResponse = response.choices[0].message.content;
-      return this.parseStructuredResponse(structuredResponse, originalCode);
+      // Step 2: Generate additions/removals by comparing original vs new code
+      const changes = await this.generateChangesFromComparison(originalCode, instrumentedCode, node);
+      
+      return changes;
     } catch (error) {
       console.warn(
         chalk.yellow(
@@ -174,9 +106,380 @@ json
   }
 
   /**
-   * Create structured instrumentation prompt
+   * Step 1: Generate complete instrumented code
    */
-  createStructuredInstrumentationPrompt(node, originalCode, allNodes, apiKey) {
+  async generateCompleteInstrumentedCode(node, originalCode, allNodes, apiKey) {
+    const prompt = this.createInstrumentationPrompt(node, originalCode, allNodes, apiKey);
+
+    const response = await this.openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are an expert code instrumentation assistant. Your job is to integrate the Handit.ai observability SDK into a user's codebase.
+
+Your task is to generate the COMPLETE instrumented function code with Handit.ai tracing added.
+
+DO NOT ADD NEW FUNCTIONS WHEN NO NEEDED, WE ARE GOING TO PROCESS A LOT OF FUNCTIONS IN AN ITERATIVE WAY, YOU ARE GOING TO GET THE TREE OF EXECUTION.
+
+IMPORTANT RULES:
+1. Return ONLY the complete instrumented code, no explanations
+2. Preserve ALL original function logic exactly
+3. Add Handit.ai tracing appropriately
+4. Make sure the code compiles and is valid
+5. Use appropriate nodeType: 'model' for LLM calls, 'tool' for all other calls
+6. Only add startTracing() and endTracing() for entry points
+7. For child functions, accept executionId parameter and use trackNode()
+8. Add executionId to function parameters and pass to child functions
+9. If Handit integration already exists, don't add it again
+10. Never add additional imports that are not needed, just import handit functions. 
+11. Use the apiKey provided to you to configure the Handit.ai SDK, but just add it to the entry point.
+
+Return ONLY the complete instrumented code as a single code block.`,
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.1,
+    });
+
+    return response.choices[0].message.content.trim();
+  }
+
+  /**
+   * Step 2: Generate additions/removals by comparing original vs new code using AI
+   */
+  async generateChangesFromComparison(originalCode, instrumentedCode, node) {
+    // Step 2a: Normalize original code to array with line numbers
+    const originalArray = await this.normalizeCodeToArray(originalCode, node, 'original');
+    
+    // Step 2b: Normalize instrumented code to array with line numbers
+    const instrumentedArray = await this.normalizeCodeToArray(instrumentedCode, node, 'instrumented');
+    
+    // Step 2c: Compare arrays and generate changes
+    const changes = this.compareArrays(originalArray, instrumentedArray);
+    
+    return changes;
+  }
+
+  /**
+   * Step 2a/2b: Normalize code to array with line numbers
+   */
+  async normalizeCodeToArray(code, node, type) {
+    console.log('code', code);
+    const prompt = this.createNormalizePrompt(code, node, type);
+
+    const response = await this.openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are an expert code normalizer. Your ONLY job is to convert code into a JSON array with line numbers.
+
+🚫 DO NOT ADD OR REMOVE LINES — just reformat the provided code using proper line numbers.
+🚫 DO NOT GUESS LINE NUMBERS — only use the ones explicitly defined: lines 1–5 for Handit config/imports, and \`${node.line}\` for the function block start.
+🚫 DO NOT ADD OR INFER EXTRA IMPORTS — only format what is provided.
+
+---
+
+✅ CRITICAL RULES:
+
+1. **Import/Config Section (Lines 1–5)**:
+   - Any line that contains \`@handit.ai/*\` or \`config(...)\` must be placed starting from line 1.
+   - These lines should be kept in the same order as in the input.
+   - Do not add any non-Handit imports to lines 1–5.
+
+2. **Function Section**:
+   - All lines outside the Handit import/config section must start **exactly** at line \`${node.line}\`.
+   - Maintain the original line order and content.
+   - The first line of this section should match the function definition line in the original input.
+
+3. **Preserve Formatting**:
+   - Do not modify indentation, spacing, or blank lines.
+   - Every line from the original input must appear **exactly once** in the output, unless it's skipped explicitly by rules (e.g., unrelated top-level imports).
+
+4. **Never add lines**:
+   - Do not add new imports (like \`const express = require(...)\`)
+   - Do not add new line breaks.
+   - Do not generate variable declarations that were not included in the input.
+
+5. **Output Format**:
+Return a JSON array like this:
+
+[
+  { "lineNumber": 1, "code": "import { startTracing } from '@handit.ai/node';" },
+  { "lineNumber": 2, "code": "config({ apiKey: process.env.HANDIT_API_KEY });" },
+  { "lineNumber": 10, "code": "app.post('/process-document', async (req, res) => {" },
+  { "lineNumber": 11, "code": "  try {" },
+  ...
+]
+
+---
+
+📌 EXAMPLES
+
+EXAMPLE 1:
+Input Code:
+\`\`\`
+import { startTracing, config } from '@handit.ai/node';
+config({ apiKey: process.env.KEY });
+
+function helloWorld() {
+  console.log("Hi");
+}
+\`\`\`
+
+Context:
+- node.line = 10
+
+Output:
+[
+  { "lineNumber": 1, "code": "import { startTracing, config } from '@handit.ai/node';" },
+  { "lineNumber": 2, "code": "config({ apiKey: process.env.KEY });" },
+  { "lineNumber": 10, "code": "function helloWorld() {" },
+  { "lineNumber": 11, "code": "  console.log("Hi");" },
+  { "lineNumber": 12, "code": "}" }
+]
+
+EXAMPLE 2:
+Input Code:
+\`\`\`
+app.post('/x', (req, res) => {
+  res.send("ok");
+});
+\`\`\`
+
+Context:
+- node.line = 20
+
+Output:
+[
+  { "lineNumber": 20, "code": "app.post('/x', (req, res) => {" },
+  { "lineNumber": 21, "code": "  res.send("ok");" },
+  { "lineNumber": 22, "code": "});" }
+]
+
+---
+
+📢 FINAL NOTE: 
+Only return the JSON array, do not explain, comment, or add any content outside the code.
+]`,
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.1,
+    });
+
+    try {
+      const jsonMatch = response.choices[0].message.content.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) {
+        throw new Error('No JSON array found in response');
+      }
+      return JSON.parse(jsonMatch[0]);
+    } catch (error) {
+      console.warn(chalk.yellow(`Warning: Could not parse ${type} code array: ${error.message}`));
+      return [];
+    }
+  }
+
+  /**
+   * Create normalize prompt for code
+   */
+  createNormalizePrompt(code, node, type) {
+    return `
+Normalize this ${type} code into an array with line numbers.
+
+CONTEXT:
+- Function: ${node.name}
+- File: ${node.file}
+- Function starts at line: ${node.line} in the original file
+- Type: ${type} code
+- Node line: ${node.line} (this is where the function definition starts)
+
+${type.toUpperCase()} CODE:
+\`\`\`
+${code}
+\`\`\`
+
+TASK:
+1. Format the code as a JSON array where each object has:
+   - "lineNumber": the correct line number
+   - "code": the exact line of code, unmodified
+
+2. Lines that include \`@handit.ai/*\` imports or \`config(...)\` **must** go at the top, starting at line 1.
+
+3. The first line that is **not a Handit import/config** must start **exactly at line ${node.line}**.
+   - This line MUST be the function or main logic definition.
+   - Do NOT try to compute or guess it — just place the first non-import line at line ${node.line} exactly.
+
+4. Continue numbering sequentially from there.
+
+5. Preserve indentation, blank lines, and comments exactly as they appear.
+6. NEVER add new code or modify any line.
+
+OUTPUT FORMAT:
+Return ONLY a JSON array like this:
+[
+  { "lineNumber": 1, "code": "import { startTracing } from '@handit.ai/node';" },
+  { "lineNumber": 10, "code": "app.post('/x', (req, res) => {" },
+  ...
+]
+`;
+  }
+
+  /**
+   * Step 2c: Compare arrays and generate changes
+   */
+  compareArrays(originalArray, instrumentedArray) {
+    console.log('originalArray', originalArray);
+    console.log('instrumentedArray', instrumentedArray);
+    
+    const additions = [];
+    const removals = [];
+    
+    // Create maps for easy lookup
+    const originalMap = new Map();
+    const instrumentedMap = new Map();
+    
+    originalArray.forEach(item => {
+      originalMap.set(item.lineNumber, item.code);
+    });
+    
+    instrumentedArray.forEach(item => {
+      instrumentedMap.set(item.lineNumber, item.code);
+    });
+    
+    // Find all unique line numbers
+    const allLineNumbers = new Set([
+      ...originalArray.map(item => item.lineNumber),
+      ...instrumentedArray.map(item => item.lineNumber)
+    ]);
+    
+    // Compare each line number
+    for (const lineNumber of allLineNumbers) {
+      const originalCode = originalMap.get(lineNumber);
+      const instrumentedCode = instrumentedMap.get(lineNumber);
+      
+      if (originalCode !== instrumentedCode) {
+        if (originalCode && !instrumentedCode) {
+          // Line was removed
+          removals.push({
+            line: lineNumber,
+            content: originalCode
+          });
+        } else if (!originalCode && instrumentedCode) {
+          // Line was added
+          additions.push({
+            line: lineNumber,
+            content: instrumentedCode
+          });
+        } else {
+          // Line was modified (remove old, add new)
+          removals.push({
+            line: lineNumber,
+            content: originalCode
+          });
+          additions.push({
+            line: lineNumber,
+            content: instrumentedCode
+          });
+        }
+      }
+    }
+    
+    // Group consecutive additions and removals
+    return {
+      additions: this.groupConsecutiveChanges(additions),
+      removals: this.groupConsecutiveChanges(removals)
+    };
+  }
+
+  /**
+   * Group consecutive changes into single entries
+   */
+  groupConsecutiveChanges(changes) {
+    if (changes.length === 0) return [];
+    
+    const grouped = [];
+    let currentGroup = [changes[0]];
+    
+    for (let i = 1; i < changes.length; i++) {
+      const current = changes[i];
+      const previous = changes[i - 1];
+      
+      // Check if consecutive
+      if (current.line === previous.line + 1) {
+        currentGroup.push(current);
+      } else {
+        // End current group and start new one
+        if (currentGroup.length > 0) {
+          grouped.push(this.mergeGroup(currentGroup));
+        }
+        currentGroup = [current];
+      }
+    }
+    
+    // Add last group
+    if (currentGroup.length > 0) {
+      grouped.push(this.mergeGroup(currentGroup));
+    }
+    
+    return grouped;
+  }
+
+  /**
+   * Merge a group of consecutive changes into one
+   */
+  mergeGroup(group) {
+    if (group.length === 1) return group[0];
+    
+    const firstLine = group[0].line;
+    const content = group.map(change => change.content).join('\n');
+    
+    return {
+      line: firstLine,
+      content: content
+    };
+  }
+
+  /**
+   * Parse comparison response from AI
+   */
+  parseComparisonResponse(response) {
+    try {
+      // Extract JSON from response
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON found in response');
+      }
+
+      const changes = JSON.parse(jsonMatch[0]);
+
+      // Validate structure
+      if (!changes.additions || !changes.removals) {
+        throw new Error('Invalid comparison response format');
+      }
+
+      return changes;
+    } catch (error) {
+      console.warn(
+        chalk.yellow(
+          `Warning: Could not parse comparison response: ${error.message}`
+        )
+      );
+      return { additions: [], removals: [] };
+    }
+  }
+
+  /**
+   * Create instrumentation prompt for generating complete code
+   */
+  createInstrumentationPrompt(node, originalCode, allNodes, apiKey) {
     const isEntryPoint = allNodes[0]?.id === node.id;
     // load quickstart.mdx as string
     const documentation = fs.readFileSync(
@@ -185,7 +488,7 @@ json
     );
 
     const basePrompt = `
-Generate structured changes to instrument this ${this.language} function with Handit.ai tracing.
+Generate the complete instrumented code for this ${this.language} function with Handit.ai tracing.
 
 The basic documentation for the handit integration is:
 ${documentation}
@@ -196,6 +499,7 @@ FUNCTION DETAILS:
 - Line: ${node.line}
 - Agent Name: ${this.agentName}
 - Is Entry Point: ${isEntryPoint}
+- API Token: ${apiKey}
 
 ORIGINAL CODE:
 \`\`\`${this.language}
@@ -203,41 +507,24 @@ ${originalCode}
 \`\`\`
 
 REQUIREMENTS:
-1. Generate structured changes in JSON format
+1. Return the COMPLETE instrumented function code
 2. Preserve ALL original function logic exactly
 3. Add Handit.ai tracing appropriately
-4. Use appropriate nodeType: Remember we only have two types of nodes: model and tool, model is used for LLM calls and tool is used for all other calls.
-5. Only add startTracing and endTracing if this is the entry point, the other functions should receive the executionId from the parent function, as passed in the parameters.
-6. Add the executionId to the parameters of the function, and pass it to the child functions, use the full structure of the nodes to determine the parameters.
-7. Items are processed in the order they are added, so you need to add the executionId to the parameters of the function, and pass it to the child functions, use the full structure of the nodes to determine the parameters.
-8. We need additions and removals:
-    a. Additions: When we need to add new code to the function.
-    b. Removals: When we need to remove code from the function.
-9. Check the full code and always add removasls and additions where needed.
+4. Use appropriate nodeType: 'model' for LLM calls, 'tool' for all other calls
+5. Only add startTracing() and endTracing() if this is the entry point
+6. For child functions, accept executionId parameter and use trackNode()
+7. Add executionId to function parameters and pass to child functions
+8. If Handit integration already exists, don't add it again
+9. Add the executionId to the parameters of the function, and pass it to the child functions, use the full structure of the nodes to determine the parameters.
+10. Items are processed in the order they are added, so you need to add the executionId to the parameters of the function, and pass it to the child functions, use the full structure of the nodes to determine the parameters.
+
 
 THIS IS THE FULL STRUCTURE OF THE NODES WE ARE TRACING:
 ${JSON.stringify(allNodes, null, 2)}
 
-OUTPUT FORMAT:
-Return ONLY a JSON object with this structure:
-{
-  "additions": [
-    {
-      "line": <line_number_where_to_add>,
-      "content": "<code_to_add>"
-    }
-  ],
-  "removals": [
-    {
-      "line": <line_number_to_remove>,
-      "content": "<code_being_removed>"
-    }
-  ],
-}
+${isEntryPoint ? `ENTRY POINT: Add startTracing() at beginning and endTracing() in finally block, also add config({ apiKey: process.env.HANDIT_API_KEY })` : 'CHILD FUNCTION: Accept executionId parameter and use trackNode()'}
 
-${isEntryPoint ? `ENTRY POINT: Add startTracing() at beginning and endTracing() in finally block, also add the file add config({ apiKey: process.env.HANDIT_API_KEY }) the api key must be  ${apiKey} ` : 'CHILD FUNCTION: Accept executionId parameter and use trackNode()'}
-
-Return ONLY the JSON object, no explanations.`;
+Return ONLY the complete instrumented code, no explanations.`;
 
     return basePrompt;
   }

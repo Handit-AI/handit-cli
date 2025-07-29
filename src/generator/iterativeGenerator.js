@@ -28,10 +28,6 @@ class IterativeCodeGenerator {
     // Filter nodes to only selected functions
     const selectedNodes = allNodes.filter(node => selectedFunctionIds.includes(node.id));
     
-    // Generate Handit service file first
-    console.log(chalk.cyan.bold('📦 Setting up Handit service...'));
-    await this.generator.generateHanditService(this.projectRoot);
-    console.log(chalk.green('✓ Created handit_service.js\n'));
 
     // Process each function iteratively
     for (let i = 0; i < selectedNodes.length; i++) {
@@ -179,10 +175,6 @@ class IterativeCodeGenerator {
    * Show simplified diff with summary and context only
    */
       showContextAroundChangesDark(originalLines, structuredChanges, node) {
-        console.log('structuredChanges', structuredChanges);
-        console.log('originalLines', originalLines);
-        console.log('node', node);
-    
         const contextLines = 4;
     
         // Create a unified diff by merging additions and removals
@@ -231,7 +223,6 @@ class IterativeCodeGenerator {
     
           // Show context before change (only if we haven't shown it yet)
           const contextBeforeStart = Math.max(lastContextEnd + 1, contextStart);
-    
           if (contextBeforeStart < normalizedLine) {
             for (let i = contextBeforeStart; i < normalizedLine - 1; i++) {
               const lineContent = originalLines[i] || '';
