@@ -433,10 +433,6 @@ async function runSetup(options = {}) {
     console.log(`  • Functions tracked: ${chalk.blue(confirmedGraph.nodes.filter(node => node.selected).length)}`);
     console.log(`  • Code generated: ${chalk.blue(instrumentedFunctions.length)} instrumented functions`);
     console.log(`  • Configuration: ${chalk.blue('handit.config.json')}`);
-    console.log('\n' + chalk.yellow('Next steps:'));
-    console.log('  1. Start your agent to begin collecting traces');
-    console.log('  2. Use "handit-cli monitor" to collect execution traces');
-    console.log('  3. Use "handit-cli evaluate" to analyze traces and improve setup');
 
   } catch (error) {
     throw new Error(`Setup failed: ${error.message}`);

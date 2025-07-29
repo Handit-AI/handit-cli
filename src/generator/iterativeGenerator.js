@@ -42,7 +42,7 @@ class IterativeCodeGenerator {
         const result = await this.generateSingleFunction(node, selectedNodes);
         
         if (result.applied) {
-          this.appliedFunctions.push({ node, ...result });
+          this.appliedFunctions.push({ node, originalCode: result.originalCode, ...result });
           console.log(chalk.green.bold('✅ Applied instrumentation\n'));
         } else {
           this.skippedFunctions.push(node);
@@ -103,15 +103,15 @@ class IterativeCodeGenerator {
      
      // Generate structured changes with loading
      const aiSpinner = ora(`Generating structured changes with AI...`).start();
-     const structuredChanges = await this.generator.generateInstrumentedFunction(node, originalCode, allNodes);
+     const { changes, originalArray, instrumentedArray } = await this.generator.generateInstrumentedFunction(node, originalCode, allNodes);
      aiSpinner.succeed('AI structured changes completed');
      
      // Debug: Show the AI response
      console.log(chalk.bgBlack.cyan.bold('\n🤖 AI Response:'));
-     console.log(chalk.bgBlack.gray(JSON.stringify(structuredChanges, null, 2)));
+     console.log(chalk.bgBlack.gray(JSON.stringify(changes, null, 2)));
      
      // Show visual diff
-     this.showStructuredDiff(node, originalCode, structuredChanges);
+     this.showStructuredDiff(node, originalArray, changes);
      
      // Ask for user confirmation
      const { action } = await inquirer.prompt([
@@ -132,7 +132,8 @@ class IterativeCodeGenerator {
          return {
            applied: true,
            originalCode,
-           structuredChanges,
+           originalArray,
+           structuredChanges: changes,
            filePath: path.resolve(node.file)
          };
        
@@ -150,23 +151,21 @@ class IterativeCodeGenerator {
     console.log(chalk.bgBlack.cyan.bold(`🔍 Code Changes for ${node.name}`));
     console.log(chalk.bgBlack.white('─'.repeat(80)));
 
-    const originalLines = originalCode.split('\n');
-
     // Summary section with dark background
     console.log(chalk.bgBlack.yellow.bold('📊 Summary:'));
     console.log(
       chalk.bgBlack.green(
-        `  + ${structuredChanges.additions.length} lines added`
+        `  + ${structuredChanges.fullCode.filter(item => item.type === 'add').length} lines added`
       )
     );
     console.log(
       chalk.bgBlack.red(
-        `  - ${structuredChanges.removals.length} lines removed`
+        `  - ${structuredChanges.fullCode.filter(item => item.type === 'remove').length} lines removed`
       )
     );
 
     // Show context around changes with dark theme
-    this.showContextAroundChangesDark(originalLines, structuredChanges, node);
+    this.showContextAroundChangesDark(originalCode, structuredChanges, node);
 
     console.log(chalk.bgBlack.white('─'.repeat(80)));
   }
@@ -177,44 +176,30 @@ class IterativeCodeGenerator {
       showContextAroundChangesDark(originalLines, structuredChanges, node) {
         const contextLines = 4;
     
-        // Create a unified diff by merging additions and removals
-        const unifiedChanges = this.createUnifiedChanges(
-          originalLines,
-          structuredChanges
-        );
-    
-        if (unifiedChanges.length === 0) return;
+       const changes = structuredChanges.fullCode.filter(item => item.type === 'add' || item.type === 'remove');
+        const fullCode = structuredChanges.fullCode;
+       if (changes.filter(item => item.type === 'add' || item.type === 'remove').length === 0) return;
     
         console.log(chalk.bgBlack.yellow.bold('\n📋 Changes:'));
         console.log(chalk.bgBlack.white('─'.repeat(80)));
     
-        let lastContextEnd = -1;
+        let position = 1;
+        let startOriginal = originalLines[0].lineNumber;
     
-        unifiedChanges.forEach((change, index) => {
-          const normalizedLine = change.line - node.line;
-          const lineNumber = change.line;
-          const contextStart = Math.max(0, normalizedLine - contextLines - 1);
-          const contextEnd = Math.min(
-            originalLines.length - 1,
-            normalizedLine + contextLines - 1
-          );
+        changes.forEach((change, index) => {
+          const lineNumber = change.lineNumber;
     
-          // Add separator if there's a gap
-          if (lastContextEnd >= 0 && contextStart > lastContextEnd + 1) {
-            console.log(chalk.bgBlack.gray('   ...'));
-          }
-    
-          if (lineNumber < node.line) {
-            if (change.type === 'addition') {
+          if (lineNumber < startOriginal) {
+            if (change.type === 'add') {
               console.log(
                 chalk.bgGreen.black(
-                  `${lineNumber.toString().padStart(3)}: + ${change.content}`
+                  `${lineNumber.toString().padStart(3)}: + ${change.code}`
                 )
-              );
-            } else if (change.type === 'removal') {
+              );  
+            } else if (change.type === 'remove') {
               console.log(
                 chalk.bgRed.white(
-                  `${lineNumber.toString().padStart(3)}: - ${change.content}`
+                  `${lineNumber.toString().padStart(3)}: - ${change.code}`
                 )
               );
             }
@@ -222,64 +207,69 @@ class IterativeCodeGenerator {
           }
     
           // Show context before change (only if we haven't shown it yet)
-          const contextBeforeStart = Math.max(lastContextEnd + 1, contextStart);
-          if (contextBeforeStart < normalizedLine) {
-            for (let i = contextBeforeStart; i < normalizedLine - 1; i++) {
-              const lineContent = originalLines[i] || '';
+          let contextStart = lineNumber - contextLines;
+          const contextBeforeStart = Math.max(position + 1, contextStart, startOriginal);
+          if (contextBeforeStart > position + 1) {
+            console.log(chalk.bgBlack.white('...'));
+          }
+          position = lineNumber;
+          if (contextBeforeStart < lineNumber) {
+            for (let i = contextBeforeStart; i < lineNumber; i++) {
+              const lineContent = fullCode.find(item => item.lineNumber == i)?.code || '';
               console.log(
                 chalk.bgBlack.white(
-                  `${(i + 1 + node.line).toString().padStart(3)}: ${lineContent}`
+                  `${(i).toString().padStart(3)}: ${lineContent}`
                 )
               );
             }
           }
     
           // Show the change
-          if (change.type === 'addition') {
+          if (change.type === 'add') {
             console.log(
               chalk.bgGreen.black(
-                `${lineNumber.toString().padStart(3)}: + ${change.content}`
+                `${lineNumber.toString().padStart(3)}: + ${change.code}`
               )
             );
-          } else if (change.type === 'removal') {
+          } else if (change.type === 'remove') {
             console.log(
               chalk.bgRed.white(
-                `${lineNumber.toString().padStart(3)}: - ${change.content}`
+                `${lineNumber.toString().padStart(3)}: - ${change.code}`
               )
             );
           }
+
     
           // Show context after change (only for the last change on this line)
-          const nextChange = unifiedChanges[index + 1];
-          const isLastChangeOnThisLine =
-            !nextChange || nextChange.line !== lineNumber;
+          const nextChange = changes[index + 1];
+          const isLastChangeOnThisLine = !nextChange || nextChange.line > (lineNumber + 1);
     
           if (isLastChangeOnThisLine) {
-            const contextAfterStart = normalizedLine;
-            let contextAfterEnd = Math.min(originalLines.length, contextEnd + 1);
+            const contextAfterStart = lineNumber + 1;
+            let contextAfterEnd = lineNumber + contextLines - 1;
             if (nextChange) {
               contextAfterEnd = Math.min(
                 contextAfterEnd,
-                nextChange.line - node.line
+                nextChange.line - 1
               );
             }
     
             if (contextAfterStart < contextAfterEnd) {
-              for (let i = contextAfterStart; i < contextAfterEnd; i++) {
-                const lineContent = originalLines[i] || '';
+              for (let i = contextAfterStart; i <= contextAfterEnd; i++) {
+                const lineContent = fullCode.find(item => item.lineNumber == i)?.code || '';
                 console.log(
                   chalk.bgBlack.white(
-                    `${(i + node.line + 1).toString().padStart(3)}: ${lineContent}`
+                    `${(i).toString().padStart(3)}: ${lineContent}`
                   )
                 );
               }
-              lastContextEnd = contextAfterEnd - 1;
+              position = contextAfterEnd;
             } else {
-              lastContextEnd = normalizedLine - 1;
+              position = lineNumber;
             }
           } else {
             // Don't show context yet, wait for the last change on this line
-            lastContextEnd = normalizedLine - 1;
+            position = lineNumber;
           }
         });
     
@@ -827,31 +817,45 @@ class IterativeCodeGenerator {
   /**
    * Apply structured changes to the file
    */
-  async applyStructuredChangesToFile(node, structuredChanges) {
+  async applyStructuredChangesToFile(node, structuredChanges, originalCode) {
     try {
       const filePath = path.resolve(node.file);
       const fileContent = await fs.readFile(filePath, 'utf8');
-      const lines = fileContent.split('\n');
+      let lines = fileContent.split('\n');
       
-      // Sort all changes by line number (descending to avoid index shifting)
-      const allChanges = [
-        ...structuredChanges.additions.map(a => ({ type: 'addition', line: a.line, content: a.content })),
-        ...structuredChanges.removals.map(r => ({ type: 'removal', line: r.line, content: r.content })),
-      ].sort((a, b) => b.line - a.line); // Sort descending
+      const allChanges = structuredChanges.fullCode;
       
-      let newLines = [...lines];
+      const initialAdds = structuredChanges.fullCode.filter(item => item.type === 'add' && item.lineNumber < node.line).map(item => item.code);
       
-      // Apply changes from bottom to top to avoid index shifting
-      allChanges.forEach(change => {
-        const lineIndex = change.line - 1; // Convert to 0-based
-        
-        if (change.type === 'addition') {
-          newLines.splice(lineIndex, 0, change.content);
-        } else if (change.type === 'removal') {
-          newLines.splice(lineIndex, 1);
+      let newLines = [...initialAdds];
+      const moveOfLines = initialAdds.length;
+      let lastLine = 0;
+      const maxLine = Math.max(...originalCode.map(item => item.lineNumber));
+      const startLine = Math.min(...originalCode.map(item => item.lineNumber));
+      for (let i = 0; i < startLine - 1; i++) {
+        newLines.push(lines[i]);
+      }
+      
+      for (let i = 0; i < allChanges.length; i++) {
+        const change = allChanges[i];
+        if (change.lineNumber >= startLine) {
+          if (change.type === 'add') {
+            newLines.push(change.code);
+          } else if (change.type === 'keep') {
+            newLines.push(change.code)
+          }
+
+          lastLine = change.lineNumber;
         }
-      });
-      
+      }
+
+      for (let i = maxLine; i < lines.length; i++) {
+        if (!allChanges.find(item => item.lineNumber == i && item.type === 'remove')) {
+          newLines.push(lines[i]);
+        }
+
+      }
+
       await fs.writeFile(filePath, newLines.join('\n'));
       console.log(chalk.green(`✓ Applied structured changes to ${node.file}`));
       
@@ -874,7 +878,7 @@ class IterativeCodeGenerator {
     
     for (const func of this.appliedFunctions) {
       try {
-        await this.applyStructuredChangesToFile(func.node, func.structuredChanges);
+        await this.applyStructuredChangesToFile(func.node, func.structuredChanges, func.originalArray);
       } catch (error) {
         console.error(chalk.red(`Failed to apply changes for ${func.node.name}: ${error.message}`));
       }

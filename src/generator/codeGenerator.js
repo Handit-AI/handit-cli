@@ -89,12 +89,24 @@ tracker.config(api_key=os.getenv("HANDIT_API_KEY"))  # Sets up authentication fo
   async generateInstrumentedFunction(node, originalCode, allNodes, apiKey) {
     try {
       // Step 1: Generate the complete instrumented code
-      const instrumentedCode = await this.generateCompleteInstrumentedCode(node, originalCode, allNodes, apiKey);
+      const instrumentedCode = await this.generateCompleteInstrumentedCode(
+        node,
+        originalCode,
+        allNodes,
+        apiKey
+      );
 
       // Step 2: Generate additions/removals by comparing original vs new code
-      const changes = await this.generateChangesFromComparison(originalCode, instrumentedCode, node);
-      
-      return changes;
+      const { changes, originalArray, instrumentedArray } =
+        await this.generateChangesFromComparison(
+          originalCode,
+          instrumentedCode,
+          node
+        );
+      console.log('changes', changes);
+      console.log('originalArray', originalArray);
+      console.log('instrumentedArray', instrumentedArray);
+      return { changes, originalArray, instrumentedArray };
     } catch (error) {
       console.warn(
         chalk.yellow(
@@ -109,7 +121,12 @@ tracker.config(api_key=os.getenv("HANDIT_API_KEY"))  # Sets up authentication fo
    * Step 1: Generate complete instrumented code
    */
   async generateCompleteInstrumentedCode(node, originalCode, allNodes, apiKey) {
-    const prompt = this.createInstrumentationPrompt(node, originalCode, allNodes, apiKey);
+    const prompt = this.createInstrumentationPrompt(
+      node,
+      originalCode,
+      allNodes,
+      apiKey
+    );
 
     const response = await this.openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -153,15 +170,27 @@ Return ONLY the complete instrumented code as a single code block.`,
    */
   async generateChangesFromComparison(originalCode, instrumentedCode, node) {
     // Step 2a: Normalize original code to array with line numbers
-    const originalArray = await this.normalizeCodeToArray(originalCode, node, 'original');
-    
+    const originalArray = await this.normalizeCodeToArray(
+      originalCode,
+      node,
+      'original'
+    );
+
     // Step 2b: Normalize instrumented code to array with line numbers
-    const instrumentedArray = await this.normalizeCodeToArray(instrumentedCode, node, 'instrumented');
-    
+    const instrumentedArray = await this.normalizeCodeToArray(
+      instrumentedCode,
+      node,
+      'instrumented'
+    );
+
     // Step 2c: Compare arrays and generate changes
     const changes = this.compareArrays(originalArray, instrumentedArray);
-    
-    return changes;
+    console.log('changes.fullCode', changes.fullCode);
+    return {
+      changes,
+      originalArray,
+      instrumentedArray,
+    };
   }
 
   /**
@@ -276,13 +305,18 @@ Only return the JSON array, do not explain, comment, or add any content outside 
     });
 
     try {
-      const jsonMatch = response.choices[0].message.content.match(/\[[\s\S]*\]/);
+      const jsonMatch =
+        response.choices[0].message.content.match(/\[[\s\S]*\]/);
       if (!jsonMatch) {
         throw new Error('No JSON array found in response');
       }
       return JSON.parse(jsonMatch[0]);
     } catch (error) {
-      console.warn(chalk.yellow(`Warning: Could not parse ${type} code array: ${error.message}`));
+      console.warn(
+        chalk.yellow(
+          `Warning: Could not parse ${type} code array: ${error.message}`
+        )
+      );
       return [];
     }
   }
@@ -336,66 +370,97 @@ Return ONLY a JSON array like this:
    * Step 2c: Compare arrays and generate changes
    */
   compareArrays(originalArray, instrumentedArray) {
-    console.log('originalArray', originalArray);
-    console.log('instrumentedArray', instrumentedArray);
-    
     const additions = [];
     const removals = [];
-    
-    // Create maps for easy lookup
-    const originalMap = new Map();
-    const instrumentedMap = new Map();
-    
-    originalArray.forEach(item => {
-      originalMap.set(item.lineNumber, item.code);
-    });
-    
-    instrumentedArray.forEach(item => {
-      instrumentedMap.set(item.lineNumber, item.code);
-    });
-    
-    // Find all unique line numbers
-    const allLineNumbers = new Set([
-      ...originalArray.map(item => item.lineNumber),
-      ...instrumentedArray.map(item => item.lineNumber)
-    ]);
-    
-    // Compare each line number
-    for (const lineNumber of allLineNumbers) {
-      const originalCode = originalMap.get(lineNumber);
-      const instrumentedCode = instrumentedMap.get(lineNumber);
-      
-      if (originalCode !== instrumentedCode) {
-        if (originalCode && !instrumentedCode) {
-          // Line was removed
-          removals.push({
-            line: lineNumber,
-            content: originalCode
-          });
-        } else if (!originalCode && instrumentedCode) {
-          // Line was added
+    const fullCode = [];
+
+    // Extract just the code content for comparison
+    const originalCodes = originalArray.map((item) => item.code);
+    const instrumentedCodes = instrumentedArray.map((item) => item.code);
+
+    // Find lines that are truly new (not just shifted)
+    const newLines = instrumentedCodes.filter(
+      (code) => !originalCodes.includes(code)
+    );
+
+    // Find lines that are truly removed (not just shifted)
+    const removedLines = originalCodes.filter(
+      (code) => !instrumentedCodes.includes(code)
+    );
+
+    // Get the function start line from the original array
+    const functionStartLine = Math.min(
+      ...originalArray.map((item) => item.lineNumber)
+    );
+
+    // Add imports/config additions (lines 1-5)
+    for (const item of instrumentedArray) {
+      if (item.lineNumber >= 1 && item.lineNumber <= functionStartLine) {
+        if (newLines.includes(item.code)) {
           additions.push({
-            line: lineNumber,
-            content: instrumentedCode
+            line: item.lineNumber,
+            content: item.code,
           });
-        } else {
-          // Line was modified (remove old, add new)
-          removals.push({
-            line: lineNumber,
-            content: originalCode
-          });
-          additions.push({
-            line: lineNumber,
-            content: instrumentedCode
+          fullCode.push({
+            lineNumber: item.lineNumber,
+            code: item.code,
+            type: 'add',
           });
         }
       }
     }
-    
-    // Group consecutive additions and removals
+
+    for (const item of instrumentedArray) {
+      if (item.lineNumber >= functionStartLine) {
+        if (newLines.includes(item.code)) {
+          additions.push({
+            line: item.lineNumber,
+            content: item.code,
+          });
+          fullCode.push({
+            lineNumber: item.lineNumber,
+            code: item.code,
+            type: 'add',
+          });
+        } else {
+          fullCode.push({
+            lineNumber: item.lineNumber,
+            code: item.code,
+            type: 'keep',
+          });
+        }
+      }
+    }
+
+    for (const item of originalArray) {
+      if (item.lineNumber >= functionStartLine) {
+        if (removedLines.includes(item.code)) {
+          removals.push({
+            line: item.lineNumber,
+            content: item.code,
+          });
+          const addsBefore = fullCode.filter(
+            (tm) =>
+              tm.lineNumber <= item.lineNumber &&
+              tm.type === 'add' &&
+              tm.lineNumber >= functionStartLine
+          );
+          fullCode.push({
+            lineNumber: item.lineNumber + addsBefore.length + 1,
+            code: item.code,
+            type: 'remove',
+          });
+        }
+      }
+    }
+
+    fullCode.sort((a, b) => a.lineNumber - b.lineNumber);
+
+    // Return line-by-line changes (no grouping)
     return {
-      additions: this.groupConsecutiveChanges(additions),
-      removals: this.groupConsecutiveChanges(removals)
+      additions: additions,
+      removals: removals,
+      fullCode: fullCode,
     };
   }
 
@@ -404,14 +469,14 @@ Return ONLY a JSON array like this:
    */
   groupConsecutiveChanges(changes) {
     if (changes.length === 0) return [];
-    
+
     const grouped = [];
     let currentGroup = [changes[0]];
-    
+
     for (let i = 1; i < changes.length; i++) {
       const current = changes[i];
       const previous = changes[i - 1];
-      
+
       // Check if consecutive
       if (current.line === previous.line + 1) {
         currentGroup.push(current);
@@ -423,12 +488,12 @@ Return ONLY a JSON array like this:
         currentGroup = [current];
       }
     }
-    
+
     // Add last group
     if (currentGroup.length > 0) {
       grouped.push(this.mergeGroup(currentGroup));
     }
-    
+
     return grouped;
   }
 
@@ -437,13 +502,13 @@ Return ONLY a JSON array like this:
    */
   mergeGroup(group) {
     if (group.length === 1) return group[0];
-    
+
     const firstLine = group[0].line;
-    const content = group.map(change => change.content).join('\n');
-    
+    const content = group.map((change) => change.content).join('\n');
+
     return {
       line: firstLine,
-      content: content
+      content: content,
     };
   }
 
@@ -672,10 +737,7 @@ Return ONLY the instrumented code, no explanations.`
       const structuredChanges = JSON.parse(jsonMatch[0]);
 
       // Validate structure
-      if (
-        !structuredChanges.additions ||
-        !structuredChanges.removals
-      ) {
+      if (!structuredChanges.additions || !structuredChanges.removals) {
         throw new Error('Invalid structured response format');
       }
 

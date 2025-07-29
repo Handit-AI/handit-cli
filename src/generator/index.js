@@ -31,12 +31,14 @@ async function generateInstrumentedCode(selectedFunctionIds, allNodes, language,
       const originalCode = await generator.getOriginalFunctionCode(node);
       
       // Generate instrumented version
-      const instrumentedCode = await generator.generateInstrumentedFunction(node, originalCode, selectedNodes);
+      const { changes, originalArray, instrumentedArray } = await generator.generateInstrumentedFunction(node, originalCode, selectedNodes);
       
       instrumentedFunctions.push({
         node,
         originalCode,
-        instrumentedCode,
+        instrumentedCode: changes,
+        originalArray,
+        instrumentedArray,
         filePath: path.resolve(node.file)
       });
     }
