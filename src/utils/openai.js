@@ -72,7 +72,7 @@ Return the most likely matches as a JSON array.`
 async function findFunctionInFileWithGPT(functionName, filePath, fileContent) {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
@@ -82,7 +82,7 @@ Return a JSON array of objects with the following structure:
 {"results": [
 {
   "name": "functionName",
-  "line": 42,
+  "line": "exact line number",
   "lineContent": "function functionName() {",
   "type": "function",
   "confidence": 0.95,

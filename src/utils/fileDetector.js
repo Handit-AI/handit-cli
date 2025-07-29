@@ -137,11 +137,21 @@ async function detectFileAndFunction(userFileInput, userFunctionInput, projectRo
   }
   
   // Step 4: Find functions in the selected file
-  const fileAnalysis = await findFunctionInFile(userFunctionInput, selectedFile.file, projectRoot);
+  let fileAnalysis = await findFunctionInFile(userFunctionInput, selectedFile.file, projectRoot);
   
   if (fileAnalysis.functions.length === 0) {
     throw new Error(`No functions or endpoints found in ${selectedFile.file}. Please check the function name or endpoint path.`);
   }
+
+  const fullPath = path.join(projectRoot, selectedFile.file);
+  const content = await fs.readFile(fullPath, 'utf8');
+
+  fileAnalysis.functions = fileAnalysis.functions.map((func, index) => {
+    return {
+      ...func,
+      line: content.split('\n').findIndex(line => line.includes(func.lineContent)) != -1 ? content.split('\n').findIndex(line => line.includes(func.lineContent)) + 1 : func.line
+    }
+  })
   
   // Step 5: If multiple functions found, let user choose
   let selectedFunction = fileAnalysis.functions[0];
