@@ -201,7 +201,6 @@ Return everything in the following json format:
 
     // Step 2c: Compare arrays and generate changes
     const changes = this.compareArrays(originalArray, instrumentedArray);
-    console.log('changes.fullCode', changes.fullCode);
     return {
       changes,
       originalArray,
@@ -213,7 +212,6 @@ Return everything in the following json format:
    * Step 2a/2b: Normalize code to array with line numbers
    */
   async normalizeCodeToArray(code, node, type) {
-    console.log('code', code);
     const prompt = this.createNormalizePrompt(code, node, type);
 
     const response = await this.openai.chat.completions.create({
@@ -614,7 +612,7 @@ ${JSON.stringify(allNodes, null, 2)}
 ALSO DO NOT ADD ADDITIONAL FUNCTIONS OR CODE WE DO NOT NEED. REMEMBER THAT THE FULL STRUCTURE FUNCTIONS IS ALREADY IMPLEMENTED.
 
 
-${isEntryPoint ? `ENTRY POINT: Add startTracing() at beginning and endTracing() in finally block, also add config({ apiKey: process.env.HANDIT_API_KEY })` : 'CHILD FUNCTION: Accept executionId parameter and use trackNode()'}
+${isEntryPoint ? `ENTRY POINT: Add startTracing() at beginning and endTracing() in finally block, also add config({ apiKey: process.env.HANDIT_API_KEY })` : 'CHILD FUNCTION: Accept executionId parameter, use trackNode() and import the trackNode function'}
 
 Return everything in the format
 
