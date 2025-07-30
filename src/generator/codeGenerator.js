@@ -7,9 +7,10 @@ const OpenAI = require('openai');
  * Generates instrumented code for selected functions using GPT-4o-mini
  */
 class CodeGenerator {
-  constructor(language, agentName) {
+  constructor(language, agentName, projectRoot = null) {
     this.language = language;
     this.agentName = agentName;
+    this.projectRoot = projectRoot;
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
@@ -97,7 +98,11 @@ tracker.config(api_key=os.getenv("HANDIT_API_KEY"))  # Sets up authentication fo
       );
 
       if (instrumentedCode === originalCode) {
-        return { changes: { additions: [], removals: [] }, originalArray: [], instrumentedArray: [] };
+        return {
+          changes: { additions: [], removals: [] },
+          originalArray: [],
+          instrumentedArray: [],
+        };
       }
 
       // Step 2: Generate additions/removals by comparing original vs new code
@@ -107,7 +112,7 @@ tracker.config(api_key=os.getenv("HANDIT_API_KEY"))  # Sets up authentication fo
           instrumentedCode,
           node
         );
-     
+
       return { changes, originalArray, instrumentedArray };
     } catch (error) {
       console.warn(
@@ -467,7 +472,8 @@ Return ONLY a JSON array like this:
               tm.lineNumber >= functionStartLine
           );
           fullCode.push({
-            lineNumber: item.lineNumber + addsBefore.length - removalsBefore.length,
+            lineNumber:
+              item.lineNumber + addsBefore.length - removalsBefore.length,
             code: item.code,
             type: 'remove',
           });
@@ -793,35 +799,16 @@ Return ONLY the instrumented code, no explanations.`
       const fileContent = await fs.readFile(filePath, 'utf8');
       const lines = fileContent.split('\n');
 
-      // Get function definition and body (simple extraction)
-      // This is a basic implementation - could be enhanced with AST parsing
+      // Get function definition and body
       const startLine = node.line - 1; // Convert to 0-based
       let endLine = startLine;
-      let braceCount = 0;
-      let inFunction = false;
 
-      for (let i = startLine; i < lines.length; i++) {
-        const line = lines[i];
-
-        if (
-          !inFunction &&
-          (line.includes('function') ||
-            line.includes('=>') ||
-            line.includes('def '))
-        ) {
-          inFunction = true;
-        }
-
-        if (inFunction) {
-          // Count braces/indentation to find function end
-          braceCount += (line.match(/{/g) || []).length;
-          braceCount -= (line.match(/}/g) || []).length;
-
-          if (braceCount === 0 && i > startLine) {
-            endLine = i;
-            break;
-          }
-        }
+      if (this.language === 'python') {
+        // Python: Use indentation-based logic
+        endLine = this.findPythonFunctionEnd(lines, startLine);
+      } else {
+        // JavaScript/TypeScript: Use brace-based logic
+        endLine = this.findJavaScriptFunctionEnd(lines, startLine);
       }
 
       // If we couldn't find the end, take a reasonable chunk
@@ -838,6 +825,89 @@ Return ONLY the instrumented code, no explanations.`
       );
       return `// Original function: ${node.name}`;
     }
+  }
+
+  /**
+   * Find the end of a Python function based on indentation
+   */
+  findPythonFunctionEnd(lines, startLine) {
+    // Get the indentation level of the function definition
+    const functionLine = lines[startLine];
+    const functionIndentation = this.getIndentationLevel(functionLine);
+
+    // Look for the next line with same or less indentation (excluding empty lines)
+    for (let i = startLine + 1; i < lines.length; i++) {
+      const line = lines[i];
+      const lineIndentation = this.getIndentationLevel(line);
+
+      // Skip empty lines
+      if (line.trim() === '') {
+        continue;
+      }
+
+      // If we find a line with same or less indentation, we've reached the end
+      if (
+        !line.startsWith('def ') &&
+        !line.startsWith('async def ') &&
+        !line.startsWith(')') &&
+        !line.startsWith('async ') &&
+        !line.startsWith('class ') &&
+        !line.startsWith('async class ')
+      ) {
+        if (lineIndentation <= functionIndentation) {
+          return i - 1; // Return the line before this one
+        }
+      }
+    }
+
+    // If we reach the end of the file, return the last line
+    return lines.length - 1;
+  }
+
+  /**
+   * Find the end of a JavaScript/TypeScript function based on braces
+   */
+  findJavaScriptFunctionEnd(lines, startLine) {
+    let braceCount = 0;
+    let inFunction = false;
+
+    for (let i = startLine; i < lines.length; i++) {
+      const line = lines[i];
+
+      if (
+        !inFunction &&
+        (line.includes('function') ||
+          line.includes('=>') ||
+          line.includes('def '))
+      ) {
+        inFunction = true;
+      }
+
+      if (inFunction) {
+        // Count braces to find function end
+        braceCount += (line.match(/{/g) || []).length;
+        braceCount -= (line.match(/}/g) || []).length;
+
+        if (braceCount === 0 && i > startLine) {
+          return i;
+        }
+      }
+    }
+
+    return startLine; // If we can't find the end, return the start line
+  }
+
+  /**
+   * Get the indentation level of a line (number of spaces/tabs)
+   */
+  getIndentationLevel(line) {
+    const trimmed = line.trim();
+    if (trimmed === '') {
+      return 0; // Empty lines have no indentation
+    }
+
+    const leadingSpaces = line.length - line.trimStart().length;
+    return leadingSpaces;
   }
 }
 

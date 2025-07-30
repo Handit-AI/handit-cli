@@ -9,11 +9,12 @@ const { CodeGenerator } = require('./codeGenerator');
  * Iterative code generation with visual diffs and user confirmation
  */
 class IterativeCodeGenerator {
-  constructor(language, agentName, projectRoot) {
+  constructor(language, agentName, projectRoot, apiToken = null) {
     this.language = language;
     this.agentName = agentName;
     this.projectRoot = projectRoot;
-    this.generator = new CodeGenerator(language, agentName);
+    this.apiToken = apiToken;
+    this.generator = new CodeGenerator(language, agentName, projectRoot);
     this.appliedFunctions = [];
     this.skippedFunctions = [];
   }
@@ -880,6 +881,11 @@ class IterativeCodeGenerator {
 
     console.log(chalk.blue.bold('\n📝 Applying all accepted changes...'));
     
+    // Create handit_service.py file for Python projects
+    if (this.language === 'python') {
+      await this.createHanditServiceFile(this.apiToken);
+    }
+    
     for (const func of this.appliedFunctions) {
       try {
         await this.applyStructuredChangesToFile(func.node, func.structuredChanges, func.originalArray);
@@ -889,6 +895,44 @@ class IterativeCodeGenerator {
     }
     
     console.log(chalk.green('✅ All changes applied successfully!'));
+  }
+
+  /**
+   * Create handit_service.py file for Python projects
+   */
+  async createHanditServiceFile(apiToken) {
+    const handitServicePath = path.join(this.projectRoot, 'handit_service.py');
+    
+    // Check if file already exists
+    if (await fs.pathExists(handitServicePath)) {
+      console.log(chalk.yellow('⚠️  handit_service.py already exists, skipping creation.'));
+      return;
+    }
+
+    const handitServiceContent = `"""
+Handit.ai service initialization and configuration.
+This file creates a singleton tracker instance that can be imported across your application.
+"""
+import os
+from dotenv import load_dotenv
+from handit import HanditTracker
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Create a singleton tracker instance
+tracker = HanditTracker()  # Creates a global tracker instance for consistent tracing across the app
+
+# Configure with your API key from environment variables
+tracker.config(api_key="${apiToken || 'os.getenv("HANDIT_API_KEY")'}")  # Sets up authentication for Handit.ai services
+`;
+
+    try {
+      await fs.writeFile(handitServicePath, handitServiceContent);
+      console.log(chalk.green('✅ Created handit_service.py file'));
+    } catch (error) {
+      console.error(chalk.red(`❌ Error creating handit_service.py: ${error.message}`));
+    }
   }
 }
 

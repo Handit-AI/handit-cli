@@ -372,6 +372,8 @@ async function runSetup(options = {}) {
     if (!authResult.authenticated) {
       throw new Error('Authentication required to continue');
     }
+    
+    const apiToken = authResult.apiToken;
 
     // Step 2: Detect project language
     const languageSpinner = ora('Detecting project language...').start();
@@ -410,7 +412,8 @@ async function runSetup(options = {}) {
       confirmedGraph.nodes,
       language,
       projectInfo.agentName,
-      config.projectRoot
+      config.projectRoot,
+      apiToken
     );
     
     const instrumentedFunctions = result.appliedFunctions;

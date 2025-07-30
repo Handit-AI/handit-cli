@@ -45,7 +45,9 @@ async function authenticate() {
   const isAuth = await isAuthenticated();
   if (isAuth) {
     console.log(chalk.green('✅ You\'re already logged in to Handit!'));
-    return { authenticated: true };
+    const tokenStorage = new TokenStorage();
+    const tokens = await tokenStorage.loadTokens();
+    return { authenticated: true, apiToken: tokens?.apiToken };
   }
 
   // Ask user if they have an account
@@ -126,7 +128,7 @@ async function handleBrowserLogin() {
       console.log(chalk.gray(`Welcome, ${authResult.user.firstName} ${authResult.user.lastName}`));
       console.log(chalk.gray(`Company: ${authResult.company.name}`));
       
-      return { authenticated: true, user: authResult.user };
+      return { authenticated: true, user: authResult.user, apiToken: authResult.apiToken };
     } else {
       throw new Error('Authentication failed');
     }
