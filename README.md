@@ -1,177 +1,382 @@
 # Handit CLI
 
-A CLI tool for setting up Handit agent monitoring with trace-based evaluation and optimization.
+> **AI-Powered Agent Instrumentation & Monitoring CLI Tool**
 
-## 🚀 Quick Start
+[![npm version](https://badge.fury.io/js/handit-cli.svg)](https://badge.fury.io/js/handit-cli)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-### Installation
+Handit CLI is a powerful command-line tool that automatically instruments your AI agents with comprehensive tracing and monitoring capabilities. It uses AI to analyze your codebase, detect function call graphs, and generate instrumented code that provides deep insights into your agent's execution patterns.
+
+## 🚀 Features
+
+- **🤖 AI-Powered Analysis**: Uses GPT-4 to intelligently detect entry points and function relationships
+- **🌳 Execution Tree Visualization**: Interactive tree view of your agent's function call hierarchy
+- **📊 Automatic Instrumentation**: Generates production-ready instrumented code with Handit.ai tracing
+- **🔍 Smart Language Detection**: Supports JavaScript/TypeScript and Python projects
+- **🎯 Precise Function Detection**: Handles complex patterns like Express routes, FastAPI endpoints, and class methods
+- **🔄 Interactive Workflow**: Step-by-step guided setup with user confirmation at each stage
+- **🔐 Secure Authentication**: Browser-based authentication with Handit.ai dashboard
+- **📈 Future-Ready**: Designed for upcoming monitoring and evaluation features
+
+## 📦 Installation
+
+### Quick Start (Recommended)
 
 ```bash
-# Install dependencies
-npm install
-
-# Make the CLI executable
-chmod +x bin/handit-cli.js
-
-# Set up OpenAI API key (required for smart file detection)
-export OPENAI_API_KEY="your-openai-api-key-here"
+npx @handit.ai/cli setup
 ```
 
-### Testing the CLI
-
-#### 1. Local Development Testing
+### Global Installation
 
 ```bash
-# Test the setup command
-npm start
-
-# Test with development mode
-npm run dev
-
-# Test with non-interactive mode
-npm start -- --yes
-
-# Test with specific file and function
-npm start -- --file index.js --entry main
+npm install -g @handit.ai/cli
 ```
 
-#### 2. Link for Global Testing
-
+Then run:
 ```bash
-# Link the package globally
-npm link
-
-# Test as a global command
 handit-cli setup
-
-# Test monitor command
-handit-cli monitor
-
-# Test evaluate command
-handit-cli evaluate
 ```
 
-#### 3. Test with Sample Projects
+## 🎯 Quick Start
 
-Create a test project to verify language detection:
+1. **Navigate to your project directory**
+   ```bash
+   cd /path/to/your/agent-project
+   ```
+
+2. **Run the setup wizard**
+   ```bash
+   npx @handit.ai/cli setup
+   ```
+
+3. **Follow the interactive prompts**
+   - Authenticate with Handit.ai
+   - Confirm your agent's entry point (AI will help detect it)
+   - Review the detected function tree
+   - Approve code instrumentation
+
+4. **Your agent is now instrumented and ready for monitoring!**
+
+   The setup process has:
+   - ✅ Analyzed your codebase
+   - ✅ Generated instrumented code
+   - ✅ Created Handit.ai configuration
+   - ✅ Applied all changes to your files
+
+## 📋 Commands
+
+### `setup` - Initial Agent Setup
+
+Sets up Handit instrumentation for your agent.
 
 ```bash
-# Create a JavaScript test project
-mkdir test-js-project
-cd test-js-project
-echo '{"name": "test"}' > package.json
-echo 'function main() { console.log("Hello"); }' > index.js
-
-# Test setup
-handit-cli setup --yes
-
-# Test monitor (generates mock traces)
-handit-cli monitor
-
-# Test evaluate (analyzes traces)
-handit-cli evaluate
+npx @handit.ai/cli setup
 ```
 
-## 📁 Project Structure
+**Options:**
+- `--test` - Use test environment (localhost)
 
-```
-handit-cli/
-├── bin/handit-cli.js        # CLI entry point
-├── src/
-│   ├── index.js             # Main CLI logic
-│   ├── setup/               # Language detection & prompts
-│   ├── parser/              # AST parsing & call graph
-│   ├── analyzer/            # Function analysis
-│   ├── confirm/             # User confirmation UI
-│   ├── generator/           # Code instrumentation
-│   ├── monitor/             # Trace collection
-│   ├── evaluate/            # Trace analysis & suggestions
-│   └── config/              # Configuration management
-└── package.json
+**Example:**
+```bash
+# Production setup
+npx @handit.ai/cli setup
+
+# Test with localhost
+npx @handit.ai/cli setup --test
 ```
 
-## 🎯 Workflow
+### Coming Soon
 
-### 1. Setup (`handit-cli setup`)
-- Detect project language (JavaScript/Python)
-- Analyze function call graph
-- Identify functions to track
-- Instrument code with Handit
-- Write configuration
+The following commands are planned for future releases:
 
-### 2. Monitor (`handit-cli monitor`)
-- Collect execution traces from agent
-- Monitor function calls and performance
-- Save traces to JSON file
-- Real-time monitoring with timeout
+- **`monitor`** - Collect execution traces from your agent
+- **`evaluate`** - Analyze traces and provide optimization insights
 
-### 3. Evaluate (`handit-cli evaluate`)
-- Analyze collected traces
-- Identify performance bottlenecks
-- Generate optimization suggestions
-- Create evaluation report
+## 🔧 Supported Languages
 
-## 🧪 Testing Strategy
+### JavaScript/TypeScript
 
-### Unit Tests
+**Supported Patterns:**
+- Express.js route handlers
+- Async/await functions
+- Arrow functions
+- Class methods
+- Function declarations
+
+**Example Entry Point:**
+```javascript
+// Express route handler
+app.post('/process-document', async (req, res) => {
+  const result = await processDocument(req.body);
+  res.json(result);
+});
+
+// Regular function
+async function processDocument(data) {
+  const result = await analyzeDocument(data);
+  return result;
+}
+```
+
+### Python
+
+**Supported Patterns:**
+- FastAPI endpoints
+- Async functions
+- Class methods
+- Regular functions
+- Decorators
+
+**Example Entry Point:**
+```python
+# FastAPI endpoint
+@app.post("/process-document")
+async def process_document(request: DocumentRequest):
+    result = await analyze_document(request.data)
+    return result
+
+# Class method
+class DocumentProcessor:
+    async def process_document(self, data):
+        result = await self.analyze_document(data)
+        return result
+```
+
+## 🏗️ Generated Code Examples
+
+### JavaScript Instrumentation
+
+**Before:**
+```javascript
+async function processDocument(data) {
+  const result = await analyzeDocument(data);
+  return result;
+}
+```
+
+**After:**
+```javascript
+const { startTracing, trackNode, endTracing } = require('@handit.ai/node');
+
+async function processDocument(data, executionId) {
+  const tracingResponse = await trackNode({
+    input: data,
+    nodeName: 'processDocument',
+    agentName: 'my-agent',
+    nodeType: 'function',
+    executionId
+  });
+  
+  try {
+    const result = await analyzeDocument(data, executionId);
+    
+    await trackNode({
+      input: data,
+      output: result,
+      nodeName: 'processDocument',
+      agentName: 'my-agent',
+      nodeType: 'function',
+      executionId
+    });
+    
+    return result;
+  } catch (error) {
+    await trackNode({
+      input: data,
+      error: error.message,
+      nodeName: 'processDocument',
+      agentName: 'my-agent',
+      nodeType: 'function',
+      executionId
+    });
+    throw error;
+  }
+}
+```
+
+### Python Instrumentation
+
+**Before:**
+```python
+async def process_document(data):
+    result = await analyze_document(data)
+    return result
+```
+
+**After:**
+```python
+from handit_service import tracker
+
+async def process_document(data, execution_id=None):
+    await tracker.track_node(
+        input=data,
+        node_name="process_document",
+        agent_name="my-agent",
+        node_type="function",
+        execution_id=execution_id
+    )
+    
+    try:
+        result = await analyze_document(data, execution_id)
+        
+        await tracker.track_node(
+            input=data,
+            output=result,
+            node_name="process_document",
+            agent_name="my-agent",
+            node_type="function",
+            execution_id=execution_id
+        )
+        
+        return result
+    except Exception as e:
+        await tracker.track_node(
+            input=data,
+            error=str(e),
+            node_name="process_document",
+            agent_name="my-agent",
+            node_type="function",
+            execution_id=execution_id
+        )
+        raise
+```
+
+## 🔐 Authentication
+
+Handit CLI uses browser-based authentication for security:
+
+1. **Run setup command**
+   ```bash
+   npx handit-cli setup
+   ```
+
+2. **Browser opens automatically** to Handit.ai dashboard
+
+3. **Complete authentication** in your browser
+
+4. **Copy CLI code** from the dashboard
+
+5. **Paste the code** in the terminal
+
+Your authentication tokens are securely stored locally and encrypted.
+
+## 📊 What's Next
+
+After setup, your agent is instrumented with Handit.ai tracing. The following features are coming soon:
+
+### Trace Collection (Coming Soon)
+```bash
+# Start monitoring for 10 minutes
+npx @handit.ai/cli monitor --timeout 600
+
+# Monitor in development mode
+npx @handit.ai/cli monitor --dev
+```
+
+### Trace Analysis (Coming Soon)
+```bash
+# Analyze collected traces
+npx @handit.ai/cli evaluate --traces traces.json
+
+# Generate detailed report
+npx @handit.ai/cli evaluate --output detailed-analysis.json
+```
+
+## 🛠️ Configuration
+
+### Environment Variables
 
 ```bash
-# Run tests
-npm test
+# Required for AI-powered analysis
+export OPENAI_API_KEY="your-openai-api-key"
 
-# Run tests in watch mode
-npm run test:watch
+# Handit.ai API key (auto-configured during setup)
+export HANDIT_API_KEY="your-handit-api-key"
 ```
 
-### Integration Tests
+### Configuration Files
 
-1. **Setup Flow**: Test language detection and instrumentation
-2. **Monitor Flow**: Test trace collection and file output
-3. **Evaluate Flow**: Test trace analysis and suggestions
-4. **End-to-End**: Test complete workflow
+**handit.config.json** (auto-generated):
+```json
+{
+  "agentName": "my-document-processor",
+  "entryFile": "server.js",
+  "entryFunction": "processDocument",
+  "language": "javascript",
+  "projectRoot": "/path/to/project"
+}
+```
 
-### Manual Testing Checklist
+## 🏗️ Project Structure
 
-- [ ] CLI starts without errors
-- [ ] Setup command works for JS/Python projects
-- [ ] Monitor command generates trace files
-- [ ] Evaluate command analyzes traces and suggests improvements
-- [ ] All commands work in non-interactive mode
-- [ ] Error handling works properly
+After setup, your project will include:
 
-## 🔧 Development
+```
+your-project/
+├── handit.config.json          # Configuration file
+├── handit_service.js           # JavaScript service (auto-generated)
+├── handit_service.py           # Python service (auto-generated)
+├── server.js                   # Your instrumented entry point
+└── services/
+    └── documentProcessor.js    # Instrumented functions
+```
 
-### Adding New Features
+## 🔍 Troubleshooting
 
-1. **Trace Collection**: Enhance `src/monitor/` for real trace collection
-2. **Analysis Logic**: Improve `src/evaluate/` with more sophisticated analysis
-3. **Instrumentation**: Add to `src/generator/` for better code modification
-4. **Parser Implementation**: Replace stubs in `src/parser/`
+### Common Issues
 
-### Debugging
+**"Authentication required"**
+- Run `npx @handit.ai/cli setup` and complete browser authentication
+
+**"Could not detect entry point"**
+- The AI will help you find the correct entry point interactively
+
+**"No functions detected"**
+- Ensure your entry function calls other functions
+- Check that functions are properly exported/imported
+
+**"OpenAI API key missing"**
+- Set environment variable: `export OPENAI_API_KEY="your-key"`
+
+### Debug Mode
 
 ```bash
-# Enable debug mode
-npm start -- --dev
-
-# Check for errors
-npm run lint
+# Enable verbose logging
+DEBUG=@handit.ai/cli:* npx @handit.ai/cli setup
 ```
 
-## 📦 Publishing
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Development Setup
 
 ```bash
-# Build and test
-npm run prepublishOnly
-
-# Publish to npm
-npm publish
+git clone https://github.com/handit/handit-cli.git
+cd handit-cli
+npm install
+npm run dev
 ```
 
-## 🎯 Next Steps
+## 📄 License
 
-1. **Real Trace Collection**: Implement actual function monitoring
-2. **AI-Powered Analysis**: Integrate Claude for better suggestions
-3. **Advanced Instrumentation**: Support more complex code patterns
-4. **Performance Monitoring**: Add real-time performance tracking
-5. **Integration Tests**: Comprehensive test coverage 
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+- **Documentation**: [docs.handit.ai](https://docs.handit.ai)
+- **Issues**: [GitHub Issues](https://github.com/handit/handit-cli/issues)
+- **Discord**: [Join our community](https://discord.gg/handit)
+- **Email**: support@handit.ai
+
+## 🙏 Acknowledgments
+
+- Built with [OpenAI GPT-4](https://openai.com) for intelligent code analysis
+- Powered by [Handit.ai](https://handit.ai) for agent monitoring
+- Inspired by the need for better AI agent observability
+
+---
+
+**Made with ❤️ by the Handit Team**
+
+[Website](https://handit.ai) • [Twitter](https://twitter.com/handit_ai) • [GitHub](https://github.com/handit) 

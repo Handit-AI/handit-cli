@@ -870,7 +870,6 @@ Return ONLY the instrumented code, no explanations.`
   findJavaScriptFunctionEnd(lines, startLine) {
     let braceCount = 0;
     let inFunction = false;
-
     for (let i = startLine; i < lines.length; i++) {
       const line = lines[i];
 
@@ -889,6 +888,7 @@ Return ONLY the instrumented code, no explanations.`
         braceCount -= (line.match(/}/g) || []).length;
 
         if (braceCount === 0 && i > startLine) {
+          console.log(i, 'i');
           return i;
         }
       }

@@ -662,6 +662,7 @@ async function resolveFunctionCall(call, projectRoot, nodeMap) {
           }
         }
       } else {
+        // No object definition found, continue with other search methods
       }
     }
 

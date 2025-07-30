@@ -57,7 +57,8 @@ async function testConnectionWithAgent(agentName) {
     }
 
     // Main retry loop
-    while (true) {
+    let shouldContinue = true;
+    while (shouldContinue) {
       const testSpinner = ora('Testing connection...').start();
       let attempts = 0;
       const maxAttempts = 10;
@@ -120,10 +121,11 @@ async function testConnectionWithAgent(agentName) {
           throw new Error('Setup cancelled by user');
         } else if (action === 'skip') {
           console.log(chalk.gray('Connection test skipped. Continuing with setup...'));
+          shouldContinue = false;
           return;
         } else if (action === 'retry') {
           console.log(chalk.gray('Retrying connection test...'));
-          continue; // Continue the while loop for another attempt
+          shouldContinue = true; // Continue the while loop for another attempt
         }
       }
     }
@@ -192,7 +194,8 @@ async function setupEvaluators(agentName) {
     console.log(chalk.green(`✅ Found agent: ${agent.name}`));
 
     // Main evaluator setup loop
-    while (true) {
+    let shouldContinue = true;
+    while (shouldContinue) {
       // Get available evaluators
       const evaluatorsSpinner = ora('Loading available evaluators...').start();
       const evaluators = await handitApi.getEvaluationPrompts();
@@ -293,7 +296,7 @@ async function setupEvaluators(agentName) {
       if (nodesWithModels.length === 0) {
         console.log(chalk.yellow('⚠️  No models found in agent nodes.'));
         console.log(chalk.gray('You need to have models in your agent to add evaluators.'));
-        break;
+        shouldContinue = false;
       }
 
       // Let user select models to associate with evaluator
@@ -338,7 +341,7 @@ async function setupEvaluators(agentName) {
       ]);
 
       if (!addMoreEvaluators) {
-        break;
+        shouldContinue = false;
       }
     }
 

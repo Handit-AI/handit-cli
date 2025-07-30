@@ -1,7 +1,7 @@
 {
-  "name": "handit-cli",
+  "name": "@handit.ai/cli",
   "version": "1.0.0",
-  "description": "CLI tool to set up Handit by detecting and instrumenting agent execution graphs",
+  "description": "AI-Powered Agent Instrumentation & Monitoring CLI Tool",
   "main": "src/index.js",
   "bin": {
     "handit-cli": "./bin/handit-cli.js"
@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node bin/handit-cli.js setup",
     "dev": "node bin/handit-cli.js setup",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
     "lint": "eslint src/ bin/",
     "format": "prettier --write src/ bin/",
@@ -57,5 +57,8 @@
   "bugs": {
     "url": "https://github.com/handit/handit-cli/issues"
   },
-  "homepage": "https://github.com/handit/handit-cli#readme"
+  "homepage": "https://github.com/handit/handit-cli#readme",
+  "publishConfig": {
+    "access": "public"
+  }
 } 

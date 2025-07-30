@@ -1,4 +1,5 @@
 const { simpleTreeSelection } = require('./interactiveTree');
+const chalk = require('chalk');
 
 /**
  * Show interactive tree for user confirmation

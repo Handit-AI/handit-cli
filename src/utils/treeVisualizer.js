@@ -1,4 +1,5 @@
 // Removed chalk dependency to avoid formatting issues
+const chalk = require('chalk');
 
 /**
  * Visualize execution tree in CLI
@@ -68,12 +69,13 @@ function displayTree(node, nodeMap, depth = 0, prefix = []) {
   const indent = '    '.repeat(depth);
   
   // Node info
-  const typeIcon = node.type === 'endpoint' ? '🌐' : 
-                  node.type === 'method' ? '🔧' : 
-                  node.type === 'handler' ? '📡' : '⚙️';
+  let typeIcon = '⚙️';
+  if (node.type === 'endpoint') typeIcon = '🌐';
+  else if (node.type === 'method') typeIcon = '🔧';
+  else if (node.type === 'handler') typeIcon = '📡';
   
   const nodeInfo = `${typeIcon} ${chalk.blue(node.name)}`;
-  const fileInfo = chalk.gray(`(${node.file}:${node.line})`;
+  const fileInfo = chalk.gray(`(${node.file}:${node.line})`);
   
   console.log(`${indent}${connector}${nodeInfo} ${fileInfo}`);
   
