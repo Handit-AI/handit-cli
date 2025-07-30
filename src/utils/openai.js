@@ -1,10 +1,58 @@
-const OpenAI = require('openai');
+const axios = require('axios');
 const path = require('path');
+const { EnvironmentConfig } = require('../config/environment');
+const { TokenStorage } = require('../auth/tokenStorage');
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const config = new EnvironmentConfig();
+const apiUrl = config.getApiUrl();
+
+/**
+ * Get authentication headers for API calls
+ */
+async function getAuthHeaders() {
+  const tokenStorage = new TokenStorage();
+  const tokens = await tokenStorage.loadTokens();
+  
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
+  if (tokens && tokens.authToken) {
+    headers['Authorization'] = `Bearer ${tokens.authToken}`;
+  }
+
+  return headers;
+}
+
+/**
+ * Call the Handit CLI API for LLM completions
+ * @param {Object} params - Parameters for the API call
+ * @param {Array} params.messages - Messages array
+ * @param {string} params.model - Model name
+ * @param {Object} params.response_format - Response format (optional)
+ * @param {number} params.temperature - Temperature (optional)
+ * @param {number} params.max_tokens - Max tokens (optional)
+ * @returns {Promise<Object>} - API response
+ */
+async function callLLMAPI({ messages, model, response_format, temperature, max_tokens }) {
+  try {
+    const headers = await getAuthHeaders();
+    
+    const response = await axios.post(`${apiUrl}/cli/auth/llm`, {
+      messages,
+      model,
+      ...(response_format && { responseFormat: response_format }),
+      ...(temperature !== undefined && { temperature }),
+      ...(max_tokens && { max_tokens })
+    }, {
+      headers
+    });
+    return response.data.result;
+  } catch (error) {
+    console.error('LLM API error:', error.message);
+    throw error;
+  }
+}
 
 /**
  * Use GPT to find possible files based on user input
@@ -14,7 +62,7 @@ const openai = new OpenAI({
  */
 async function findPossibleFilesWithGPT(userInput, allFiles) {
   try {
-    const response = await openai.chat.completions.create({
+    const response = await callLLMAPI({
       model: "gpt-3.5-turbo",
       messages: [
         {
@@ -56,7 +104,7 @@ Return the most likely matches as a JSON array.`
     const result = JSON.parse(response.choices[0].message.content);
     return result.results || [];
   } catch (error) {
-    console.error('OpenAI API error:', error.message);
+    console.error('LLM API error:', error.message);
     // Fallback to simple pattern matching
     return findPossibleFilesFallback(userInput, allFiles);
   }
@@ -71,7 +119,7 @@ Return the most likely matches as a JSON array.`
  */
 async function findFunctionInFileWithGPT(functionName, filePath, fileContent) {
   try {
-    const response = await openai.chat.completions.create({
+    const response = await callLLMAPI({
       model: "gpt-4o-mini",
       messages: [
         {
@@ -126,7 +174,7 @@ Return all relevant functions and endpoints as a JSON array, sorted by relevance
     const result = JSON.parse(response.choices[0].message.content);
     return result.results || [];
   } catch (error) {
-    console.error('OpenAI API error:', error.message);
+    console.error('LLM API error:', error.message);
     // Fallback to simple regex matching
     return findFunctionInFileFallback(functionName, fileContent);
   }
@@ -259,6 +307,7 @@ function findFunctionInFileFallback(functionName, fileContent) {
 }
 
 module.exports = {
+  callLLMAPI,
   findPossibleFilesWithGPT,
   findFunctionInFileWithGPT,
   findPossibleFilesFallback,

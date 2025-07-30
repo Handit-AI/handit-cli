@@ -1,7 +1,7 @@
 const fs = require('fs-extra');
 const path = require('path');
 const chalk = require('chalk');
-const OpenAI = require('openai');
+const { callLLMAPI } = require('../utils/openai');
 
 /**
  * Generates instrumented code for selected functions using GPT-4o-mini
@@ -11,9 +11,6 @@ class CodeGenerator {
     this.language = language;
     this.agentName = agentName;
     this.projectRoot = projectRoot;
-    this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
   }
 
   /**
@@ -135,8 +132,7 @@ tracker.config(api_key=os.getenv("HANDIT_API_KEY"))  # Sets up authentication fo
       apiKey
     );
 
-    const response = await this.openai.chat.completions.create({
-      model: 'gpt-4o',
+    const response = await callLLMAPI({
       messages: [
         {
           role: 'system',
@@ -173,8 +169,9 @@ Return everything in the following json format:
           content: prompt,
         },
       ],
-      temperature: 0.1,
+      model: 'gpt-4o',
       response_format: { type: 'json_object' },
+      temperature: 0.1
     });
 
     const answer = JSON.parse(response.choices[0].message.content);
@@ -219,8 +216,7 @@ Return everything in the following json format:
   async normalizeCodeToArray(code, node, type) {
     const prompt = this.createNormalizePrompt(code, node, type);
 
-    const response = await this.openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const response = await callLLMAPI({
       messages: [
         {
           role: 'system',
@@ -320,7 +316,8 @@ Only return the JSON array, do not explain, comment, or add any content outside 
           content: prompt,
         },
       ],
-      temperature: 0.1,
+      model: 'gpt-4o-mini',
+      temperature: 0.1
     });
 
     try {
