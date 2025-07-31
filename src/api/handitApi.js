@@ -326,6 +326,41 @@ class HanditApi {
       throw new Error(`Network error: ${error.message}`);
     }
   }
+
+  /**
+   * Get user information including company ID
+   */
+  async getUserInfo() {
+    try {
+      const response = await axios.get(`${this.apiUrl}/users/me`, {
+        headers: this.getAuthHeaders()
+      });
+
+      return response.data;
+    } catch (error) {
+      if (error.response) {
+        throw new Error(`Failed to get user info: ${error.response.data.message || error.response.statusText}`);
+      }
+      throw new Error(`Network error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Connect repository for automatic PR creation
+   */
+  async connectRepository(repositoryData) {
+    try {
+      const response = await axios.post(`${this.apiUrl}/integrations/repository/connect`, repositoryData, {
+        headers: this.getAuthHeaders()
+      });
+      return response.data;
+    } catch (error) {
+      if (error.response) {
+        throw new Error(`Repository connection failed: ${error.response.data.message || error.response.statusText}`);
+      }
+      throw new Error(`Network error: ${error.message}`);
+    }
+  }
 }
 
 module.exports = { HanditApi }; 

@@ -23,7 +23,11 @@ Handit CLI is a powerful command-line tool that automatically instruments your A
 ### Quick Start (Recommended)
 
 ```bash
+# Set up Handit instrumentation for your AI agent
 npx @handit.ai/cli setup
+
+# Connect your repository to Handit for automatic PR creation
+npx @handit.ai/cli github
 ```
 
 ### Global Installation
@@ -76,14 +80,39 @@ npx @handit.ai/cli setup
 **Options:**
 - `--test` - Use test environment (localhost)
 
-**Example:**
+**Examples:**
 ```bash
 # Production setup
 npx @handit.ai/cli setup
 
-# Test with localhost
+# Test with localhost  
 npx @handit.ai/cli setup --test
+
+# Connect repository to Handit for automatic PRs
+npx @handit.ai/cli github
+
+# Connect repository in test environment
+npx @handit.ai/cli github --test
 ```
+
+### 🔗 GitHub Integration
+
+Connect your repository to Handit for automatic PR creation when new prompts are detected.
+
+```bash
+npx @handit.ai/cli github
+```
+
+**What it does:**
+- Authenticates with your Handit account
+- Detects your Git repository 
+- Installs the Handit GitHub App for your repositories
+- Enables automatic PR creation for prompt optimizations
+
+**Requirements:**
+- Git repository (any remote or no remote)
+- GitHub account with repository access
+- Handit account with company setup
 
 ### Coming Soon
 

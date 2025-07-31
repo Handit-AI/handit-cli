@@ -354,6 +354,191 @@ async function setupEvaluators(agentName) {
 }
 
 /**
+ * Setup repository connection for automatic PR creation
+ */
+async function setupRepositoryConnection(agentName = null) {
+  const inquirer = require('inquirer').default;
+  const { HanditApi } = require('./api/handitApi');
+  const { TokenStorage } = require('./auth/tokenStorage');
+  const { spawn } = require('child_process');
+  const fs = require('fs-extra');
+
+  try {
+    // Get stored tokens
+    const tokenStorage = new TokenStorage();
+    let tokens = await tokenStorage.loadTokens();
+    
+    if (!tokens || !tokens.authToken) {
+      console.log(chalk.yellow('⚠️  No authentication token found. Please authenticate first.'));
+      
+      // Attempt to authenticate
+      const authResult = await authenticate();
+      if (!authResult.authenticated) {
+        console.log(chalk.red('❌ Authentication failed. Cannot connect repository.'));
+        return;
+      }
+      
+      // Reload tokens after authentication
+      tokens = await tokenStorage.loadTokens();
+    }
+
+    // Initialize Handit API with stored tokens
+    const handitApi = new HanditApi();
+    handitApi.authToken = tokens.authToken;
+    handitApi.apiToken = tokens.apiToken;
+
+    console.log(chalk.blue.bold('\n🔗 Repository Integration'));
+    console.log(chalk.gray('Connect your repository to enable automatic PR creation when new prompts are detected.\n'));
+
+    const { shouldConnect } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'shouldConnect',
+        message: 'Would you like to connect your repository to Handit?',
+        default: true
+      }
+    ]);
+
+    if (!shouldConnect) {
+      console.log(chalk.gray('Repository connection skipped.'));
+      return;
+    }
+
+    // Simple check if we're in a git repository
+    const checkGitSpinner = ora('Checking git repository...').start();
+    
+    const isGitRepo = await new Promise((resolve) => {
+      const gitCheck = spawn('git', ['rev-parse', '--git-dir'], { 
+        stdio: 'pipe',
+        cwd: process.cwd()
+      });
+      
+      gitCheck.on('close', (code) => {
+        resolve(code === 0);
+      });
+    });
+
+    if (!isGitRepo) {
+      checkGitSpinner.fail('Not a git repository');
+      console.log(chalk.yellow('⚠️  This directory is not a git repository.'));
+      console.log(chalk.gray('Initialize a git repository first: git init'));
+      return;
+    }
+
+    checkGitSpinner.succeed('Git repository detected');
+
+    // Get user's company ID for the GitHub App installation
+    const userSpinner = ora('Getting user information...').start();
+    let companyId;
+    
+    try {
+      const userInfo = await handitApi.getUserInfo();
+
+      companyId = userInfo.company?.id || userInfo.companyId;
+      userSpinner.succeed('User information retrieved');
+    } catch (error) {
+      userSpinner.fail('Could not retrieve user information');
+      console.log(chalk.yellow('⚠️  Unable to get company information for GitHub App setup.'));
+      console.log(chalk.gray('Attempting to re-authenticate to get updated user information...'));
+      
+      // Try to re-authenticate to get updated company information
+      try {
+        const authResult = await authenticate();
+        if (authResult.authenticated) {
+          // Reload tokens and try again
+          tokens = await tokenStorage.loadTokens();
+          handitApi.authToken = tokens.authToken;
+          handitApi.apiToken = tokens.apiToken;
+          
+          const retrySpinner = ora('Retrying user information...').start();
+          const retryUserInfo = await handitApi.getUserInfo();
+
+          companyId = retryUserInfo.company?.id || retryUserInfo.companyId;
+          retrySpinner.succeed('User information retrieved after re-authentication');
+        }
+      } catch (retryError) {
+        console.log(chalk.red('❌ Re-authentication failed. Cannot get company information.'));
+        console.log(chalk.gray('You can manually install the GitHub App from your Handit dashboard.'));
+        return;
+      }
+    }
+
+    if (!companyId) {
+      console.log(chalk.yellow('⚠️  No company ID found even after re-authentication.'));
+      console.log(chalk.gray('Please ensure your account is properly set up with a company.'));
+      console.log(chalk.gray('Contact support if this issue persists: support@handit.ai'));
+      return;
+    }
+
+    // Open GitHub App installation URL
+    const githubAppUrl = `https://github.com/apps/handit-ai/installations/new?state=${companyId}`;
+    
+    console.log(chalk.blue('\n🔗 GitHub App Installation:'));
+    console.log(chalk.gray('We\'ll open GitHub in your browser to install the Handit AI App.'));
+    console.log(chalk.gray('This will enable automatic PR creation when new prompts are detected.\n'));
+
+    const { shouldOpenGitHub } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'shouldOpenGitHub',
+        message: 'Open GitHub App installation page?',
+        default: true
+      }
+    ]);
+
+    if (shouldOpenGitHub) {
+      const open = require('open');
+      
+      try {
+        console.log(chalk.blue('🌐 Opening GitHub App installation page...'));
+        await open(githubAppUrl);
+        
+        console.log(chalk.green('✅ GitHub App installation page opened!'));
+        console.log(chalk.gray('Instructions:'));
+        console.log(chalk.gray('  1. Select the repositories you want to connect'));
+        console.log(chalk.gray('  2. Click "Install" to complete the setup'));
+        console.log(chalk.gray('  3. Return to this terminal once installation is complete\n'));
+
+        const { installationComplete } = await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'installationComplete',
+            message: 'Have you completed the GitHub App installation?',
+            default: true
+          }
+        ]);
+
+        if (installationComplete) {
+          console.log(chalk.green('✅ Repository integration completed!'));
+          console.log(chalk.gray('Benefits:'));
+          console.log(chalk.gray('  • Automatic PR creation when new prompts are detected'));
+          console.log(chalk.gray('  • Prompt optimization suggestions'));
+          console.log(chalk.gray('  • Version control for AI interactions'));
+          console.log(chalk.gray('  • Team collaboration on prompt improvements\n'));
+        } else {
+          console.log(chalk.yellow('📝 You can complete the installation later from your Handit dashboard.'));
+        }
+
+      } catch (error) {
+        console.log(chalk.red('❌ Could not open browser automatically.'));
+        console.log(chalk.blue('Please manually open this URL to install the GitHub App:'));
+        console.log(chalk.underline(githubAppUrl));
+      }
+    } else {
+      console.log(chalk.blue('📝 To connect your repository later, visit:'));
+      console.log(chalk.underline(githubAppUrl));
+      console.log(chalk.gray('Or access it from your Handit dashboard.\n'));
+    }
+
+  } catch (error) {
+    console.log(chalk.yellow(`⚠️  Repository connection error: ${error.message}`));
+    console.log(chalk.gray('Continuing with setup...'));
+  }
+}
+
+
+
+/**
  * Setup workflow - Initial agent setup
  */
 async function runSetup(options = {}) {
@@ -432,6 +617,9 @@ async function runSetup(options = {}) {
     // Step 10: Setup evaluators
     await setupEvaluators(projectInfo.agentName);
 
+    // Step 11: Setup repository connection
+    await setupRepositoryConnection();
+
     // Success summary
     console.log('\n' + chalk.green.bold('✅ Handit setup completed successfully!'));
     console.log(chalk.gray('Summary:'));
@@ -439,6 +627,11 @@ async function runSetup(options = {}) {
     console.log(`  • Functions tracked: ${chalk.blue(confirmedGraph.nodes.filter(node => node.selected).length)}`);
     console.log(`  • Code generated: ${chalk.blue(instrumentedFunctions.length)} instrumented functions`);
     console.log(`  • Configuration: ${chalk.blue('handit.config.json')}`);
+    console.log('\n' + chalk.yellow('Next Steps:'));
+    console.log(chalk.gray('  1. Run your agent to start collecting traces'));
+    console.log(chalk.gray('  2. Monitor performance in your Handit dashboard'));
+    console.log(chalk.gray('  3. If connected to repository, watch for automatic PR suggestions'));
+    console.log(chalk.gray('  4. Use evaluators to analyze and improve your agent\'s performance'));
 
   } catch (error) {
     throw new Error(`Setup failed: ${error.message}`);
@@ -510,8 +703,43 @@ async function runEvaluation(options = {}) {
   }
 }
 
+/**
+ * GitHub connection workflow - Only login and repository connection
+ */
+async function runGitHubConnection(options = {}) {
+  const config = {
+    dev: options.dev || false,
+    projectRoot: process.cwd(),
+    ...options
+  };
+
+  try {
+    // Step 1: Authentication
+    console.log(chalk.blue.bold('🔗 Handit GitHub Integration'));
+    console.log(chalk.gray('Connect your repository to Handit for automatic PR creation...\n'));
+    
+    const authResult = await authenticate();
+    if (!authResult.authenticated) {
+      throw new Error('Authentication required to continue');
+    }
+
+    // Step 2: Setup repository connection (no agent name needed for GitHub integration)
+    await setupRepositoryConnection();
+
+    // Success summary
+    console.log('\n' + chalk.green.bold('✅ GitHub integration completed!'));
+    console.log(chalk.gray('Your repository is now connected to Handit.'));
+    console.log(chalk.gray('You\'ll receive automatic PR suggestions when new prompts are detected.'));
+    console.log(chalk.gray('The Handit GitHub App has been installed and configured.'));
+
+  } catch (error) {
+    throw new Error(`GitHub integration failed: ${error.message}`);
+  }
+}
+
 module.exports = {
   runSetup,
   runTraceMonitor,
-  runEvaluation
+  runEvaluation,
+  runGitHubConnection
 }; 

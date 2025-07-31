@@ -2,14 +2,14 @@
 
 const { Command } = require('commander');
 const chalk = require('chalk');
-const { runSetup, runTraceMonitor, runEvaluation } = require('../src/index.js');
+const { runSetup, runTraceMonitor, runEvaluation, runGitHubConnection } = require('../src/index.js');
 
 const program = new Command();
 
 program
   .name('handit-cli')
   .description('Handit CLI for agent setup and trace monitoring')
-  .version('1.0.0')
+  .version('1.0.2')
   .option('--test', 'Use test environment (localhost)');
 
 // Setup command
@@ -66,6 +66,23 @@ program
       console.log(chalk.gray('Evaluating traces and suggesting improvements...\n'));
       
       await runEvaluation(options);
+    } catch (error) {
+      console.error(chalk.red.bold('❌ Error:'), error.message);
+      if (options.dev) {
+        console.error(chalk.gray('Stack trace:'), error.stack);
+      }
+      process.exit(1);
+    }
+  });
+
+// GitHub integration command
+program
+  .command('github')
+  .description('Connect your repository to Handit for automatic PR creation')
+  .option('-d, --dev', 'Enable development mode with verbose logging')
+  .action(async (options) => {
+    try {
+      await runGitHubConnection(options);
     } catch (error) {
       console.error(chalk.red.bold('❌ Error:'), error.message);
       if (options.dev) {
