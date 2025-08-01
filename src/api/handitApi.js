@@ -312,9 +312,12 @@ class HanditApi {
       const params = {};
       if (limit) params.limit = limit;
       if (offset) params.offset = offset;
-
+      console.log('--------------------------------');
+      console.log(params);
+      console.log(this.getAuthHeaders());
+      console.log(`${this.apiUrl}/agents`);
+      console.log('--------------------------------');
       const response = await axios.get(`${this.apiUrl}/agents`, {
-        params,
         headers: this.getAuthHeaders()
       });
 
@@ -357,6 +360,23 @@ class HanditApi {
     } catch (error) {
       if (error.response) {
         throw new Error(`Repository connection failed: ${error.response.data.message || error.response.statusText}`);
+      }
+      throw new Error(`Network error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Update agent with repository URL
+   */
+  async updateAgent(agentId, updateData) {
+    try {
+      const response = await axios.put(`${this.apiUrl}/agents/${agentId}`, updateData, {
+        headers: this.getAuthHeaders()
+      });
+      return response.data;
+    } catch (error) {
+      if (error.response) {
+        throw new Error(`Agent update failed: ${error.response.data.message || error.response.statusText}`);
       }
       throw new Error(`Network error: ${error.message}`);
     }

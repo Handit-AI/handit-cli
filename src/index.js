@@ -427,6 +427,109 @@ async function setupRepositoryConnection(agentName = null) {
 
     checkGitSpinner.succeed('Git repository detected');
 
+    // Get git remote URL
+    let repositoryUrl = null;
+    const remoteSpinner = ora('Getting git remote URL...').start();
+    
+    try {
+      repositoryUrl = await new Promise((resolve, reject) => {
+        const gitRemote = spawn('git', ['remote', 'get-url', 'origin'], { 
+          stdio: 'pipe',
+          cwd: process.cwd()
+        });
+        
+        let output = '';
+        gitRemote.stdout.on('data', (data) => {
+          output += data.toString();
+        });
+        
+        gitRemote.on('close', (code) => {
+          if (code === 0) {
+            resolve(output.trim());
+          } else {
+            resolve(null);
+          }
+        });
+      });
+
+      if (repositoryUrl) {
+        remoteSpinner.succeed(`Found remote: ${repositoryUrl}`);
+        
+        // Get agents list
+        const agentsSpinner = ora('Loading agents...').start();
+        let agents;
+        try {
+          agents = await handitApi.getAgents();
+          agentsSpinner.succeed(`Found ${agents.length} agents`);
+        } catch (error) {
+          agentsSpinner.fail(`Failed to load agents: ${error.message}`);
+          return;
+        }
+
+        if (agents.length === 0) {
+          console.log(chalk.yellow('⚠️  No agents found. Create an agent first by running setup.'));
+          return;
+        }
+
+        let selectedAgent;
+        
+        // If agent name is provided, find it
+        if (agentName) {
+          selectedAgent = agents.find(a => a.name == agentName);
+          if (!selectedAgent) {
+            console.log(chalk.yellow(`⚠️  Agent "${agentName}" not found.`));
+            console.log(chalk.gray('Available agents:'));
+            agents.forEach(agent => {
+              console.log(chalk.gray(`  • ${agent.name}`));
+            });
+            
+            const { shouldSelectDifferent } = await inquirer.prompt([
+              {
+                type: 'confirm',
+                name: 'shouldSelectDifferent',
+                message: 'Would you like to select a different agent?',
+                default: true
+              }
+            ]);
+            
+            if (!shouldSelectDifferent) {
+              return;
+            }
+          }
+        }
+        
+        // If no agent name provided or agent not found, let user select
+        if (!selectedAgent) {
+          const { selectedAgentChoice } = await inquirer.prompt([
+            {
+              type: 'list',
+              name: 'selectedAgentChoice',
+              message: 'Which agent would you like to connect to this repository?',
+              choices: agents.map(agent => ({
+                name: `${agent.name} ${agent.id ? `(ID: ${agent.id})` : ''}`,
+                value: agent
+              }))
+            }
+          ]);
+          selectedAgent = selectedAgentChoice;
+        }
+
+        // Update agent with repository URL
+        const updateSpinner = ora(`Updating agent "${selectedAgent.name}" with repository URL...`).start();
+        
+        try {
+          await handitApi.updateAgent(selectedAgent.id, { repository: repositoryUrl });
+          updateSpinner.succeed(`Agent "${selectedAgent.name}" updated with repository URL`);
+        } catch (error) {
+          updateSpinner.fail(`Failed to update agent: ${error.message}`);
+        }
+      } else {
+        remoteSpinner.warn('No git remote found');
+      }
+    } catch (error) {
+      remoteSpinner.fail(`Failed to get git remote: ${error.message}`);
+    }
+
     // Get user's company ID for the GitHub App installation
     const userSpinner = ora('Getting user information...').start();
     let companyId;
@@ -487,13 +590,55 @@ async function setupRepositoryConnection(agentName = null) {
     ]);
 
     if (shouldOpenGitHub) {
-      const open = require('open');
-      
       try {
         console.log(chalk.blue('🌐 Opening GitHub App installation page...'));
-        await open(githubAppUrl);
         
-        console.log(chalk.green('✅ GitHub App installation page opened!'));
+        // Try multiple approaches to open the URL
+        let opened = false;
+        
+        // Method 1: Try the open package
+        try {
+          const open = require('open');
+          await open(githubAppUrl, { wait: false });
+          opened = true;
+        } catch (error1) {
+          console.log(chalk.gray('Open package failed, trying alternative method...'));
+          
+          // Method 2: Try platform-specific commands
+          try {
+            const { exec } = require('child_process');
+            const { promisify } = require('util');
+            const execAsync = promisify(exec);
+            
+            let command;
+            switch (process.platform) {
+              case 'darwin': // macOS
+                command = `open "${githubAppUrl}"`;
+                break;
+              case 'win32': // Windows
+                command = `start "" "${githubAppUrl}"`;
+                break;
+              default: // Linux and others
+                command = `xdg-open "${githubAppUrl}"`;
+                break;
+            }
+            
+            await execAsync(command);
+            opened = true;
+          } catch (error2) {
+            console.log(chalk.gray('Platform command failed, will show manual URL...'));
+          }
+        }
+        
+        if (opened) {
+          // Give it a moment for the browser to start
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          console.log(chalk.green('✅ GitHub App installation page opened!'));
+        } else {
+          console.log(chalk.yellow('⚠️  Could not open browser automatically.'));
+          console.log(chalk.blue('Please manually open this URL:'));
+          console.log(chalk.underline(githubAppUrl));
+        }
         console.log(chalk.gray('Instructions:'));
         console.log(chalk.gray('  1. Select the repositories you want to connect'));
         console.log(chalk.gray('  2. Click "Install" to complete the setup'));
@@ -520,9 +665,10 @@ async function setupRepositoryConnection(agentName = null) {
         }
 
       } catch (error) {
-        console.log(chalk.red('❌ Could not open browser automatically.'));
+        console.log(chalk.red('❌ Unexpected error occurred.'));
         console.log(chalk.blue('Please manually open this URL to install the GitHub App:'));
         console.log(chalk.underline(githubAppUrl));
+        console.log(chalk.gray(`Error details: ${error.message}`));
       }
     } else {
       console.log(chalk.blue('📝 To connect your repository later, visit:'));
@@ -618,7 +764,7 @@ async function runSetup(options = {}) {
     await setupEvaluators(projectInfo.agentName);
 
     // Step 11: Setup repository connection
-    await setupRepositoryConnection();
+    await setupRepositoryConnection(projectInfo.agentName);
 
     // Success summary
     console.log('\n' + chalk.green.bold('✅ Handit setup completed successfully!'));
