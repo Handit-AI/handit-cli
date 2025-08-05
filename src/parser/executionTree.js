@@ -995,7 +995,9 @@ function findJavaScriptFunction(functionName, content) {
           }
         },
       });
-    } catch (error) {}
+    } catch (error) {
+      // Ignore parsing errors for arrow functions
+    }
     if (!result) {
       try {
         // Find regular function
@@ -1035,7 +1037,9 @@ function findJavaScriptFunction(functionName, content) {
             }
           },
         });
-      } catch (error) {}
+      } catch (error) {
+        // Ignore parsing errors for regular functions
+      }
     }
 
     return result;
