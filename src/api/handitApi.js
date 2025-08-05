@@ -312,11 +312,7 @@ class HanditApi {
       const params = {};
       if (limit) params.limit = limit;
       if (offset) params.offset = offset;
-      console.log('--------------------------------');
-      console.log(params);
-      console.log(this.getAuthHeaders());
-      console.log(`${this.apiUrl}/agents`);
-      console.log('--------------------------------');
+     
       const response = await axios.get(`${this.apiUrl}/agents`, {
         headers: this.getAuthHeaders()
       });

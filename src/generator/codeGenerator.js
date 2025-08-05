@@ -155,6 +155,7 @@ IMPORTANT RULES:
 10. Never add additional imports that are not needed, just import handit functions. 
 11. Use the apiKey provided to you to configure the Handit.ai SDK, but just add it to the entry point.
 12. If handit is already configured or called in the function, return the parameter of required changes as false, else return true.
+13. The user API Key is ${apiKey}
 
 Return everything in the following json format:
 
@@ -588,7 +589,7 @@ FUNCTION DETAILS:
 - Line: ${node.line}
 - Agent Name: ${this.agentName}
 - Is Entry Point: ${isEntryPoint}
-- API Token: ${apiKey}
+- Handit uses API Key: ${apiKey}
 
 ORIGINAL CODE:
 \`\`\`${this.language}
@@ -615,7 +616,7 @@ ${JSON.stringify(allNodes, null, 2)}
 ALSO DO NOT ADD ADDITIONAL FUNCTIONS OR CODE WE DO NOT NEED. REMEMBER THAT THE FULL STRUCTURE FUNCTIONS IS ALREADY IMPLEMENTED.
 
 
-${isEntryPoint ? `ENTRY POINT: Add startTracing() at beginning and endTracing() in finally block, also add config({ apiKey: process.env.HANDIT_API_KEY })` : 'CHILD FUNCTION: Accept executionId parameter, use trackNode() and import the trackNode function'}
+${isEntryPoint ? `ENTRY POINT: Add startTracing() at beginning and endTracing() in finally block, also add config({ apiKey: ${apiKey} })` : 'CHILD FUNCTION: Accept executionId parameter, use trackNode() and import the trackNode function'}
 
 Return everything in the format
 
@@ -885,7 +886,6 @@ Return ONLY the instrumented code, no explanations.`
         braceCount -= (line.match(/}/g) || []).length;
 
         if (braceCount === 0 && i > startLine) {
-          console.log(i, 'i');
           return i;
         }
       }

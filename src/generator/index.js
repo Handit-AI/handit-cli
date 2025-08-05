@@ -61,7 +61,7 @@ async function generateInstrumentedCode(selectedFunctionIds, allNodes, language,
  */
 async function generateInstrumentedCodeIteratively(selectedFunctionIds, allNodes, language, agentName, projectRoot, apiToken = null) {
   const generator = new IterativeCodeGenerator(language, agentName, projectRoot, apiToken);
-  return await generator.generateIteratively(selectedFunctionIds, allNodes);
+  return await generator.generateIteratively(selectedFunctionIds, allNodes, apiToken);
 }
 
 /**

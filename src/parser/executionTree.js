@@ -331,16 +331,17 @@ async function parseJavaScriptFile(content, functionName) {
  * @returns {Array} - Array of function calls
  */
 async function parsePythonFile(content, functionName) {
-  
   // Extract just the function name from method calls like "processor.process_document"
-  const targetFunctionName = functionName.includes('.') ? functionName.split('.')[1] : functionName;
-  
+  const targetFunctionName = functionName.includes('.')
+    ? functionName.split('.')[1]
+    : functionName;
+
   const functionCalls = [];
 
   try {
     // Use Python's built-in ast module to parse the code
     const { spawn } = require('child_process');
-    
+
     // Create a Python script to parse the AST
     const pythonScript = `
 import ast
@@ -489,46 +490,51 @@ print(json.dumps(result))
 `;
 
     return new Promise((resolve, reject) => {
-      const pythonProcess = spawn('python3', ['-c', pythonScript, targetFunctionName]);
-      
+      const pythonProcess = spawn('python3', [
+        '-c',
+        pythonScript,
+        targetFunctionName,
+      ]);
+
       let stdout = '';
       let stderr = '';
-      
+
       pythonProcess.stdout.on('data', (data) => {
         stdout += data.toString();
       });
-      
+
       pythonProcess.stderr.on('data', (data) => {
         stderr += data.toString();
       });
-      
+
       pythonProcess.on('close', (code) => {
         if (code === 0) {
           try {
             const result = JSON.parse(stdout);
-            
+
             // Use the definitions to resolve function calls
             const resolvedCalls = [];
-            
+
             for (const call of result.calls) {
               if (call.type === 'method') {
                 // For method calls, try to resolve using definitions
                 const parts = call.name.split('.');
                 const objectName = parts[0];
                 const methodName = parts[1];
-                
+
                 // Find the object definition
-                const objectDef = result.definitions.find(def => 
-                  def.type === 'assignment' && def.variable === objectName
+                const objectDef = result.definitions.find(
+                  (def) =>
+                    def.type === 'assignment' && def.variable === objectName
                 );
-                
+
                 if (objectDef) {
-                  
                   // Find the class import
-                  const classImport = result.definitions.find(def => 
-                    def.type === 'import' && def.name === objectDef.class
+                  const classImport = result.definitions.find(
+                    (def) =>
+                      def.type === 'import' && def.name === objectDef.class
                   );
-                  
+
                   if (classImport) {
                     // Add the module information to the call
                     call.module = classImport.module;
@@ -536,10 +542,10 @@ print(json.dumps(result))
                   }
                 }
               }
-              
+
               resolvedCalls.push(call);
             }
-            
+
             resolve(resolvedCalls);
           } catch (error) {
             console.warn('Error parsing Python AST output:', error);
@@ -550,11 +556,10 @@ print(json.dumps(result))
           resolve([]);
         }
       });
-      
+
       pythonProcess.stdin.write(content);
       pythonProcess.stdin.end();
     });
-
   } catch (error) {
     console.warn(`Warning: Could not parse Python file: ${error.message}`);
     return [];
@@ -569,7 +574,6 @@ print(json.dumps(result))
  * @returns {Promise<ExecutionNode|null>} - Resolved node or null
  */
 async function resolveFunctionCall(call, projectRoot, nodeMap) {
-  
   // Handle method calls (e.g., "processor.process_document")
   let searchName = call.name;
   let isMethodCall = false;
@@ -599,41 +603,71 @@ async function resolveFunctionCall(call, projectRoot, nodeMap) {
 
     // For method calls, try to find the object definition first
     if (isMethodCall && objectName) {
-      
       // If the call has module information from AST, use it directly
       if (call.module) {
         const importedFile = await findImportedFile(call.module, projectRoot);
         if (importedFile) {
-          const importedContent = await fs.readFile(path.join(projectRoot, importedFile), 'utf8');
-          const functionDef = await findFunctionDefinition(searchName, importedContent, importedFile);
+          const importedContent = await fs.readFile(
+            path.join(projectRoot, importedFile),
+            'utf8'
+          );
+          const functionDef = await findFunctionDefinition(
+            searchName,
+            importedContent,
+            importedFile
+          );
           if (functionDef) {
             const nodeId = `${importedFile}:${call.name}`;
             if (nodeMap.has(nodeId)) {
               return nodeMap.get(nodeId);
             }
-            const newNode = new ExecutionNode(call.name, importedFile, functionDef.line, call.type);
+            const newNode = new ExecutionNode(
+              call.name,
+              importedFile,
+              functionDef.line,
+              call.type
+            );
             newNode.metadata = functionDef.metadata;
             nodeMap.set(nodeId, newNode);
             return newNode;
           }
         }
       }
-      
+
       // Fallback to the old method if no module info from AST
-      const objectDef = await findObjectDefinition(objectName, content, currentFile);
+      const objectDef = await findObjectDefinition(
+        objectName,
+        content,
+        currentFile
+      );
       if (objectDef) {
         // If it's an import, search in the imported file
         if (objectDef.type === 'import' && objectDef.module) {
-          const importedFile = await findImportedFile(objectDef.module, projectRoot);
+          const importedFile = await findImportedFile(
+            objectDef.module,
+            projectRoot
+          );
           if (importedFile) {
-            const importedContent = await fs.readFile(path.join(projectRoot, importedFile), 'utf8');
-            const functionDef = await findFunctionDefinition(searchName, importedContent, importedFile);
+            const importedContent = await fs.readFile(
+              path.join(projectRoot, importedFile),
+              'utf8'
+            );
+            const functionDef = await findFunctionDefinition(
+              searchName,
+              importedContent,
+              importedFile
+            );
             if (functionDef) {
               const nodeId = `${importedFile}:${call.name}`;
               if (nodeMap.has(nodeId)) {
                 return nodeMap.get(nodeId);
               }
-              const newNode = new ExecutionNode(call.name, importedFile, functionDef.line, call.type);
+              const newNode = new ExecutionNode(
+                call.name,
+                importedFile,
+                functionDef.line,
+                call.type
+              );
               newNode.metadata = functionDef.metadata;
               nodeMap.set(nodeId, newNode);
               return newNode;
@@ -643,18 +677,41 @@ async function resolveFunctionCall(call, projectRoot, nodeMap) {
         // If it's an assignment, search for the class definition
         else if (objectDef.type === 'assignment' && objectDef.className) {
           // First, try to find the class import
-          const classImport = await findObjectDefinition(objectDef.className, content, currentFile);
-          if (classImport && classImport.type === 'import' && classImport.module) {
-            const importedFile = await findImportedFile(classImport.module, projectRoot);
+          const classImport = await findObjectDefinition(
+            objectDef.className,
+            content,
+            currentFile
+          );
+          if (
+            classImport &&
+            classImport.type === 'import' &&
+            classImport.module
+          ) {
+            const importedFile = await findImportedFile(
+              classImport.module,
+              projectRoot
+            );
             if (importedFile) {
-              const importedContent = await fs.readFile(path.join(projectRoot, importedFile), 'utf8');
-              const functionDef = await findFunctionDefinition(searchName, importedContent, importedFile);
+              const importedContent = await fs.readFile(
+                path.join(projectRoot, importedFile),
+                'utf8'
+              );
+              const functionDef = await findFunctionDefinition(
+                searchName,
+                importedContent,
+                importedFile
+              );
               if (functionDef) {
                 const nodeId = `${importedFile}:${call.name}`;
                 if (nodeMap.has(nodeId)) {
                   return nodeMap.get(nodeId);
                 }
-                const newNode = new ExecutionNode(call.name, importedFile, functionDef.line, call.type);
+                const newNode = new ExecutionNode(
+                  call.name,
+                  importedFile,
+                  functionDef.line,
+                  call.type
+                );
                 newNode.metadata = functionDef.metadata;
                 return newNode;
               }
@@ -767,11 +824,11 @@ async function findFunctionDefinition(functionName, content, filePath) {
  */
 async function findObjectDefinition(objectName, content, filePath) {
   const fileExt = path.extname(filePath);
-  
+
   if (fileExt === '.py') {
     return findPythonObject(objectName, content);
   }
-  
+
   return null;
 }
 
@@ -783,10 +840,10 @@ async function findObjectDefinition(objectName, content, filePath) {
  */
 function findPythonObject(objectName, content) {
   const lines = content.split('\n');
-  
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    
+
     // Check for imports
     const importMatch = line.match(/^from\s+(\S+)\s+import\s+(\w+)/);
     if (importMatch) {
@@ -796,11 +853,11 @@ function findPythonObject(objectName, content) {
         return {
           type: 'import',
           module: module,
-          line: i + 1
+          line: i + 1,
         };
       }
     }
-    
+
     // Check for direct imports
     const directImportMatch = line.match(/^import\s+(\w+)/);
     if (directImportMatch) {
@@ -809,20 +866,20 @@ function findPythonObject(objectName, content) {
         return {
           type: 'import',
           module: module,
-          line: i + 1
+          line: i + 1,
         };
       }
     }
-    
+
     // Check for class definitions
     const classMatch = line.match(/^class\s+(\w+)/);
     if (classMatch && classMatch[1] === objectName) {
       return {
         type: 'class',
-        line: i + 1
+        line: i + 1,
       };
     }
-    
+
     // Check for variable assignments like "processor = DocumentProcessor()"
     const assignmentMatch = line.match(/^(\w+)\s*=\s*(\w+)\s*\(/);
     if (assignmentMatch) {
@@ -832,12 +889,12 @@ function findPythonObject(objectName, content) {
         return {
           type: 'assignment',
           className: className,
-          line: i + 1
+          line: i + 1,
         };
       }
     }
   }
-  
+
   return null;
 }
 
@@ -850,15 +907,15 @@ function findPythonObject(objectName, content) {
 async function findImportedFile(moduleName, projectRoot) {
   // Common Python file extensions
   const extensions = ['.py', '.pyx', '.pyi'];
-  
+
   for (const ext of extensions) {
     const possibleFiles = [
       `${moduleName}${ext}`,
       `${moduleName}/__init__${ext}`,
       `${moduleName.replace(/\./g, '/')}${ext}`,
-      `${moduleName.replace(/\./g, '/')}/__init__${ext}`
+      `${moduleName.replace(/\./g, '/')}/__init__${ext}`,
     ];
-    
+
     for (const file of possibleFiles) {
       const filePath = path.join(projectRoot, file);
       try {
@@ -869,7 +926,7 @@ async function findImportedFile(moduleName, projectRoot) {
       }
     }
   }
-  
+
   return null;
 }
 
@@ -895,8 +952,7 @@ function findJavaScriptFunction(functionName, content) {
     // Check if this is an Express route (contains hyphens or slashes)
     const isExpressRoute =
       functionName.includes('-') || functionName.includes('/');
-
-    if (isExpressRoute) {
+    try {
       // Find Express route handler
       traverse(ast, {
         CallExpression(path) {
@@ -914,7 +970,9 @@ function findJavaScriptFunction(functionName, content) {
               const routePath = args[0];
               if (
                 routePath.type === 'StringLiteral' &&
-                routePath.value === `/${functionName}`
+                (routePath.value === `/${functionName}` ||
+                  routePath.value === functionName ||
+                  '/' + functionName === routePath.value)
               ) {
                 // Found the route, the handler is the last argument
                 const handler = args[args.length - 1];
@@ -937,44 +995,47 @@ function findJavaScriptFunction(functionName, content) {
           }
         },
       });
-    } else {
-      // Find regular function
-      traverse(ast, {
-        FunctionDeclaration(path) {
-          if (path.node.id && path.node.id.name === functionName) {
-            result = {
-              line: path.node.loc?.start.line || 0,
-              metadata: {
-                isAsync: path.node.async,
-                isExported:
-                  path.parent.type === 'ExportNamedDeclaration' ||
-                  path.parent.type === 'ExportDefaultDeclaration',
-                parameters: path.node.params.map((param) => param.name),
-                returnType: null,
-              },
-            };
-          }
-        },
-        VariableDeclarator(path) {
-          if (
-            path.node.id &&
-            path.node.id.name === functionName &&
-            path.node.init &&
-            path.node.init.type === 'FunctionExpression'
-          ) {
-            result = {
-              line: path.node.loc?.start.line || 0,
-              metadata: {
-                isAsync: path.node.init.async,
-                isExported:
-                  path.parent.parent.type === 'ExportNamedDeclaration',
-                parameters: path.node.init.params.map((param) => param.name),
-                returnType: null,
-              },
-            };
-          }
-        },
-      });
+    } catch (error) {}
+    if (!result) {
+      try {
+        // Find regular function
+        traverse(ast, {
+          FunctionDeclaration(path) {
+            if (path.node.id && path.node.id.name === functionName) {
+              result = {
+                line: path.node.loc?.start.line || 0,
+                metadata: {
+                  isAsync: path.node.async,
+                  isExported:
+                    path.parent.type === 'ExportNamedDeclaration' ||
+                    path.parent.type === 'ExportDefaultDeclaration',
+                  parameters: path.node.params.map((param) => param.name),
+                  returnType: null,
+                },
+              };
+            }
+          },
+          VariableDeclarator(path) {
+            if (
+              path.node.id &&
+              path.node.id.name === functionName &&
+              path.node.init &&
+              path.node.init.type === 'FunctionExpression'
+            ) {
+              result = {
+                line: path.node.loc?.start.line || 0,
+                metadata: {
+                  isAsync: path.node.init.async,
+                  isExported:
+                    path.parent.parent.type === 'ExportNamedDeclaration',
+                  parameters: path.node.init.params.map((param) => param.name),
+                  returnType: null,
+                },
+              };
+            }
+          },
+        });
+      } catch (error) {}
     }
 
     return result;
@@ -1141,4 +1202,3 @@ module.exports = {
   buildExecutionTree,
   ExecutionNode,
 };
- 

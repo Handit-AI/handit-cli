@@ -22,7 +22,7 @@ class IterativeCodeGenerator {
   /**
    * Generate code iteratively for all selected functions
    */
-  async generateIteratively(selectedFunctionIds, allNodes) {
+  async generateIteratively(selectedFunctionIds, allNodes, apiToken = null) {
     console.log(chalk.blue.bold('\n🔄 Iterative Code Generation'));
     console.log(chalk.gray('We\'ll generate instrumented code for each function and ask for your approval.\n'));
 
@@ -40,7 +40,7 @@ class IterativeCodeGenerator {
       
       try {
         // Generate instrumented code for this function
-        const result = await this.generateSingleFunction(node, selectedNodes);
+        const result = await this.generateSingleFunction(node, selectedNodes, apiToken);
         
         if (result.applied) {
           this.appliedFunctions.push({ node, originalCode: result.originalCode, ...result });
@@ -96,7 +96,7 @@ class IterativeCodeGenerator {
      /**
     * Generate and confirm instrumentation for a single function
     */
-   async generateSingleFunction(node, allNodes) {
+   async generateSingleFunction(node, allNodes, apiToken = null) {
      // Get original function code with loading
      const codeSpinner = ora(`Reading original code for ${node.name}...`).start();
      const originalCode = await this.generator.getOriginalFunctionCode(node);
@@ -104,7 +104,7 @@ class IterativeCodeGenerator {
      
      // Generate structured changes with loading
      const aiSpinner = ora(`Generating structured changes with AI...`).start();
-     const { changes, originalArray, instrumentedArray } = await this.generator.generateInstrumentedFunction(node, originalCode, allNodes);
+     const { changes, originalArray, instrumentedArray } = await this.generator.generateInstrumentedFunction(node, originalCode, allNodes, apiToken);
      aiSpinner.succeed('AI structured changes completed');
      
      // Debug: Show the AI response
@@ -871,6 +871,58 @@ class IterativeCodeGenerator {
   }
 
   /**
+   * Group changes by file path
+   */
+  groupChangesByFile() {
+    const changesByFile = {};
+    
+    for (const func of this.appliedFunctions) {
+      const filePath = path.resolve(func.node.file);
+      
+      if (!changesByFile[filePath]) {
+        changesByFile[filePath] = [];
+      }
+      
+      changesByFile[filePath].push(func);
+    }
+    
+    return changesByFile;
+  }
+
+  /**
+   * Apply all changes to a single file at once
+   */
+  async applyAllChangesToSingleFile(filePath, fileChanges) {
+    try {
+      // Sort functions by their starting line number (descending)
+      // Apply from bottom to top to avoid line number shifts
+      fileChanges.sort((a, b) => b.node.line - a.node.line);
+      
+      console.log(chalk.gray(`  └── Applying ${fileChanges.length} function changes (bottom to top)...`));
+      
+      // Apply each function's changes from bottom to top
+      // This way, line numbers stay consistent for subsequent changes
+      for (let i = 0; i < fileChanges.length; i++) {
+        const func = fileChanges[i];
+        console.log(chalk.gray(`      ${i + 1}/${fileChanges.length}: ${func.node.name} (line ${func.node.line})`));
+        
+        try {
+          await this.applyStructuredChangesToFile(func.node, func.structuredChanges, func.originalArray);
+        } catch (error) {
+          console.error(chalk.red(`Failed to apply changes for ${func.node.name}: ${error.message}`));
+          // Continue with other functions rather than failing completely
+        }
+      }
+      
+      console.log(chalk.gray(`      ✓ Completed all changes for ${path.basename(filePath)}`));
+      
+    } catch (error) {
+      console.error(chalk.red(`❌ Error applying changes to ${filePath}: ${error.message}`));
+      throw error;
+    }
+  }
+
+  /**
    * Apply all pending changes to files
    */
   async applyAllPendingChanges() {
@@ -886,11 +938,17 @@ class IterativeCodeGenerator {
       await this.createHanditServiceFile(this.apiToken);
     }
     
-    for (const func of this.appliedFunctions) {
+    // Group changes by file path
+    const changesByFile = this.groupChangesByFile();
+    
+    // Apply changes file by file
+    for (const [filePath, fileChanges] of Object.entries(changesByFile)) {
       try {
-        await this.applyStructuredChangesToFile(func.node, func.structuredChanges, func.originalArray);
+        console.log(chalk.blue(`📄 Processing ${fileChanges.length} functions in ${path.basename(filePath)}...`));
+        await this.applyAllChangesToSingleFile(filePath, fileChanges);
+        console.log(chalk.green(`✓ Applied all changes to ${path.basename(filePath)}`));
       } catch (error) {
-        console.error(chalk.red(`Failed to apply changes for ${func.node.name}: ${error.message}`));
+        console.error(chalk.red(`❌ Failed to apply changes to ${filePath}: ${error.message}`));
       }
     }
     

@@ -99,11 +99,11 @@ class TokenStorage {
   async storeTokens(tokens) {
     try {
       this.ensureConfigDir();
-      
+      console.log('Storing tokens:', tokens);
       const encryptedTokens = {
-        authToken: this.encrypt(tokens.authToken),
-        apiToken: this.encrypt(tokens.apiToken),
-        stagingApiToken: this.encrypt(tokens.stagingApiToken),
+        authToken: tokens.authToken ? this.encrypt(tokens.authToken) : null,
+        apiToken: tokens.apiToken ? this.encrypt(tokens.apiToken) : null,
+        stagingApiToken: tokens.stagingApiToken ? this.encrypt(tokens.stagingApiToken) : null,
         user: tokens.user,
         company: tokens.company,
         timestamp: Date.now()
@@ -138,9 +138,9 @@ class TokenStorage {
       }
 
       return {
-        authToken: this.decrypt(encryptedTokens.authToken),
-        apiToken: this.decrypt(encryptedTokens.apiToken),
-        stagingApiToken: this.decrypt(encryptedTokens.stagingApiToken),
+        authToken: encryptedTokens.authToken ? this.decrypt(encryptedTokens.authToken) : null,
+        apiToken: encryptedTokens.apiToken ? this.decrypt(encryptedTokens.apiToken) : null,
+        stagingApiToken: encryptedTokens.stagingApiToken ? this.decrypt(encryptedTokens.stagingApiToken) : null,
         user: encryptedTokens.user,
         company: encryptedTokens.company
       };
