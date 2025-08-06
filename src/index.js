@@ -883,9 +883,80 @@ async function runGitHubConnection(options = {}) {
   }
 }
 
+/**
+ * Evaluators setup workflow - Setup evaluators for an existing agent
+ */
+async function runEvaluatorsSetup(options = {}) {
+  const inquirer = require('inquirer').default;
+
+  try {
+    console.log(chalk.blue.bold('🔍 Handit Evaluators Setup'));
+    console.log(chalk.gray('Setting up evaluators for your agent...\n'));
+
+    // Get list of agents to choose from
+    const { HanditApi } = require('./api/handitApi');
+    const { TokenStorage } = require('./auth/tokenStorage');
+    
+    // Get stored tokens
+    const tokenStorage = new TokenStorage();
+    const tokens = await tokenStorage.loadTokens();
+    
+    if (!tokens || !tokens.authToken) {
+      console.log(chalk.yellow('⚠️  No authentication token found. Please authenticate first.'));
+      console.log(chalk.gray('Run "handit-cli setup" to authenticate.'));
+      return;
+    }
+
+    // Initialize Handit API with stored tokens
+    const handitApi = new HanditApi();
+    handitApi.authToken = tokens.authToken;
+    handitApi.apiToken = tokens.apiToken;
+
+    // Get agents list
+    const agentsSpinner = ora('Loading your agents...').start();
+    let agents;
+    try {
+      agents = await handitApi.getAgents();
+      agentsSpinner.succeed(`Found ${agents.length} agents`);
+    } catch (error) {
+      agentsSpinner.fail(`Failed to load agents: ${error.message}`);
+      return;
+    }
+
+    if (agents.length === 0) {
+      console.log(chalk.yellow('⚠️  No agents found. Create an agent first by running setup.'));
+      console.log(chalk.gray('Run "handit-cli setup" to create your first agent.'));
+      return;
+    }
+
+    // Let user select an agent
+    const { selectedAgent } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'selectedAgent',
+        message: 'Which agent would you like to setup evaluators for?',
+        choices: agents.map(agent => ({
+          name: `${agent.name} ${agent.id ? `(ID: ${agent.id})` : ''}`,
+          value: agent.name
+        }))
+      }
+    ]);
+
+    // Run evaluator setup for selected agent
+    await setupEvaluators(selectedAgent);
+
+    console.log(chalk.green.bold('\n✅ Evaluators setup completed!'));
+    console.log(chalk.gray('Your evaluators are now ready to analyze your agent\'s performance.'));
+
+  } catch (error) {
+    throw new Error(`Evaluators setup failed: ${error.message}`);
+  }
+}
+
 module.exports = {
   runSetup,
   runTraceMonitor,
   runEvaluation,
-  runGitHubConnection
+  runGitHubConnection,
+  runEvaluatorsSetup
 }; 

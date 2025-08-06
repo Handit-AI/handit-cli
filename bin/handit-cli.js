@@ -2,7 +2,7 @@
 
 const { Command } = require('commander');
 const chalk = require('chalk');
-const { runSetup, runTraceMonitor, runEvaluation, runGitHubConnection } = require('../src/index.js');
+const { runSetup, runTraceMonitor, runEvaluation, runGitHubConnection, runEvaluatorsSetup } = require('../src/index.js');
 
 const program = new Command();
 
@@ -83,6 +83,23 @@ program
   .action(async (options) => {
     try {
       await runGitHubConnection(options);
+    } catch (error) {
+      console.error(chalk.red.bold('❌ Error:'), error.message);
+      if (options.dev) {
+        console.error(chalk.gray('Stack trace:'), error.stack);
+      }
+      process.exit(1);
+    }
+  });
+
+// Evaluators setup command
+program
+  .command('evaluators-setup')
+  .description('Setup evaluators for an existing agent')
+  .option('-d, --dev', 'Enable development mode with verbose logging')
+  .action(async (options) => {
+    try {
+      await runEvaluatorsSetup(options);
     } catch (error) {
       console.error(chalk.red.bold('❌ Error:'), error.message);
       if (options.dev) {
