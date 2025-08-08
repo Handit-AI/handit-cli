@@ -709,15 +709,18 @@ async function runSetup(options = {}) {
     
     const apiToken = authResult.apiToken;
 
-    // Step 2: Detect project language
+    // Step 2: Connect GitHub repository (immediately after login)
+    await setupRepositoryConnection();
+
+    // Step 3: Detect project language
     const languageSpinner = ora('Detecting project language...').start();
     const language = await detectLanguage(config.projectRoot);
     languageSpinner.succeed(`Detected ${chalk.blue(language)} project`);
 
-    // Step 3: Run setup prompts
+    // Step 4: Run setup prompts
     const projectInfo = await runPrompts(config, language);
 
-    // Step 4: Extract call graph
+    // Step 5: Extract call graph
     const graphSpinner = ora('Building execution tree...').start();
     const callGraph = await extractCallGraph(projectInfo.entryFile, projectInfo.entryFunction, language);
     graphSpinner.succeed(`Found ${chalk.blue(callGraph.nodes.length)} functions`);
@@ -730,15 +733,15 @@ async function runSetup(options = {}) {
       console.warn(`Warning: Could not visualize execution tree: ${error.message}`);
     }
 
-    // Step 5: Analyze functions for tracking
+    // Step 6: Analyze functions for tracking
     const analysisSpinner = ora('Analyzing functions for instrumentation...').start();
     const analyzedGraph = await analyzeFunctions(callGraph, language);
     analysisSpinner.succeed(`Identified ${chalk.blue(analyzedGraph.selectedNodes.length)} functions to track`);
 
-    // Step 6: User confirmation
+    // Step 7: User confirmation
     const confirmedGraph = await confirmSelection(analyzedGraph, config.nonInteractive);
 
-    // Step 7: Generate instrumented code iteratively with user confirmation
+    // Step 8: Generate instrumented code iteratively with user confirmation
     const { generateInstrumentedCodeIteratively } = require('./generator');
     const selectedFunctionIds = confirmedGraph.nodes.filter(node => node.selected).map(node => node.id);
     const result = await generateInstrumentedCodeIteratively(
@@ -752,19 +755,16 @@ async function runSetup(options = {}) {
     
     const instrumentedFunctions = result.appliedFunctions;
 
-    // Step 8: Apply all pending code changes
+    // Step 9: Apply all pending code changes
     const applySpinner = ora('Applying code changes to files...').start();
     await result.generator.applyAllPendingChanges();
     applySpinner.succeed('Code changes applied');
 
-    // Step 9: Test connection with agent
+    // Step 10: Test connection with agent
     await testConnectionWithAgent(projectInfo.agentName);
 
-    // Step 10: Setup evaluators
+    // Step 11: Setup evaluators
     await setupEvaluators(projectInfo.agentName);
-
-    // Step 11: Setup repository connection
-    await setupRepositoryConnection(projectInfo.agentName);
 
     // Success summary
     console.log('\n' + chalk.green.bold('✅ Handit setup completed successfully!'));
