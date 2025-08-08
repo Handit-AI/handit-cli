@@ -99,7 +99,6 @@ class TokenStorage {
   async storeTokens(tokens) {
     try {
       this.ensureConfigDir();
-      console.log('Storing tokens:', tokens);
       const encryptedTokens = {
         authToken: tokens.authToken ? this.encrypt(tokens.authToken) : null,
         apiToken: tokens.apiToken ? this.encrypt(tokens.apiToken) : null,

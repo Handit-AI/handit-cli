@@ -356,12 +356,14 @@ async function setupEvaluators(agentName) {
 /**
  * Setup repository connection for automatic PR creation
  */
-async function setupRepositoryConnection(agentName = null) {
+async function setupRepositoryConnection(agentName = null, options = {}) {
   const inquirer = require('inquirer').default;
   const { HanditApi } = require('./api/handitApi');
   const { TokenStorage } = require('./auth/tokenStorage');
   const { spawn } = require('child_process');
   const fs = require('fs-extra');
+
+  const { fromSetup = false } = options;
 
   try {
     // Get stored tokens
@@ -427,107 +429,110 @@ async function setupRepositoryConnection(agentName = null) {
 
     checkGitSpinner.succeed('Git repository detected');
 
-    // Get git remote URL
-    let repositoryUrl = null;
-    const remoteSpinner = ora('Getting git remote URL...').start();
-    
-    try {
-      repositoryUrl = await new Promise((resolve, reject) => {
-        const gitRemote = spawn('git', ['remote', 'get-url', 'origin'], { 
-          stdio: 'pipe',
-          cwd: process.cwd()
+    // Only attempt to fetch remote and update agent when NOT coming from setup
+    if (!fromSetup) {
+      // Get git remote URL
+      let repositoryUrl = null;
+      const remoteSpinner = ora('Getting git remote URL...').start();
+      
+      try {
+        repositoryUrl = await new Promise((resolve, reject) => {
+          const gitRemote = spawn('git', ['remote', 'get-url', 'origin'], { 
+            stdio: 'pipe',
+            cwd: process.cwd()
+          });
+          
+          let output = '';
+          gitRemote.stdout.on('data', (data) => {
+            output += data.toString();
+          });
+          
+          gitRemote.on('close', (code) => {
+            if (code === 0) {
+              resolve(output.trim());
+            } else {
+              resolve(null);
+            }
+          });
         });
-        
-        let output = '';
-        gitRemote.stdout.on('data', (data) => {
-          output += data.toString();
-        });
-        
-        gitRemote.on('close', (code) => {
-          if (code === 0) {
-            resolve(output.trim());
-          } else {
-            resolve(null);
+
+        if (repositoryUrl) {
+          remoteSpinner.succeed(`Found remote: ${repositoryUrl}`);
+          
+          // Get agents list
+          const agentsSpinner = ora('Loading agents...').start();
+          let agents;
+          try {
+            agents = await handitApi.getAgents();
+            agentsSpinner.succeed(`Found ${agents.length} agents`);
+          } catch (error) {
+            agentsSpinner.fail(`Failed to load agents: ${error.message}`);
+            return;
           }
-        });
-      });
 
-      if (repositoryUrl) {
-        remoteSpinner.succeed(`Found remote: ${repositoryUrl}`);
-        
-        // Get agents list
-        const agentsSpinner = ora('Loading agents...').start();
-        let agents;
-        try {
-          agents = await handitApi.getAgents();
-          agentsSpinner.succeed(`Found ${agents.length} agents`);
-        } catch (error) {
-          agentsSpinner.fail(`Failed to load agents: ${error.message}`);
-          return;
-        }
+          if (agents.length === 0) {
+            console.log(chalk.yellow('⚠️  No agents found. Create an agent first by running setup.'));
+            return;
+          }
 
-        if (agents.length === 0) {
-          console.log(chalk.yellow('⚠️  No agents found. Create an agent first by running setup.'));
-          return;
-        }
-
-        let selectedAgent;
-        
-        // If agent name is provided, find it
-        if (agentName) {
-          selectedAgent = agents.find(a => a.name == agentName);
+          let selectedAgent;
+          
+          // If agent name is provided, find it
+          if (agentName) {
+            selectedAgent = agents.find(a => a.name == agentName);
+            if (!selectedAgent) {
+              console.log(chalk.yellow(`⚠️  Agent "${agentName}" not found.`));
+              console.log(chalk.gray('Available agents:'));
+              agents.forEach(agent => {
+                console.log(chalk.gray(`  • ${agent.name}`));
+              });
+              
+              const { shouldSelectDifferent } = await inquirer.prompt([
+                {
+                  type: 'confirm',
+                  name: 'shouldSelectDifferent',
+                  message: 'Would you like to select a different agent?',
+                  default: true
+                }
+              ]);
+              
+              if (!shouldSelectDifferent) {
+                return;
+              }
+            }
+          }
+          
+          // If no agent name provided or agent not found, let user select
           if (!selectedAgent) {
-            console.log(chalk.yellow(`⚠️  Agent "${agentName}" not found.`));
-            console.log(chalk.gray('Available agents:'));
-            agents.forEach(agent => {
-              console.log(chalk.gray(`  • ${agent.name}`));
-            });
-            
-            const { shouldSelectDifferent } = await inquirer.prompt([
+            const { selectedAgentChoice } = await inquirer.prompt([
               {
-                type: 'confirm',
-                name: 'shouldSelectDifferent',
-                message: 'Would you like to select a different agent?',
-                default: true
+                type: 'list',
+                name: 'selectedAgentChoice',
+                message: 'Which agent would you like to connect to this repository?',
+                choices: agents.map(agent => ({
+                  name: `${agent.name} ${agent.id ? `(ID: ${agent.id})` : ''}`,
+                  value: agent
+                }))
               }
             ]);
-            
-            if (!shouldSelectDifferent) {
-              return;
-            }
+            selectedAgent = selectedAgentChoice;
           }
-        }
-        
-        // If no agent name provided or agent not found, let user select
-        if (!selectedAgent) {
-          const { selectedAgentChoice } = await inquirer.prompt([
-            {
-              type: 'list',
-              name: 'selectedAgentChoice',
-              message: 'Which agent would you like to connect to this repository?',
-              choices: agents.map(agent => ({
-                name: `${agent.name} ${agent.id ? `(ID: ${agent.id})` : ''}`,
-                value: agent
-              }))
-            }
-          ]);
-          selectedAgent = selectedAgentChoice;
-        }
 
-        // Update agent with repository URL
-        const updateSpinner = ora(`Updating agent "${selectedAgent.name}" with repository URL...`).start();
-        
-        try {
-          await handitApi.updateAgent(selectedAgent.id, { repository: repositoryUrl });
-          updateSpinner.succeed(`Agent "${selectedAgent.name}" updated with repository URL`);
-        } catch (error) {
-          updateSpinner.fail(`Failed to update agent: ${error.message}`);
+          // Update agent with repository URL
+          const updateSpinner = ora(`Updating agent "${selectedAgent.name}" with repository URL...`).start();
+          
+          try {
+            await handitApi.updateAgent(selectedAgent.id, { repository: repositoryUrl });
+            updateSpinner.succeed(`Agent "${selectedAgent.name}" updated with repository URL`);
+          } catch (error) {
+            updateSpinner.fail(`Failed to update agent: ${error.message}`);
+          }
+        } else {
+          remoteSpinner.warn('No git remote found');
         }
-      } else {
-        remoteSpinner.warn('No git remote found');
+      } catch (error) {
+        remoteSpinner.fail(`Failed to get git remote: ${error.message}`);
       }
-    } catch (error) {
-      remoteSpinner.fail(`Failed to get git remote: ${error.message}`);
     }
 
     // Get user's company ID for the GitHub App installation
@@ -682,7 +687,193 @@ async function setupRepositoryConnection(agentName = null) {
   }
 }
 
+/**
+ * After agent connection is confirmed, update its repository URL from local git
+ */
+async function updateRepositoryUrlForAgent(agentName) {
+  const { HanditApi } = require('./api/handitApi');
+  const { TokenStorage } = require('./auth/tokenStorage');
+  const { spawn } = require('child_process');
 
+  try {
+    if (!agentName) return;
+
+    // Get git remote URL
+    const remoteSpinner = ora('Fetching repository URL from git...').start();
+    let repositoryUrl = null;
+
+    repositoryUrl = await new Promise((resolve) => {
+      const gitRemote = spawn('git', ['remote', 'get-url', 'origin'], { stdio: 'pipe', cwd: process.cwd() });
+      let output = '';
+      gitRemote.stdout.on('data', (data) => { output += data.toString(); });
+      gitRemote.on('close', (code) => { resolve(code === 0 ? output.trim() : null); });
+    });
+
+    if (!repositoryUrl) {
+      remoteSpinner.warn('No git remote found for this repository.');
+      return;
+    }
+
+    remoteSpinner.succeed(`Found remote: ${repositoryUrl}`);
+
+    // Load tokens and init API
+    const tokenStorage = new TokenStorage();
+    const tokens = await tokenStorage.loadTokens();
+    if (!tokens || !tokens.authToken) return;
+
+    const handitApi = new HanditApi();
+    handitApi.authToken = tokens.authToken;
+    handitApi.apiToken = tokens.apiToken;
+
+    // Get agents
+    const agentsSpinner = ora('Locating your agent...').start();
+    const agents = await handitApi.getAgents();
+    const agent = agents.find(a => a.name === agentName);
+
+    if (!agent) {
+      agentsSpinner.fail('Agent not found to update repository URL.');
+      return;
+    }
+
+    agentsSpinner.succeed(`Found agent: ${agent.name}`);
+
+    // Update agent repository URL
+    const updateSpinner = ora('Updating agent with repository URL...').start();
+    await handitApi.updateAgent(agent.id, { repository: repositoryUrl });
+    updateSpinner.succeed('Agent repository URL updated.');
+  } catch (error) {
+    console.log(chalk.yellow(`⚠️  Could not update agent repository URL: ${error.message}`));
+  }
+}
+
+/**
+ * Optionally run initial assessment right after GitHub connection
+ */
+async function maybeRunInitialAssessment() {
+  const inquirer = require('inquirer').default;
+  const { HanditApi } = require('./api/handitApi');
+  const { TokenStorage } = require('./auth/tokenStorage');
+  const { detectFileAndFunction } = require('./utils/fileDetector');
+
+  try {
+    const tokenStorage = new TokenStorage();
+    const tokens = await tokenStorage.loadTokens();
+    if (!tokens || !tokens.authToken) return;
+
+    const handitApi = new HanditApi();
+    handitApi.authToken = tokens.authToken;
+    handitApi.apiToken = tokens.apiToken;
+
+    // Retrieve git integration info
+    const integrationSpinner = ora('Retrieving GitHub integration...').start();
+    let integration;
+    try {
+      integration = await handitApi.getGitIntegration();
+      integration = integration.integrations.length > 0 ? integration.integrations[0] : null;
+      integrationSpinner.succeed('GitHub integration found');
+    } catch (error) {
+      integrationSpinner.fail('No GitHub integration found');
+      return; // skip if there's no integration yet
+    }
+
+    if (!integration) {
+      integrationSpinner.fail('No GitHub integration found');
+      return; // skip if there's no integration yet
+    }
+
+    const integrationId = integration?.id || integration?.data?.id;
+    const repoUrl = integration?.repoUrl || integration?.data?.repoUrl;
+    const mainBranch = integration?.defaultBranch || integration?.data?.defaultBranch || 'main';
+
+    if (!integrationId) return;
+
+    // Ask user if they want to run automatic assessment now
+    const { shouldAssess } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'shouldAssess',
+        message: 'Would you like to run an initial AI assessment on your repository now?',
+        default: true
+      }
+    ]);
+
+    if (!shouldAssess) return;
+
+    // Ask for entry point (file and function) similar to runPrompts
+    console.log(chalk.cyan.bold('\n🎯 Initial Assessment Entry Point'));
+    const { entryFile } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'entryFile',
+        message: `What is the path to the file containing your agent's entry function?`,
+        default: 'index.js',
+        validate: (input) => !!input.trim() || 'File path cannot be empty'
+      }
+    ]);
+
+    const { entryFunction } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'entryFunction',
+        message: 'What is the name of the function or endpoint that starts your agent?',
+        default: 'main',
+        validate: (input) => !!input.trim() || 'Function name cannot be empty'
+      }
+    ]);
+
+    // Detect exact file and function with line
+    const detected = await detectFileAndFunction(entryFile, entryFunction, process.cwd());
+
+    const payload = {
+      integrationId,
+      repoUrl: repoUrl || (await inferRepoUrl()),
+      branch: mainBranch,
+      file: detected.file,
+      entryPoint: {
+        name: detected.function,
+        line: detected.line
+      }
+    };
+
+    // Mock step progress UI while waiting for API
+    const steps = [
+      { label: 'Extracting AI from repository', spinner: null },
+      { label: 'Analyzing AI', spinner: null },
+      { label: 'Generating report', spinner: null }
+    ];
+
+    console.log('');
+    // Start all spinners sequentially
+    steps.forEach(step => { step.spinner = ora(step.label + '...').start(); });
+
+    try {
+      await handitApi.assessAndPr(payload);
+      // Mark steps as completed sequentially to simulate progress
+      for (const step of steps) {
+        await new Promise(r => setTimeout(r, 600));
+        step.spinner.succeed(step.label + ' - done');
+      }
+      console.log(chalk.green('\n✅ Assessment started. A PR will be created with the report if applicable.'));
+    } catch (error) {
+      // Fail the last active spinner
+      const active = steps.find(s => s.spinner && s.spinner.isSpinning);
+      if (active) active.spinner.fail(active.label + ' - failed');
+      console.log(chalk.red(`❌ Failed to start assessment: ${error.message}`));
+    }
+  } catch (error) {
+    // Silent skip on any error to avoid blocking setup
+  }
+}
+
+async function inferRepoUrl() {
+  const { spawn } = require('child_process');
+  return await new Promise((resolve) => {
+    const gitRemote = spawn('git', ['remote', 'get-url', 'origin'], { stdio: 'pipe', cwd: process.cwd() });
+    let output = '';
+    gitRemote.stdout.on('data', (data) => { output += data.toString(); });
+    gitRemote.on('close', (code) => { resolve(code === 0 ? output.trim() : null); });
+  });
+}
 
 /**
  * Setup workflow - Initial agent setup
@@ -710,7 +901,10 @@ async function runSetup(options = {}) {
     const apiToken = authResult.apiToken;
 
     // Step 2: Connect GitHub repository (immediately after login)
-    await setupRepositoryConnection();
+    await setupRepositoryConnection(null, { fromSetup: true });
+
+    // After connecting GitHub, fetch integration and optionally run assessment
+    await maybeRunInitialAssessment();
 
     // Step 3: Detect project language
     const languageSpinner = ora('Detecting project language...').start();
@@ -762,6 +956,9 @@ async function runSetup(options = {}) {
 
     // Step 10: Test connection with agent
     await testConnectionWithAgent(projectInfo.agentName);
+
+    // After confirming connection, update repository URL on the agent
+    await updateRepositoryUrlForAgent(projectInfo.agentName);
 
     // Step 11: Setup evaluators
     await setupEvaluators(projectInfo.agentName);

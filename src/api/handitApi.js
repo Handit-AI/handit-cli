@@ -312,8 +312,9 @@ class HanditApi {
       const params = {};
       if (limit) params.limit = limit;
       if (offset) params.offset = offset;
-     
+
       const response = await axios.get(`${this.apiUrl}/agents`, {
+        params,
         headers: this.getAuthHeaders()
       });
 
@@ -373,6 +374,40 @@ class HanditApi {
     } catch (error) {
       if (error.response) {
         throw new Error(`Agent update failed: ${error.response.data.message || error.response.statusText}`);
+      }
+      throw new Error(`Network error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get GitHub integration info for the current user/company
+   */
+  async getGitIntegration() {
+    try {
+      const response = await axios.get(`${this.apiUrl}/git/integrations`, {
+        headers: this.getAuthHeaders()
+      });
+      return response.data;
+    } catch (error) {
+      if (error.response) {
+        throw new Error(`Failed to get git integration: ${error.response.data.message || error.response.statusText}`);
+      }
+      throw new Error(`Network error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Trigger initial assessment and PR
+   */
+  async assessAndPr(payload) {
+    try {
+      const response = await axios.post(`${this.apiUrl}/git/assess-and-pr`, payload, {
+        headers: this.getAuthHeaders()
+      });
+      return response.data;
+    } catch (error) {
+      if (error.response) {
+        throw new Error(`Failed to start assessment: ${error.response.data.message || error.response.statusText}`);
       }
       throw new Error(`Network error: ${error.message}`);
     }
