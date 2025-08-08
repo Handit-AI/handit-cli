@@ -389,6 +389,21 @@ async function setupRepositoryConnection(agentName = null, options = {}) {
     handitApi.authToken = tokens.authToken;
     handitApi.apiToken = tokens.apiToken;
 
+    // If we're in setup flow, first check if there is already a GitHub integration
+    if (fromSetup) {
+      try {
+        const integrationResp = await handitApi.getGitIntegration();
+        const hasIntegration = integrationResp && Array.isArray(integrationResp.integrations) && integrationResp.integrations.length > 0;
+        if (hasIntegration) {
+          console.log(chalk.green('✅ GitHub integration already connected.'));
+          // Skip the connection prompt and return to proceed with assessment
+          return;
+        }
+      } catch (err) {
+        // No integration found or error; proceed to prompt for connection
+      }
+    }
+
     console.log(chalk.blue.bold('\n🔗 Repository Integration'));
     console.log(chalk.gray('Connect your repository to enable automatic PR creation when new prompts are detected.\n'));
 
@@ -754,6 +769,38 @@ async function maybeRunInitialAssessment() {
   const { HanditApi } = require('./api/handitApi');
   const { TokenStorage } = require('./auth/tokenStorage');
   const { detectFileAndFunction } = require('./utils/fileDetector');
+  const { extractCallGraph } = require('./parser');
+
+  function renderSteps(steps, headerPrinted) {
+    const lines = [];
+    if (!headerPrinted) {
+      lines.push(chalk.cyan.bold('\nTasks to apply:'));
+    }
+    for (const step of steps) {
+      let mark = '[ ]';
+      if (step.state === 'running') mark = '[⏳]';
+      if (step.state === 'done') mark = '[✔]';
+      if (step.state === 'failed') mark = '[✖]';
+      lines.push(`${mark} ${step.label}`);
+    }
+    return lines.join('\n');
+  }
+
+  async function updateRender(steps, printedLinesCountRef) {
+    const content = renderSteps(steps, printedLinesCountRef.current > 0);
+    if (printedLinesCountRef.current === 0) {
+      console.log(content);
+      printedLinesCountRef.current = content.split('\n').length;
+    } else {
+      // Move cursor up and rewrite
+      process.stdout.write(`\x1B[${printedLinesCountRef.current}A`);
+      const lines = content.split('\n');
+      for (let i = 0; i < printedLinesCountRef.current; i++) {
+        process.stdout.write('\x1B[2K'); // clear line
+        process.stdout.write((lines[i] || '') + '\n');
+      }
+    }
+  }
 
   try {
     const tokenStorage = new TokenStorage();
@@ -770,13 +817,9 @@ async function maybeRunInitialAssessment() {
     try {
       integration = await handitApi.getGitIntegration();
       integration = integration.integrations.length > 0 ? integration.integrations[0] : null;
+      if (!integration) throw new Error('No integration');
       integrationSpinner.succeed('GitHub integration found');
     } catch (error) {
-      integrationSpinner.fail('No GitHub integration found');
-      return; // skip if there's no integration yet
-    }
-
-    if (!integration) {
       integrationSpinner.fail('No GitHub integration found');
       return; // skip if there's no integration yet
     }
@@ -824,44 +867,56 @@ async function maybeRunInitialAssessment() {
     // Detect exact file and function with line
     const detected = await detectFileAndFunction(entryFile, entryFunction, process.cwd());
 
+    // Build execution tree (no confirmation UI here)
+    const language = await detectLanguage(process.cwd());
+    const callGraph = await extractCallGraph(detected.file, detected.function, language);
+
+    // Convert execution tree to simplified calls list for payload
+    const calls = callGraph.nodes.map(n => ({ file: n.file, fn: n.name })).slice(0, 50);
+
     const payload = {
       integrationId,
       repoUrl: repoUrl || (await inferRepoUrl()),
       branch: mainBranch,
-      file: detected.file,
-      entryPoint: {
-        name: detected.function,
-        line: detected.line
-      }
+      preferLocalClone: true,
+      hintFilePath: detected.file,
+      hintFunctionName: detected.function,
+      executionTree: {
+        node: detected.function,
+        calls
+      },
+      useHintsFlow: true
     };
 
-    // Mock step progress UI while waiting for API
+    // Prepare steps list rendering
     const steps = [
-      { label: 'Extracting AI from repository', spinner: null },
-      { label: 'Analyzing AI', spinner: null },
-      { label: 'Generating report', spinner: null }
+      { label: 'Extracting AI from the repository', state: 'pending' },
+      { label: 'Analyzing AI', state: 'pending' },
+      { label: 'Generating report', state: 'pending' }
     ];
+    const printed = { current: 0 };
 
-    console.log('');
-    // Start all spinners sequentially
-    steps.forEach(step => { step.spinner = ora(step.label + '...').start(); });
+    await updateRender(steps, printed);
 
-    try {
-      await handitApi.assessAndPr(payload);
-      // Mark steps as completed sequentially to simulate progress
-      for (const step of steps) {
-        await new Promise(r => setTimeout(r, 600));
-        step.spinner.succeed(step.label + ' - done');
-      }
-      console.log(chalk.green('\n✅ Assessment started. A PR will be created with the report if applicable.'));
-    } catch (error) {
-      // Fail the last active spinner
-      const active = steps.find(s => s.spinner && s.spinner.isSpinning);
-      if (active) active.spinner.fail(active.label + ' - failed');
-      console.log(chalk.red(`❌ Failed to start assessment: ${error.message}`));
+    // Start API call in background
+    const apiPromise = handitApi.assessAndPr(payload);
+
+    // Progress through mocked steps with delays
+    for (let i = 0; i < steps.length; i++) {
+      steps[i].state = 'running';
+      await updateRender(steps, printed);
+      await new Promise(r => setTimeout(r, 1000));
+      steps[i].state = 'done';
+      await updateRender(steps, printed);
     }
+
+    // Wait for API result (if not already finished)
+    await apiPromise;
+
+    console.log(chalk.green('\n✅ Assessment started. A PR will be created with the report if applicable.'));
   } catch (error) {
-    // Silent skip on any error to avoid blocking setup
+    // If we were rendering steps, try to mark the current step as failed
+    console.log(chalk.red(`\n❌ Failed to start assessment: ${error.message}`));
   }
 }
 

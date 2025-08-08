@@ -400,6 +400,7 @@ class HanditApi {
    * Trigger initial assessment and PR
    */
   async assessAndPr(payload) {
+
     try {
       const response = await axios.post(`${this.apiUrl}/git/assess-and-pr`, payload, {
         headers: this.getAuthHeaders()
