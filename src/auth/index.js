@@ -85,15 +85,58 @@ async function handleBrowserLogin() {
   const cliAuthUrl = handitApi.getCliAuthUrl();
   
   console.log(chalk.cyan('\n🌐 Opening Handit CLI authentication...'));
-  console.log(chalk.gray('Please complete the authentication process in your browser.\n'));
-  
-  // Try to open browser (cross-platform)
+  console.log(chalk.gray('Please complete the authentication process in your browser.'));
+
+  // Try to open the URL with multiple approaches
   try {
-    const open = require('open');
-    await open(cliAuthUrl);
-    console.log(chalk.green(`✅ Opened: ${cliAuthUrl}`));
+    let opened = false;
+
+    // Method 1: Try using the open package
+    try {
+      const open = require('open');
+      await open(cliAuthUrl, { wait: false });
+      opened = true;
+    } catch (error1) {
+      // Method 2: Fallback to platform-specific commands
+      try {
+        const { exec } = require('child_process');
+        const { promisify } = require('util');
+        const execAsync = promisify(exec);
+
+        let command;
+        switch (process.platform) {
+          case 'darwin':
+            command = `open "${cliAuthUrl}"`;
+            break;
+          case 'win32':
+            command = `start "" "${cliAuthUrl}"`;
+            break;
+          default:
+            command = `xdg-open "${cliAuthUrl}"`;
+            break;
+        }
+
+        await execAsync(command);
+        opened = true;
+      } catch (error2) {
+        // Will handle below
+      }
+    }
+
+    if (opened) {
+      // Small delay to allow browser to start
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      console.log(chalk.green('✅ Browser opened successfully!'));
+    } else {
+      console.log(chalk.yellow('⚠️  Could not open your browser automatically.'));
+      console.log(chalk.blue('Please manually open this URL:'));
+      console.log(chalk.underline(cliAuthUrl));
+    }
   } catch (error) {
-    console.log(chalk.yellow(`⚠️  Please manually open: ${cliAuthUrl}`));
+    console.log(chalk.red('❌ Unexpected error opening the browser.'));
+    console.log(chalk.blue('Please manually open this URL:'));
+    console.log(chalk.underline(cliAuthUrl));
+    console.log(chalk.gray(`Error details: ${error.message}`));
   }
   
   console.log(chalk.gray('\nSteps:'));
@@ -137,8 +180,6 @@ async function handleBrowserLogin() {
     throw new Error(`Login failed: ${error.message}`);
   }
 }
-
-
 
 /**
  * Handle signup flow
