@@ -24,31 +24,22 @@ async function testConnectionWithAgent(agentName) {
   const { TokenStorage } = require('./auth/tokenStorage');
 
   try {
-    // Get stored tokens
     const tokenStorage = new TokenStorage();
     const tokens = await tokenStorage.loadTokens();
-    
     if (!tokens || !tokens.authToken) {
-      console.log(chalk.yellow('⚠️  No authentication token found. Skipping connection test.'));
+      console.log(chalk.yellow('No auth token found. Skipping connection test.'));
       return;
     }
 
-    // Initialize Handit API with stored tokens
     const handitApi = new HanditApi();
     handitApi.authToken = tokens.authToken;
     handitApi.apiToken = tokens.apiToken;
 
-    console.log(chalk.blue.bold('\n🔗 Testing connection with Handit...'));
-    console.log(chalk.gray(`Testing agent: ${agentName}`));
-    console.log(chalk.gray('This will verify that your agent can connect to Handit services.\n'));
+    console.log(chalk.blue.bold('\nTest agent connection'));
+    console.log(chalk.gray(`Agent: ${agentName}`));
 
     const { shouldTest } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'shouldTest',
-        message: 'Would you like to test the connection now?',
-        default: true
-      }
+      { type: 'confirm', name: 'shouldTest', message: 'Test now?', default: true }
     ]);
 
     if (!shouldTest) {
@@ -56,86 +47,44 @@ async function testConnectionWithAgent(agentName) {
       return;
     }
 
-    // Main retry loop
     let shouldContinue = true;
     while (shouldContinue) {
       const testSpinner = ora('Testing connection...').start();
-      let attempts = 0;
-      const maxAttempts = 10;
-      const intervalMs = 3000; // 3 seconds
-
-      // Wait for connection test to complete or fail
+      let attempts = 0; const maxAttempts = 10; const intervalMs = 3000;
       const testResult = await new Promise((resolve) => {
         const testInterval = setInterval(async () => {
           attempts++;
-          
           try {
             const result = await handitApi.testConnectionWithAgent(agentName);
-            
-            if (result.connected) {
-              clearInterval(testInterval);
-              resolve({ success: true });
-              return;
-            } else {
-              testSpinner.text = `Testing connection... (attempt ${attempts}/${maxAttempts})`;
-            }
+            if (result.connected) { clearInterval(testInterval); resolve({ success: true }); return; }
+            testSpinner.text = `Testing connection... (attempt ${attempts}/${maxAttempts})`;
           } catch (error) {
             testSpinner.text = `Testing connection... (attempt ${attempts}/${maxAttempts}) - ${error.message}`;
           }
-
-          if (attempts >= maxAttempts) {
-            clearInterval(testInterval);
-            resolve({ success: false });
-          }
+          if (attempts >= maxAttempts) { clearInterval(testInterval); resolve({ success: false }); }
         }, intervalMs);
       });
 
       if (testResult.success) {
-        testSpinner.succeed(chalk.green('✅ Connection successful!'));
-        console.log(chalk.green(`Agent "${agentName}" is now connected to Handit.`));
+        testSpinner.succeed(chalk.green('Connection successful.'));
         return;
       } else {
-        testSpinner.fail(chalk.red('❌ Connection test failed'));
-        console.log(chalk.yellow('The connection test was unsuccessful.'));
-        console.log(chalk.gray('This might be because:'));
-        console.log(chalk.gray('  • Your agent is not running yet'));
-        console.log(chalk.gray('  • The agent name does not match'));
-        console.log(chalk.gray('  • Network connectivity issues'));
-        console.log(chalk.gray('\nYou can retry the test or continue with the setup.'));
-        
+        testSpinner.fail(chalk.red('Connection test failed'));
+        console.log(chalk.gray('Ensure your agent is running and the agent name matches, then retry.'));
         const { action } = await inquirer.prompt([
-          {
-            type: 'list',
-            name: 'action',
-            message: 'What would you like to do?',
-            choices: [
-              { name: '🔄 Retry connection test', value: 'retry' },
-              { name: '⏭️  Skip test and continue', value: 'skip' },
-              { name: '❌ Cancel setup', value: 'cancel' }
-            ],
-            default: 'retry'
-          }
+          { type: 'list', name: 'action', message: 'Next:', choices: [
+            { name: 'Retry', value: 'retry' },
+            { name: 'Skip', value: 'skip' },
+            { name: 'Cancel', value: 'cancel' }
+          ], default: 'retry' }
         ]);
-
-        if (action === 'cancel') {
-          throw new Error('Setup cancelled by user');
-        } else if (action === 'skip') {
-          console.log(chalk.gray('Connection test skipped. Continuing with setup...'));
-          shouldContinue = false;
-          return;
-        } else if (action === 'retry') {
-          console.log(chalk.gray('Retrying connection test...'));
-          shouldContinue = true; // Continue the while loop for another attempt
-        }
+        if (action === 'cancel') return;
+        if (action === 'skip') return;
+        shouldContinue = true;
       }
     }
-
   } catch (error) {
-    if (error.message === 'Setup cancelled by user') {
-      throw error;
-    }
-    console.log(chalk.yellow(`⚠️  Connection test error: ${error.message}`));
-    console.log(chalk.gray('Continuing with setup...'));
+    console.log(chalk.yellow(`Connection test error: ${error.message}`));
   }
 }
 
@@ -371,334 +320,126 @@ async function setupRepositoryConnection(agentName = null, options = {}) {
     let tokens = await tokenStorage.loadTokens();
     
     if (!tokens || !tokens.authToken) {
-      console.log(chalk.yellow('⚠️  No authentication token found. Please authenticate first.'));
-      
-      // Attempt to authenticate
+      console.log(chalk.yellow('No auth token found.'));
       const authResult = await authenticate();
       if (!authResult.authenticated) {
-        console.log(chalk.red('❌ Authentication failed. Cannot connect repository.'));
+        console.log(chalk.red('Authentication failed.'));
         return;
       }
-      
-      // Reload tokens after authentication
       tokens = await tokenStorage.loadTokens();
     }
 
-    // Initialize Handit API with stored tokens
     const handitApi = new HanditApi();
     handitApi.authToken = tokens.authToken;
     handitApi.apiToken = tokens.apiToken;
 
-    // If we're in setup flow, first check if there is already a GitHub integration
     if (fromSetup) {
       try {
         const integrationResp = await handitApi.getGitIntegration();
         const hasIntegration = integrationResp && Array.isArray(integrationResp.integrations) && integrationResp.integrations.length > 0;
         if (hasIntegration) {
-          console.log(chalk.green('✅ GitHub integration already connected.'));
-          // Skip the connection prompt and return to proceed with assessment
+          console.log(chalk.green('GitHub integration detected.'));
           return;
         }
-      } catch (err) {
-        // No integration found or error; proceed to prompt for connection
-      }
+      } catch (_) {}
     }
 
-    console.log(chalk.blue.bold('\n🔗 Repository Integration'));
-    console.log(chalk.gray('Connect your repository to enable automatic PR creation when new prompts are detected.\n'));
-
     const { shouldConnect } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'shouldConnect',
-        message: 'Would you like to connect your repository to Handit?',
-        default: true
-      }
+      { type: 'confirm', name: 'shouldConnect', message: 'Install Handit GitHub App now?', default: true }
     ]);
 
     if (!shouldConnect) {
-      console.log(chalk.gray('Repository connection skipped.'));
+      console.log(chalk.gray('GitHub integration skipped.'));
       return;
     }
 
-    // Simple check if we're in a git repository
     const checkGitSpinner = ora('Checking git repository...').start();
-    
     const isGitRepo = await new Promise((resolve) => {
-      const gitCheck = spawn('git', ['rev-parse', '--git-dir'], { 
-        stdio: 'pipe',
-        cwd: process.cwd()
-      });
-      
-      gitCheck.on('close', (code) => {
-        resolve(code === 0);
-      });
+      const gitCheck = spawn('git', ['rev-parse', '--git-dir'], { stdio: 'pipe', cwd: process.cwd() });
+      gitCheck.on('close', (code) => { resolve(code === 0); });
     });
 
     if (!isGitRepo) {
       checkGitSpinner.fail('Not a git repository');
-      console.log(chalk.yellow('⚠️  This directory is not a git repository.'));
-      console.log(chalk.gray('Initialize a git repository first: git init'));
+      console.log(chalk.gray('Initialize with: git init'));
       return;
     }
-
     checkGitSpinner.succeed('Git repository detected');
 
-    // Only attempt to fetch remote and update agent when NOT coming from setup
-    if (!fromSetup) {
-      // Get git remote URL
-      let repositoryUrl = null;
-      const remoteSpinner = ora('Getting git remote URL...').start();
-      
-      try {
-        repositoryUrl = await new Promise((resolve, reject) => {
-          const gitRemote = spawn('git', ['remote', 'get-url', 'origin'], { 
-            stdio: 'pipe',
-            cwd: process.cwd()
-          });
-          
-          let output = '';
-          gitRemote.stdout.on('data', (data) => {
-            output += data.toString();
-          });
-          
-          gitRemote.on('close', (code) => {
-            if (code === 0) {
-              resolve(output.trim());
-            } else {
-              resolve(null);
-            }
-          });
-        });
-
-        if (repositoryUrl) {
-          remoteSpinner.succeed(`Found remote: ${repositoryUrl}`);
-          
-          // Get agents list
-          const agentsSpinner = ora('Loading agents...').start();
-          let agents;
-          try {
-            agents = await handitApi.getAgents();
-            agentsSpinner.succeed(`Found ${agents.length} agents`);
-          } catch (error) {
-            agentsSpinner.fail(`Failed to load agents: ${error.message}`);
-            return;
-          }
-
-          if (agents.length === 0) {
-            console.log(chalk.yellow('⚠️  No agents found. Create an agent first by running setup.'));
-            return;
-          }
-
-          let selectedAgent;
-          
-          // If agent name is provided, find it
-          if (agentName) {
-            selectedAgent = agents.find(a => a.name == agentName);
-            if (!selectedAgent) {
-              console.log(chalk.yellow(`⚠️  Agent "${agentName}" not found.`));
-              console.log(chalk.gray('Available agents:'));
-              agents.forEach(agent => {
-                console.log(chalk.gray(`  • ${agent.name}`));
-              });
-              
-              const { shouldSelectDifferent } = await inquirer.prompt([
-                {
-                  type: 'confirm',
-                  name: 'shouldSelectDifferent',
-                  message: 'Would you like to select a different agent?',
-                  default: true
-                }
-              ]);
-              
-              if (!shouldSelectDifferent) {
-                return;
-              }
-            }
-          }
-          
-          // If no agent name provided or agent not found, let user select
-          if (!selectedAgent) {
-            const { selectedAgentChoice } = await inquirer.prompt([
-              {
-                type: 'list',
-                name: 'selectedAgentChoice',
-                message: 'Which agent would you like to connect to this repository?',
-                choices: agents.map(agent => ({
-                  name: `${agent.name} ${agent.id ? `(ID: ${agent.id})` : ''}`,
-                  value: agent
-                }))
-              }
-            ]);
-            selectedAgent = selectedAgentChoice;
-          }
-
-          // Update agent with repository URL
-          const updateSpinner = ora(`Updating agent "${selectedAgent.name}" with repository URL...`).start();
-          
-          try {
-            await handitApi.updateAgent(selectedAgent.id, { repository: repositoryUrl });
-            updateSpinner.succeed(`Agent "${selectedAgent.name}" updated with repository URL`);
-          } catch (error) {
-            updateSpinner.fail(`Failed to update agent: ${error.message}`);
-          }
-        } else {
-          remoteSpinner.warn('No git remote found');
-        }
-      } catch (error) {
-        remoteSpinner.fail(`Failed to get git remote: ${error.message}`);
-      }
-    }
-
     // Get user's company ID for the GitHub App installation
-    const userSpinner = ora('Getting user information...').start();
+    const userSpinner = ora('Fetching user info...').start();
     let companyId;
     
     try {
       const userInfo = await handitApi.getUserInfo();
-
       companyId = userInfo.company?.id || userInfo.companyId;
-      userSpinner.succeed('User information retrieved');
+      userSpinner.succeed('User info loaded');
     } catch (error) {
-      userSpinner.fail('Could not retrieve user information');
-      console.log(chalk.yellow('⚠️  Unable to get company information for GitHub App setup.'));
-      console.log(chalk.gray('Attempting to re-authenticate to get updated user information...'));
-      
-      // Try to re-authenticate to get updated company information
+      userSpinner.fail('Failed to load user info');
+      console.log(chalk.gray('Re-authenticating...'));
       try {
         const authResult = await authenticate();
         if (authResult.authenticated) {
-          // Reload tokens and try again
           tokens = await tokenStorage.loadTokens();
           handitApi.authToken = tokens.authToken;
           handitApi.apiToken = tokens.apiToken;
-          
-          const retrySpinner = ora('Retrying user information...').start();
+          const retrySpinner = ora('Retrying user info...').start();
           const retryUserInfo = await handitApi.getUserInfo();
-
           companyId = retryUserInfo.company?.id || retryUserInfo.companyId;
-          retrySpinner.succeed('User information retrieved after re-authentication');
+          retrySpinner.succeed('User info loaded');
         }
-      } catch (retryError) {
-        console.log(chalk.red('❌ Re-authentication failed. Cannot get company information.'));
-        console.log(chalk.gray('You can manually install the GitHub App from your Handit dashboard.'));
+      } catch (_) {
+        console.log(chalk.red('Unable to get company information. Install from dashboard if needed.'));
         return;
       }
     }
 
     if (!companyId) {
-      console.log(chalk.yellow('⚠️  No company ID found even after re-authentication.'));
-      console.log(chalk.gray('Please ensure your account is properly set up with a company.'));
-      console.log(chalk.gray('Contact support if this issue persists: support@handit.ai'));
+      console.log(chalk.yellow('No company ID found.'));
       return;
     }
 
-    // Open GitHub App installation URL
     const githubAppUrl = `https://github.com/apps/handit-ai/installations/new?state=${companyId}`;
-    
-    console.log(chalk.blue('\n🔗 GitHub App Installation:'));
-    console.log(chalk.gray('We\'ll open GitHub in your browser to install the Handit AI App.'));
-    console.log(chalk.gray('This will enable automatic PR creation when new prompts are detected.\n'));
 
     const { shouldOpenGitHub } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'shouldOpenGitHub',
-        message: 'Open GitHub App installation page?',
-        default: true
-      }
+      { type: 'confirm', name: 'shouldOpenGitHub', message: 'Open GitHub App installation page?', default: true }
     ]);
 
     if (shouldOpenGitHub) {
       try {
-        console.log(chalk.blue('🌐 Opening GitHub App installation page...'));
-        
-        // Try multiple approaches to open the URL
+        console.log(chalk.gray('Opening GitHub App installation page...'));
         let opened = false;
-        
-        // Method 1: Try the open package
-        try {
-          const open = require('open');
-          await open(githubAppUrl, { wait: false });
-          opened = true;
-        } catch (error1) {
-          console.log(chalk.gray('Open package failed, trying alternative method...'));
-          
-          // Method 2: Try platform-specific commands
+        try { const open = require('open'); await open(githubAppUrl, { wait: false }); opened = true; } catch (_) {
           try {
             const { exec } = require('child_process');
             const { promisify } = require('util');
             const execAsync = promisify(exec);
-            
             let command;
-            switch (process.platform) {
-              case 'darwin': // macOS
-                command = `open "${githubAppUrl}"`;
-                break;
-              case 'win32': // Windows
-                command = `start "" "${githubAppUrl}"`;
-                break;
-              default: // Linux and others
-                command = `xdg-open "${githubAppUrl}"`;
-                break;
-            }
-            
-            await execAsync(command);
-            opened = true;
-          } catch (error2) {
-            console.log(chalk.gray('Platform command failed, will show manual URL...'));
-          }
+            switch (process.platform) { case 'darwin': command = `open "${githubAppUrl}"`; break; case 'win32': command = `start "" "${githubAppUrl}"`; break; default: command = `xdg-open "${githubAppUrl}"`; }
+            await execAsync(command); opened = true;
+          } catch (_) {}
         }
-        
-        if (opened) {
-          // Give it a moment for the browser to start
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          console.log(chalk.green('✅ GitHub App installation page opened!'));
-        } else {
-          console.log(chalk.yellow('⚠️  Could not open browser automatically.'));
-          console.log(chalk.blue('Please manually open this URL:'));
+        if (!opened) {
+          console.log(chalk.blue('Open this URL:'));
           console.log(chalk.underline(githubAppUrl));
         }
-        console.log(chalk.gray('Instructions:'));
-        console.log(chalk.gray('  1. Select the repositories you want to connect'));
-        console.log(chalk.gray('  2. Click "Install" to complete the setup'));
-        console.log(chalk.gray('  3. Return to this terminal once installation is complete\n'));
-
+        console.log(chalk.gray('Select repos and click Install, then return here.'));
         const { installationComplete } = await inquirer.prompt([
-          {
-            type: 'confirm',
-            name: 'installationComplete',
-            message: 'Have you completed the GitHub App installation?',
-            default: true
-          }
+          { type: 'confirm', name: 'installationComplete', message: 'Confirm installation completed?', default: true }
         ]);
-
-        if (installationComplete) {
-          console.log(chalk.green('✅ Repository integration completed!'));
-          console.log(chalk.gray('Benefits:'));
-          console.log(chalk.gray('  • Automatic PR creation when new prompts are detected'));
-          console.log(chalk.gray('  • Prompt optimization suggestions'));
-          console.log(chalk.gray('  • Version control for AI interactions'));
-          console.log(chalk.gray('  • Team collaboration on prompt improvements\n'));
-        } else {
-          console.log(chalk.yellow('📝 You can complete the installation later from your Handit dashboard.'));
-        }
-
+        if (installationComplete) console.log(chalk.green('GitHub integration completed.'));
       } catch (error) {
-        console.log(chalk.red('❌ Unexpected error occurred.'));
-        console.log(chalk.blue('Please manually open this URL to install the GitHub App:'));
+        console.log(chalk.red('Could not open browser automatically.'));
+        console.log(chalk.blue('Open this URL:'));
         console.log(chalk.underline(githubAppUrl));
-        console.log(chalk.gray(`Error details: ${error.message}`));
       }
     } else {
-      console.log(chalk.blue('📝 To connect your repository later, visit:'));
+      console.log(chalk.blue('Install later:'));
       console.log(chalk.underline(githubAppUrl));
-      console.log(chalk.gray('Or access it from your Handit dashboard.\n'));
     }
 
   } catch (error) {
-    console.log(chalk.yellow(`⚠️  Repository connection error: ${error.message}`));
-    console.log(chalk.gray('Continuing with setup...'));
+    console.log(chalk.yellow(`GitHub integration error: ${error.message}`));
   }
 }
 
@@ -774,13 +515,14 @@ async function maybeRunInitialAssessment() {
   function renderSteps(steps, headerPrinted) {
     const lines = [];
     if (!headerPrinted) {
-      lines.push(chalk.cyan.bold('\nTasks to apply:'));
+      lines.push(chalk.cyan.bold('\nInitial assessment'));
+      lines.push(chalk.gray('Tasks to apply:'));
     }
     for (const step of steps) {
       let mark = '[ ]';
-      if (step.state === 'running') mark = '[⏳]';
-      if (step.state === 'done') mark = '[✔]';
-      if (step.state === 'failed') mark = '[✖]';
+      if (step.state === 'running') mark = '[..]';
+      if (step.state === 'done') mark = '[ok]';
+      if (step.state === 'failed') mark = '[x]';
       lines.push(`${mark} ${step.label}`);
     }
     return lines.join('\n');
@@ -826,42 +568,24 @@ async function maybeRunInitialAssessment() {
 
     const integrationId = integration?.id || integration?.data?.id;
     const repoUrl = integration?.repoUrl || integration?.data?.repoUrl;
-    const mainBranch = integration?.defaultBranch || integration?.data?.defaultBranch || 'main';
+    const mainBranch = integration?.defaultBranch || integration?.data?.defaultBranch || (await detectDefaultBranch()) || 'main';
 
     if (!integrationId) return;
 
     // Ask user if they want to run automatic assessment now
     const { shouldAssess } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'shouldAssess',
-        message: 'Would you like to run an initial AI assessment on your repository now?',
-        default: true
-      }
+      { type: 'confirm', name: 'shouldAssess', message: 'Run an automatic assessment now?', default: true }
     ]);
 
     if (!shouldAssess) return;
 
     // Ask for entry point (file and function) similar to runPrompts
-    console.log(chalk.cyan.bold('\n🎯 Initial Assessment Entry Point'));
+    console.log(chalk.cyan.bold('\nEntry point'));
     const { entryFile } = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'entryFile',
-        message: `What is the path to the file containing your agent's entry function?`,
-        default: 'index.js',
-        validate: (input) => !!input.trim() || 'File path cannot be empty'
-      }
+      { type: 'input', name: 'entryFile', message: 'Entry file (relative to repo root):', default: 'index.js', validate: (v) => !!v.trim() || 'Required' }
     ]);
-
     const { entryFunction } = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'entryFunction',
-        message: 'What is the name of the function or endpoint that starts your agent?',
-        default: 'main',
-        validate: (input) => !!input.trim() || 'Function name cannot be empty'
-      }
+      { type: 'input', name: 'entryFunction', message: 'Entry function:', default: 'main', validate: (v) => !!v.trim() || 'Required' }
     ]);
 
     // Detect exact file and function with line
@@ -890,9 +614,9 @@ async function maybeRunInitialAssessment() {
 
     // Prepare steps list rendering
     const steps = [
-      { label: 'Extracting AI from the repository', state: 'pending' },
-      { label: 'Analyzing AI', state: 'pending' },
-      { label: 'Generating report', state: 'pending' }
+      { label: 'Extracting repository context', state: 'pending' },
+      { label: 'Analyzing AI code paths', state: 'pending' },
+      { label: 'Generating report (waits for server)', state: 'pending' }
     ];
     const printed = { current: 0 };
 
@@ -905,15 +629,30 @@ async function maybeRunInitialAssessment() {
     for (let i = 0; i < steps.length; i++) {
       steps[i].state = 'running';
       await updateRender(steps, printed);
-      await new Promise(r => setTimeout(r, 1000));
-      steps[i].state = 'done';
-      await updateRender(steps, printed);
+      const isLast = i === steps.length - 1;
+
+      if (!isLast) {
+        // Use a slightly longer delay for earlier steps
+        await new Promise(r => setTimeout(r, 1800));
+        steps[i].state = 'done';
+        await updateRender(steps, printed);
+      } else {
+        try {
+          // Only mark the final step done when the backend responds
+          await apiPromise;
+          steps[i].state = 'done';
+          await updateRender(steps, printed);
+          console.log(chalk.green('\n✅ Assessment started. A PR will be created with the report if applicable.'));
+        } catch (err) {
+          steps[i].state = 'failed';
+          await updateRender(steps, printed);
+          console.log(chalk.red(`\n❌ Failed to start assessment: ${err.message}`));
+          return;
+        }
+      }
     }
 
-    // Wait for API result (if not already finished)
-    await apiPromise;
-
-    console.log(chalk.green('\n✅ Assessment started. A PR will be created with the report if applicable.'));
+    // (No extra await here; handled in the final step)
   } catch (error) {
     // If we were rendering steps, try to mark the current step as failed
     console.log(chalk.red(`\n❌ Failed to start assessment: ${error.message}`));
@@ -928,6 +667,39 @@ async function inferRepoUrl() {
     gitRemote.stdout.on('data', (data) => { output += data.toString(); });
     gitRemote.on('close', (code) => { resolve(code === 0 ? output.trim() : null); });
   });
+}
+
+async function detectDefaultBranch() {
+  try {
+    const { exec } = require('child_process');
+    const { promisify } = require('util');
+    const execAsync = promisify(exec);
+
+    // Try origin/HEAD ref first
+    try {
+      const { stdout } = await execAsync('git rev-parse --abbrev-ref origin/HEAD');
+      const ref = stdout.trim();
+      if (ref) return ref.replace(/^origin\//, '');
+    } catch (_) {}
+
+    // Fallback to parsing remote info
+    try {
+      const { stdout } = await execAsync('git remote show origin');
+      const match = stdout.match(/HEAD branch:\s*(\S+)/);
+      if (match && match[1]) return match[1];
+    } catch (_) {}
+
+    // Fallback to local heads
+    try {
+      await execAsync('git show-ref --verify --quiet refs/heads/main');
+      return 'main';
+    } catch (_) {}
+    try {
+      await execAsync('git show-ref --verify --quiet refs/heads/master');
+      return 'master';
+    } catch (_) {}
+  } catch (_) {}
+  return null;
 }
 
 /**
@@ -946,7 +718,7 @@ async function runSetup(options = {}) {
   try {
     // Step 1: Authentication
     console.log(chalk.blue.bold('🚀 Handit Setup CLI'));
-    console.log(chalk.gray('Setting up Handit instrumentation for your agent...\n'));
+    console.log(chalk.gray('Setup instrumentation for your agent.\n'));
     
     const authResult = await authenticate();
     if (!authResult.authenticated) {
@@ -964,7 +736,7 @@ async function runSetup(options = {}) {
     // Step 3: Detect project language
     const languageSpinner = ora('Detecting project language...').start();
     const language = await detectLanguage(config.projectRoot);
-    languageSpinner.succeed(`Detected ${chalk.blue(language)} project`);
+    languageSpinner.succeed(`Detected: ${chalk.blue(language)}`);
 
     // Step 4: Run setup prompts
     const projectInfo = await runPrompts(config, language);
@@ -972,9 +744,9 @@ async function runSetup(options = {}) {
     // Step 5: Extract call graph
     const graphSpinner = ora('Building execution tree...').start();
     const callGraph = await extractCallGraph(projectInfo.entryFile, projectInfo.entryFunction, language);
-    graphSpinner.succeed(`Found ${chalk.blue(callGraph.nodes.length)} functions`);
+    graphSpinner.succeed(`Functions found: ${chalk.blue(callGraph.nodes.length)}`);
     
-    // Show execution tree
+    // Show execution tree (best-effort)
     try {
       const { visualizeExecutionTree } = require('./utils/simpleTreeVisualizer');
       visualizeExecutionTree(callGraph.nodes, callGraph.edges, callGraph.nodes[0]?.id);
@@ -983,9 +755,9 @@ async function runSetup(options = {}) {
     }
 
     // Step 6: Analyze functions for tracking
-    const analysisSpinner = ora('Analyzing functions for instrumentation...').start();
+    const analysisSpinner = ora('Selecting functions to instrument...').start();
     const analyzedGraph = await analyzeFunctions(callGraph, language);
-    analysisSpinner.succeed(`Identified ${chalk.blue(analyzedGraph.selectedNodes.length)} functions to track`);
+    analysisSpinner.succeed(`Selected: ${chalk.blue(analyzedGraph.selectedNodes.length)}`);
 
     // Step 7: User confirmation
     const confirmedGraph = await confirmSelection(analyzedGraph, config.nonInteractive);
@@ -1005,9 +777,9 @@ async function runSetup(options = {}) {
     const instrumentedFunctions = result.appliedFunctions;
 
     // Step 9: Apply all pending code changes
-    const applySpinner = ora('Applying code changes to files...').start();
+    const applySpinner = ora('Applying code changes...').start();
     await result.generator.applyAllPendingChanges();
-    applySpinner.succeed('Code changes applied');
+    applySpinner.succeed('Applied');
 
     // Step 10: Test connection with agent
     await testConnectionWithAgent(projectInfo.agentName);
@@ -1019,17 +791,14 @@ async function runSetup(options = {}) {
     await setupEvaluators(projectInfo.agentName);
 
     // Success summary
-    console.log('\n' + chalk.green.bold('✅ Handit setup completed successfully!'));
-    console.log(chalk.gray('Summary:'));
-    console.log(`  • Agent: ${chalk.blue(projectInfo.agentName)}`);
-    console.log(`  • Functions tracked: ${chalk.blue(confirmedGraph.nodes.filter(node => node.selected).length)}`);
-    console.log(`  • Code generated: ${chalk.blue(instrumentedFunctions.length)} instrumented functions`);
-    console.log(`  • Configuration: ${chalk.blue('handit.config.json')}`);
-    console.log('\n' + chalk.yellow('Next Steps:'));
-    console.log(chalk.gray('  1. Run your agent to start collecting traces'));
-    console.log(chalk.gray('  2. Monitor performance in your Handit dashboard'));
-    console.log(chalk.gray('  3. If connected to repository, watch for automatic PR suggestions'));
-    console.log(chalk.gray('  4. Use evaluators to analyze and improve your agent\'s performance'));
+    console.log('\n' + chalk.green.bold('✅ Setup complete'));
+    console.log(`Agent: ${chalk.blue(projectInfo.agentName)}`);
+    console.log(`Tracked functions: ${chalk.blue(confirmedGraph.nodes.filter(node => node.selected).length)}`);
+    console.log(`Config: ${chalk.blue('handit.config.json')}`);
+    console.log('\nNext steps:');
+    console.log(chalk.gray('  • Run your agent to collect traces'));
+    console.log(chalk.gray('  • Open the dashboard to observe traces and PRs'));
+    console.log(chalk.gray('  • Configure evaluators to analyze performance'));
 
   } catch (error) {
     throw new Error(`Setup failed: ${error.message}`);

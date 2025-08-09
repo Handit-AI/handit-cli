@@ -39,14 +39,14 @@ async function saveAuth(authData) {
  */
 async function authenticate() {
   console.log(chalk.blue.bold('\n🔐 Handit Authentication'));
-  console.log(chalk.gray('Let\'s get you set up with Handit...\n'));
+  console.log(chalk.gray('Authenticate this machine with Handit.\n'));
 
   // Check if already authenticated
   const isAuth = await isAuthenticated();
   if (isAuth) {
-    console.log(chalk.green('✅ You\'re already logged in to Handit!'));
     const tokenStorage = new TokenStorage();
     const tokens = await tokenStorage.loadTokens();
+    console.log(chalk.green('✅ Already authenticated.'));
     return { authenticated: true, apiToken: tokens?.apiToken };
   }
 
@@ -84,10 +84,9 @@ async function handleBrowserLogin() {
   const handitApi = new HanditApi();
   const cliAuthUrl = handitApi.getCliAuthUrl();
   
-  console.log(chalk.cyan('\n🌐 Opening Handit CLI authentication...'));
-  console.log(chalk.gray('Please complete the authentication process in your browser.'));
+  console.log(chalk.cyan('\nOpening default browser to CLI auth page...'));
 
-  // Try to open the URL with multiple approaches
+  // Try to open browser (cross-platform)
   try {
     let opened = false;
 
@@ -123,32 +122,23 @@ async function handleBrowserLogin() {
       }
     }
 
-    if (opened) {
-      // Small delay to allow browser to start
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      console.log(chalk.green('✅ Browser opened successfully!'));
-    } else {
-      console.log(chalk.yellow('⚠️  Could not open your browser automatically.'));
-      console.log(chalk.blue('Please manually open this URL:'));
+    if (!opened) {
+      console.log(chalk.yellow('Could not open browser automatically.'));
+      console.log(chalk.blue('Open this URL in your browser:'));
       console.log(chalk.underline(cliAuthUrl));
     }
   } catch (error) {
-    console.log(chalk.red('❌ Unexpected error opening the browser.'));
-    console.log(chalk.blue('Please manually open this URL:'));
+    console.log(chalk.red('Unexpected error opening the browser.'));
+    console.log(chalk.blue('Open this URL in your browser:'));
     console.log(chalk.underline(cliAuthUrl));
-    console.log(chalk.gray(`Error details: ${error.message}`));
+    console.log(chalk.gray(`Error: ${error.message}`));
   }
-  
-  console.log(chalk.gray('\nSteps:'));
-  console.log(chalk.gray('1. Complete authentication in your browser'));
-  console.log(chalk.gray('2. Copy the CLI code from the dashboard'));
-  console.log(chalk.gray('3. Paste it below\n'));
   
   const { cliCode } = await inquirer.prompt([
     {
       type: 'input',
       name: 'cliCode',
-      message: 'Enter the CLI code from Handit dashboard:',
+      message: 'Paste the CLI authentication code:',
       validate: (input) => {
         const code = input.trim();
         if (code.length === 0) return 'CLI code is required';
@@ -158,18 +148,16 @@ async function handleBrowserLogin() {
     }
   ]);
 
-  const spinner = ora('Authenticating with Handit...').start();
+  const spinner = ora('Authenticating...').start();
   
   try {
     const authResult = await handitApi.authenticateWithCode(cliCode.trim());
     
     if (authResult.success) {
       await saveAuth(authResult);
-      spinner.succeed('Authentication successful!');
+      spinner.succeed('Authenticated.');
       
-      console.log(chalk.green('✅ Successfully authenticated with Handit!'));
-      console.log(chalk.gray(`Welcome, ${authResult.user.firstName} ${authResult.user.lastName}`));
-      console.log(chalk.gray(`Company: ${authResult.company.name}`));
+      console.log(chalk.green(`Authenticated as ${authResult.user.firstName} ${authResult.user.lastName} (${authResult.company.name}).`));
       
       return { authenticated: true, user: authResult.user, apiToken: authResult.apiToken };
     } else {
@@ -188,12 +176,10 @@ async function handleBrowserLogin() {
 async function handleSignup() {
   const handitApi = new HanditApi();
   
-  console.log(chalk.blue('\n🚀 Create your Handit account'));
-  console.log(chalk.gray('Please create your account at the Handit dashboard first.\n'));
-  
-  console.log(chalk.blue('🌐 Visit the Handit dashboard to create your account:'));
+  console.log(chalk.blue('\nCreate your Handit account'));
+  console.log(chalk.gray('Open the dashboard and sign up:'));
   console.log(chalk.cyan(handitApi.getDashboardUrl() + '/signup'));
-  console.log(chalk.gray('\nAfter creating your account, run this command again to login.'));
+  console.log(chalk.gray('After creating your account, run this command again to login.'));
   process.exit(0);
 }
 
