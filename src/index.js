@@ -341,7 +341,7 @@ async function setupRepositoryConnection(agentName = null, options = {}) {
           console.log(chalk.green('GitHub integration detected.'));
           return;
         }
-      } catch (_) {}
+      } catch (_) { /* ignore */ }
     }
 
     const { shouldConnect } = await inquirer.prompt([
@@ -417,7 +417,7 @@ async function setupRepositoryConnection(agentName = null, options = {}) {
             let command;
             switch (process.platform) { case 'darwin': command = `open "${githubAppUrl}"`; break; case 'win32': command = `start "" "${githubAppUrl}"`; break; default: command = `xdg-open "${githubAppUrl}"`; }
             await execAsync(command); opened = true;
-          } catch (_) {}
+          } catch (_) { /* ignore */ }
         }
         if (!opened) {
           console.log(chalk.blue('Open this URL:'));
@@ -688,25 +688,27 @@ async function detectDefaultBranch() {
       const { stdout } = await execAsync('git rev-parse --abbrev-ref origin/HEAD');
       const ref = stdout.trim();
       if (ref) return ref.replace(/^origin\//, '');
-    } catch (_) {}
+    } catch (_) { /* ignore */ }
 
     // Fallback to parsing remote info
     try {
       const { stdout } = await execAsync('git remote show origin');
       const match = stdout.match(/HEAD branch:\s*(\S+)/);
       if (match && match[1]) return match[1];
-    } catch (_) {}
+    } catch (_) { /* ignore */ }
 
     // Fallback to local heads
     try {
       await execAsync('git show-ref --verify --quiet refs/heads/main');
       return 'main';
-    } catch (_) {}
+    } catch (_) { /* ignore */ }
     try {
       await execAsync('git show-ref --verify --quiet refs/heads/master');
       return 'master';
-    } catch (_) {}
-  } catch (_) {}
+    } catch (_) { /* ignore */ }
+  } catch (_) {
+    console.log(chalk.red('Could not detect default branch.'));
+  }
   return null;
 }
 
@@ -719,7 +721,7 @@ function normalizeRepoWebUrl(rawUrl) {
     url = `https://github.com/${sshMatch[1]}`;
   }
   // owner/repo -> https://github.com/owner/repo
-  if (!/^https?:\/\//.test(url) && /^[^\s\/]+\/[^^\s]+$/.test(url)) {
+  if (!/^https?:\/\//.test(url) && /^[^\s]+\/[^^\s]+$/.test(url)) {
     url = `https://github.com/${url}`;
   }
   // Ensure https
