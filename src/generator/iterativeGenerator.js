@@ -822,44 +822,42 @@ class IterativeCodeGenerator {
   /**
    * Apply structured changes to the file
    */
-  async applyStructuredChangesToFile(node, structuredChanges, originalCode) {
+  async applyStructuredChangesToFile(node, structuredChanges, originalCode, justAdd = false) {
     try {
       const filePath = path.resolve(node.file);
       const fileContent = await fs.readFile(filePath, 'utf8');
       let lines = fileContent.split('\n');
+      let newLines = [];
+
+      if (justAdd) {
+        for (let i = 0; i < structuredChanges.length; i++) {
+          newLines.push(structuredChanges[i].code);
+        }
+        newLines.push('\n');
+        newLines = [...newLines, ...lines];
+        await fs.writeFile(filePath, newLines.join('\n'));
+        console.log(chalk.green(`✓ Applied structured changes to ${node.file}`));
+        return;
+      }
+            
       
-      const allChanges = structuredChanges.fullCode;
-      
-      const initialAdds = structuredChanges.fullCode.filter(item => item.type === 'add' && item.lineNumber < node.line).map(item => item.code);
-      
-      let newLines = [...initialAdds];
-      const moveOfLines = initialAdds.length;
-      let lastLine = 0;
-      const maxLine = Math.max(...originalCode.map(item => item.lineNumber));
-      const startLine = Math.min(...originalCode.map(item => item.lineNumber));
-      for (let i = 0; i < startLine - 1; i++) {
+      for (let i = 0; i < node.line - 1; i++) {
         newLines.push(lines[i]);
       }
+
+      const fullChanges = structuredChanges.fullCode.filter(item =>  item.lineNumber >= node.line);
+
+      for (let i = 0; i < fullChanges.length; i++) {
+        if (fullChanges[i].type === 'add' || fullChanges[i].type === 'keep') {
+          newLines.push(fullChanges[i].code);
+        }
+      }
+
+      for (let i = node.line + originalCode.length - 1; i < lines.length; i++) {
+        newLines.push(lines[i]);
+      }
+
       
-      for (let i = 0; i < allChanges.length; i++) {
-        const change = allChanges[i];
-        if (change.lineNumber >= startLine) {
-          if (change.type === 'add') {
-            newLines.push(change.code);
-          } else if (change.type === 'keep') {
-            newLines.push(change.code)
-          }
-
-          lastLine = change.lineNumber;
-        }
-      }
-
-      for (let i = maxLine; i < lines.length; i++) {
-        if (!allChanges.find(item => item.lineNumber == i && item.type === 'remove')) {
-          newLines.push(lines[i]);
-        }
-
-      }
 
       await fs.writeFile(filePath, newLines.join('\n'));
       console.log(chalk.green(`✓ Applied structured changes to ${node.file}`));
@@ -897,7 +895,11 @@ class IterativeCodeGenerator {
       // Sort functions by their starting line number (descending)
       // Apply from bottom to top to avoid line number shifts
       fileChanges.sort((a, b) => b.node.line - a.node.line);
-      
+      const node = fileChanges[0].node;
+      let topChanges = [];
+      if (node) {
+        topChanges = fileChanges[0].structuredChanges.fullCode.filter(item => item.lineNumber < node.line && (item.type === 'add' || item.type === 'keep') );
+      }
       console.log(chalk.gray(`  └── Applying ${fileChanges.length} function changes (bottom to top)...`));
       
       // Apply each function's changes from bottom to top
@@ -912,6 +914,10 @@ class IterativeCodeGenerator {
           console.error(chalk.red(`Failed to apply changes for ${func.node.name}: ${error.message}`));
           // Continue with other functions rather than failing completely
         }
+      }
+
+      if (topChanges.length > 0) {
+        await this.applyStructuredChangesToFile(node, topChanges, fileChanges[0].originalArray, true);
       }
       
       console.log(chalk.gray(`      ✓ Completed all changes for ${path.basename(filePath)}`));

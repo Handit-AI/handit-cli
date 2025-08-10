@@ -520,9 +520,9 @@ async function maybeRunInitialAssessment() {
     }
     for (const step of steps) {
       let mark = '[ ]';
-      if (step.state === 'running') mark = '[..]';
-      if (step.state === 'done') mark = '[ok]';
-      if (step.state === 'failed') mark = '[x]';
+      if (step.state === 'running') mark = '[⏳]';
+      if (step.state === 'done') mark = '[✔]';
+      if (step.state === 'failed') mark = '[✖]';
       lines.push(`${mark} ${step.label}`);
     }
     return lines.join('\n');
@@ -614,9 +614,10 @@ async function maybeRunInitialAssessment() {
 
     // Prepare steps list rendering
     const steps = [
-      { label: 'Extracting repository context', state: 'pending' },
-      { label: 'Analyzing AI code paths', state: 'pending' },
-      { label: 'Generating report (waits for server)', state: 'pending' }
+      { label: 'Discovering prompt entry points', state: 'pending' },
+      { label: 'Understanding prompt flows and context', state: 'pending' },
+      { label: 'Evaluating prompts against best practices', state: 'pending' },
+      { label: 'Generating assessment report', state: 'pending' }
     ];
     const printed = { current: 0 };
 
@@ -642,7 +643,14 @@ async function maybeRunInitialAssessment() {
           await apiPromise;
           steps[i].state = 'done';
           await updateRender(steps, printed);
-          console.log(chalk.green('\n✅ Assessment started. A PR will be created with the report if applicable.'));
+          const webRepo = normalizeRepoWebUrl(payload.repoUrl);
+          const prUrl = webRepo ? `${webRepo}/pulls` : null;
+          console.log(chalk.green('\n✔ Report ready.'));
+          if (prUrl) {
+            console.log(chalk.gray('View it in the repository PRs:'));
+            console.log(chalk.underline(prUrl));
+          }
+          return;
         } catch (err) {
           steps[i].state = 'failed';
           await updateRender(steps, printed);
@@ -702,6 +710,27 @@ async function detectDefaultBranch() {
   return null;
 }
 
+function normalizeRepoWebUrl(rawUrl) {
+  if (!rawUrl) return null;
+  let url = rawUrl.trim();
+  // git@github.com:owner/repo.git -> https://github.com/owner/repo
+  const sshMatch = url.match(/^git@github\.com:(.+)$/);
+  if (sshMatch) {
+    url = `https://github.com/${sshMatch[1]}`;
+  }
+  // owner/repo -> https://github.com/owner/repo
+  if (!/^https?:\/\//.test(url) && /^[^\s\/]+\/[^^\s]+$/.test(url)) {
+    url = `https://github.com/${url}`;
+  }
+  // Ensure https
+  url = url.replace(/^http:\/\//, 'https://');
+  // Strip .git
+  url = url.replace(/\.git$/, '');
+  // Normalize trailing slash
+  url = url.replace(/\/$/, '');
+  return url;
+}
+
 /**
  * Setup workflow - Initial agent setup
  */
@@ -716,10 +745,6 @@ async function runSetup(options = {}) {
   };
 
   try {
-    // Step 1: Authentication
-    console.log(chalk.blue.bold('🚀 Handit Setup CLI'));
-    console.log(chalk.gray('Setup instrumentation for your agent.\n'));
-    
     const authResult = await authenticate();
     if (!authResult.authenticated) {
       throw new Error('Authentication required to continue');

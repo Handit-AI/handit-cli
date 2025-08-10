@@ -616,7 +616,7 @@ ${JSON.stringify(allNodes, null, 2)}
 ALSO DO NOT ADD ADDITIONAL FUNCTIONS OR CODE WE DO NOT NEED. REMEMBER THAT THE FULL STRUCTURE FUNCTIONS IS ALREADY IMPLEMENTED.
 
 
-${isEntryPoint ? `ENTRY POINT: Add startTracing() at beginning and endTracing() in finally block, also add config({ apiKey: ${apiKey} })` : 'CHILD FUNCTION: Accept executionId parameter, use trackNode() and import the trackNode function'}
+${isEntryPoint ? `ENTRY POINT: Add startTracing() at beginning and endTracing() in finally block, also add config({ apiKey: ${apiKey} }). If the language is python, you do not need to add the config of apikey, just add the startTracing() and endTracing(), but import at the top the tracker from handit_service.py which is in the root of the project.` : 'CHILD FUNCTION: Accept executionId parameter, use trackNode() and import the trackNode function. On python Import the tracker from handit_service.py which is in the root of the project.'}
 
 Return everything in the format
 
