@@ -14,6 +14,7 @@ const { confirmSelection } = require('./confirm/treePrompt');
 const { writeConfig } = require('./config/writeConfig');
 const { monitorTraces } = require('./monitor');
 const { evaluateTraces } = require('./evaluate');
+const { maybeHandleLangGraph } = require('./langgraph');
 
 /**
  * Test connection with agent name
@@ -767,6 +768,24 @@ async function runSetup(options = {}) {
 
     // Step 4: Run setup prompts
     const projectInfo = await runPrompts(config, language);
+
+    // LangGraph path (Python only). If handled, skip tree/instrumentation and jump to connection test/evaluators
+    const lg = await maybeHandleLangGraph(projectInfo, { projectRoot: config.projectRoot, language });
+    if (lg.handled) {
+      // Test connection and evaluators as usual
+      await testConnectionWithAgent(projectInfo.agentName);
+      await updateRepositoryUrlForAgent(projectInfo.agentName);
+      await setupEvaluators(projectInfo.agentName);
+
+      console.log('\n' + chalk.green.bold('✅ Setup complete'));
+      console.log(`Agent: ${chalk.blue(projectInfo.agentName)}`);
+      console.log(`Config: ${chalk.blue('handit.config.json')}`);
+      console.log('\nNext steps:');
+      console.log(chalk.gray('  • Run your agent to collect traces'));
+      console.log(chalk.gray('  • Open the dashboard to observe traces and PRs'));
+      console.log(chalk.gray('  • Configure evaluators to analyze performance'));
+      return;
+    }
 
     // Step 5: Extract call graph
     const graphSpinner = ora('Building execution tree...').start();
