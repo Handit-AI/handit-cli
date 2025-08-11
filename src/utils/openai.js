@@ -47,6 +47,7 @@ async function callLLMAPI({ messages, model, response_format, temperature, max_t
     }, {
       headers
     });
+    console.log('response', response.data);
     return response.data.result;
   } catch (error) {
     console.error('LLM API error:', error.message);
