@@ -770,7 +770,7 @@ async function runSetup(options = {}) {
     const projectInfo = await runPrompts(config, language);
 
     // LangGraph path (Python only). If handled, skip tree/instrumentation and jump to connection test/evaluators
-    const lg = await maybeHandleLangGraph(projectInfo, { projectRoot: config.projectRoot, language });
+    const lg = await maybeHandleLangGraph(projectInfo, { projectRoot: config.projectRoot, language, apiToken });
     if (lg.handled) {
       // Test connection and evaluators as usual
       await testConnectionWithAgent(projectInfo.agentName);
