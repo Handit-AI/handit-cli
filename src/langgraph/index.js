@@ -76,7 +76,10 @@ async function callAIForLangGraphEdits({ projectRoot, agentName, targetFile, tar
   api.authToken = tokens?.authToken || null;
   api.apiToken = tokens?.apiToken || null;
 
-  const system = `You are an expert Python engineer familiar with LangGraph and LangChain callbacks. Generate a Handit tracing callback and minimal code edits to wire callbacks into a specific invoke/ainvoke call. 
+  const system = `You are an expert Python engineer familiar with LangGraph and LangChain callbacks. 
+  Generate a Handit tracing callback and minimal code edits to wire callbacks into a specific invoke/ainvoke call. 
+
+  Make sure that the code will compile and run, check that the parameters you used on each function are correct.
   Output valid JSON only with the following format:
   {
     "callback_path": "string (relative path for new file, suggest: handit_langgraph_callbacks.py)",
@@ -92,9 +95,9 @@ async function callAIForLangGraphEdits({ projectRoot, agentName, targetFile, tar
       'Imports: use from handit_service import tracker and from langchain_core.callbacks import BaseCallbackHandler.',
       'Do NOT call tracker.track_node in on_llm_start. Save inputs only.',
       'LLM: on_llm_start(serialized, prompts/messages, run_id, tags, metadata, model, **kwargs) -> save {messages, model} in a dict keyed by run_id.',
-      'LLM: on_llm_end(response, run_id, **kwargs) -> tracker.track_node with input saved from start and output from response. node_type="model". Use a stable node_name (serialized.get("name") or "LLM").',
+      'LLM: on_llm_end(response, run_id, **kwargs) -> tracker.track_node with input saved from start and output from response. node_type="model". Use a unique node_name for each LLM call, save the node_name in the on start using the serialized.get("name") and use it on the on_llm_end.',
       'Tools: on_tool_start(serialized, input_str or tool_input, run_id, **kwargs) -> save input in dict keyed by run_id.',
-      'Tools: on_tool_end(output, run_id, **kwargs) -> tracker.track_node with saved input and output. node_type="tool". Use a stable node_name.',
+      'Tools: on_tool_end(output, run_id, **kwargs) -> tracker.track_node with saved input and output. node_type="tool". Use a unique node_name for each tool call, save the node_name in the on start using the serialized.get("name") and use it on the on_tool_end.',
       'Always pass objects: input and output must be dicts. For LLM, input={"messages": [...], "model": "..."}. For tools, input={"input": ...}.',
       'Graph: on_chain_start -> tracker.start_tracing(agent_name) and store execution_id; on_chain_end -> tracker.end_tracing. Optionally also track a graph_end node.',
       'Support concurrency: maintain self._llm_inputs and self._tool_inputs dicts keyed by run_id. Clean up entries in end hooks.',
@@ -163,9 +166,9 @@ async function applyAIEdits({ projectRoot, agentName, site, content }) {
   if (Array.isArray(content.imports_to_add) && content.imports_to_add.length > 0) {
     newLines.splice(0, 0, ...content.imports_to_add);
   }
-  // Replace invoke line
+
   if (content.invoke_replacement) {
-    newLines[site.line - 1] = content.invoke_replacement;
+    newLines[site.line] = content.invoke_replacement;
   }
   await fs.writeFile(abs, newLines.join('\n'), 'utf8');
   return true;
