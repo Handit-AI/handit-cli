@@ -40,7 +40,7 @@ async function testConnectionWithAgent(agentName) {
     console.log(chalk.gray(`Agent: ${agentName}`));
 
     const { shouldTest } = await inquirer.prompt([
-      { type: 'confirm', name: 'shouldTest', message: 'Test now?', default: true }
+      { type: 'confirm', name: 'shouldTest', message: 'Test Handit connection now?', default: true }
     ]);
 
     if (!shouldTest) {
@@ -248,7 +248,6 @@ async function setupEvaluators(agentName) {
         console.log(chalk.gray('You need to have models in your agent to add evaluators.'));
         shouldContinue = false;
       }
-
       // Let user select models to associate with evaluator
       const { selectedModels } = await inquirer.prompt([
         {
@@ -257,7 +256,7 @@ async function setupEvaluators(agentName) {
           message: 'Select models to associate with this evaluator:',
           choices: nodesWithModels.map(node => ({
             name: `${node.Model.name || 'Unnamed Node'}`,
-            value: node.id
+            value: node.model_id
           }))
         }
       ]);

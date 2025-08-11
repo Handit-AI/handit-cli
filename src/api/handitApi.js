@@ -179,10 +179,11 @@ class HanditApi {
         token
       };
       if (type) requestBody.type = type;
-
+      console.log('requestBody', requestBody);
       const response = await axios.post(`${this.apiUrl}/integration-tokens`, requestBody, {
         headers: this.getAuthHeaders()
       });
+      console.log('response', response.data);
 
       return response.data;
     } catch (error) {
@@ -288,12 +289,15 @@ class HanditApi {
    */
   async updateEvaluatorDefaults(id, defaultIntegrationTokenId, defaultProviderModel) {
     try {
+      console.log('updateEvaluatorDefaults', id, defaultIntegrationTokenId, defaultProviderModel);
       const response = await axios.put(`${this.apiUrl}/reviewers-template/evaluation-prompts/${id}`, {
         defaultIntegrationTokenId,
         defaultProviderModel
       }, {
         headers: this.getAuthHeaders()
       });
+
+      console.log('response', response.data);
 
       return response.data;
     } catch (error) {

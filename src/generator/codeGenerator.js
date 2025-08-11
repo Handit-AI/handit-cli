@@ -156,6 +156,9 @@ IMPORTANT RULES:
 11. Use the apiKey provided to you to configure the Handit.ai SDK, but just add it to the entry point.
 12. If handit is already configured or called in the function, return the parameter of required changes as false, else return true.
 13. The user API Key is ${apiKey}
+14. For llm nodes use as input an object with the following format: {messages: [...], model: "..."}, and the output is an object with the following format: {output: full_output_of_the_llm_call}.
+15. For tool nodes use as input an object with the following format: {input: ...}, and the output is an object with the following format: {output: full_output_of_the_tool_call}.
+16. If using python, always serialize the input and output of the llm and tool nodes.
 
 Return everything in the following json format:
 
