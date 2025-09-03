@@ -7,14 +7,8 @@ const fs = require('fs-extra');
 const { authenticate } = require('./auth');
 const { detectLanguage } = require('./setup/detectLanguage');
 const { runPrompts } = require('./setup/prompts');
-const { extractCallGraph } = require('./parser');
-const { analyzeFunctions } = require('./analyzer');
-const { confirmSelection } = require('./confirm/treePrompt');
-// Code generation is now handled inline in the setup flow
-const { writeConfig } = require('./config/writeConfig');
 const { monitorTraces } = require('./monitor');
 const { evaluateTraces } = require('./evaluate');
-const { maybeHandleLangGraph } = require('./langgraph');
 
 /**
  * Test connection with agent name
@@ -768,77 +762,33 @@ async function runSetup(options = {}) {
     // Step 4: Run setup prompts
     const projectInfo = await runPrompts(config, language);
 
-    // LangGraph path (Python only). If handled, skip tree/instrumentation and jump to connection test/evaluators
-    const lg = await maybeHandleLangGraph(projectInfo, { projectRoot: config.projectRoot, language, apiToken });
-    if (lg.handled) {
-      // Test connection and evaluators as usual
-      await testConnectionWithAgent(projectInfo.agentName);
-      await updateRepositoryUrlForAgent(projectInfo.agentName);
-      await setupEvaluators(projectInfo.agentName);
+    // Step 5: Generate simplified entry point tracing
+    const { SimplifiedCodeGenerator } = require('./generator/simplifiedGenerator');
+    const simplifiedGenerator = new SimplifiedCodeGenerator(language, projectInfo.agentName, config.projectRoot, apiToken);
+    
+    const result = await simplifiedGenerator.generateEntryPointTracing(
+      projectInfo.entryFile,
+      projectInfo.entryFunction
+    );
 
-      console.log('\n' + chalk.green.bold('✅ Setup complete'));
-      console.log(`Agent: ${chalk.blue(projectInfo.agentName)}`);
-      console.log(`Config: ${chalk.blue('handit.config.json')}`);
-      console.log('\nNext steps:');
-      console.log(chalk.gray('  • Run your agent to collect traces'));
-      console.log(chalk.gray('  • Open the dashboard to observe traces and PRs'));
-      console.log(chalk.gray('  • Configure evaluators to analyze performance'));
+    if (!result.applied) {
+      console.log(chalk.yellow('Setup cancelled - no tracing applied'));
       return;
     }
 
-    // Step 5: Extract call graph
-    const graphSpinner = ora('Building execution tree...').start();
-    const callGraph = await extractCallGraph(projectInfo.entryFile, projectInfo.entryFunction, language);
-    graphSpinner.succeed(`Functions found: ${chalk.blue(callGraph.nodes.length)}`);
-    
-    // Show execution tree (best-effort)
-    try {
-      const { visualizeExecutionTree } = require('./utils/simpleTreeVisualizer');
-      visualizeExecutionTree(callGraph.nodes, callGraph.edges, callGraph.nodes[0]?.id);
-    } catch (error) {
-      console.warn(`Warning: Could not visualize execution tree: ${error.message}`);
-    }
-
-    // Step 6: Analyze functions for tracking
-    const analysisSpinner = ora('Selecting functions to instrument...').start();
-    const analyzedGraph = await analyzeFunctions(callGraph, language);
-    analysisSpinner.succeed(`Selected: ${chalk.blue(analyzedGraph.selectedNodes.length)}`);
-
-    // Step 7: User confirmation
-    const confirmedGraph = await confirmSelection(analyzedGraph, config.nonInteractive);
-
-    // Step 8: Generate instrumented code iteratively with user confirmation
-    const { generateInstrumentedCodeIteratively } = require('./generator');
-    const selectedFunctionIds = confirmedGraph.nodes.filter(node => node.selected).map(node => node.id);
-    const result = await generateInstrumentedCodeIteratively(
-      selectedFunctionIds,
-      confirmedGraph.nodes,
-      language,
-      projectInfo.agentName,
-      config.projectRoot,
-      apiToken
-    );
-    
-    const instrumentedFunctions = result.appliedFunctions;
-
-    // Step 9: Apply all pending code changes
-    const applySpinner = ora('Applying code changes...').start();
-    await result.generator.applyAllPendingChanges();
-    applySpinner.succeed('Applied');
-
-    // Step 10: Test connection with agent
+    // Step 6: Test connection with agent
     await testConnectionWithAgent(projectInfo.agentName);
 
     // After confirming connection, update repository URL on the agent
     await updateRepositoryUrlForAgent(projectInfo.agentName);
 
-    // Step 11: Setup evaluators
+    // Step 7: Setup evaluators
     await setupEvaluators(projectInfo.agentName);
 
     // Success summary
     console.log('\n' + chalk.green.bold('✅ Setup complete'));
     console.log(`Agent: ${chalk.blue(projectInfo.agentName)}`);
-    console.log(`Tracked functions: ${chalk.blue(confirmedGraph.nodes.filter(node => node.selected).length)}`);
+    console.log(`Entry point instrumented: ${chalk.blue(projectInfo.entryFunction)}`);
     console.log(`Config: ${chalk.blue('handit.config.json')}`);
     console.log('\nNext steps:');
     console.log(chalk.gray('  • Run your agent to collect traces'));

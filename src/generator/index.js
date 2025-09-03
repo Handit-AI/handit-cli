@@ -18,9 +18,6 @@ async function generateInstrumentedCode(selectedFunctionIds, allNodes, language,
     // Initialize code generator
     const generator = new CodeGenerator(language, agentName);
     
-    // Generate Handit service file
-    await generator.generateHanditService(projectRoot);
-    
     // Generate instrumented code for each function
     const instrumentedFunctions = [];
     
@@ -86,9 +83,9 @@ async function displayGeneratedCode(instrumentedFunctions, language) {
   console.log(chalk.gray('1. Install Handit.ai SDK:'));
   
   if (language === 'javascript') {
-    console.log(chalk.white('   npm install @handit.ai/node'));
+    console.log(chalk.white('   npm i @handit.ai/handit-ai'));
   } else {
-    console.log(chalk.white('   pip install handit-sdk'));
+    console.log(chalk.white('   pip install handit_ai'));
   }
   
   console.log(chalk.gray('2. Set your Handit API key:'));

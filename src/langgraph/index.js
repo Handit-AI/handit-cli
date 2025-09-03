@@ -212,8 +212,6 @@ async function maybeHandleLangGraph(projectInfo, config) {
     const ai = await callAIForLangGraphEdits({ projectRoot, agentName: projectInfo.agentName, targetFile: site.file, targetLine: site.line, fileContent });
     const ok = await applyAIEdits({ projectRoot, agentName: projectInfo.agentName, site, content: ai });
     if (ok) {
-      const generator = new IterativeCodeGenerator('python', projectInfo.agentName, projectRoot, config.apiToken);
-    await generator.createHanditServiceFile(config.apiToken);
       console.log(chalk.green('LangGraph tracing installed (AI-generated).'));
       return { handled: true };
     }
@@ -224,10 +222,6 @@ async function maybeHandleLangGraph(projectInfo, config) {
   // Fallback to minimal deterministic wiring if AI fails/cancelled
   const targetCreated = await ensureCallbackFile(projectRoot, projectInfo.agentName);
   const ok = await wireInvokeAtSite(projectRoot, site.file, site.line, projectInfo.agentName);
-  if (ok) {
-    const generator = new IterativeCodeGenerator('python', projectInfo.agentName, projectRoot, config.apiToken);
-    await generator.createHanditServiceFile(config.apiToken);
-  }
   
   if (!ok) return { handled: false };
 

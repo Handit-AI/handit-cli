@@ -13,72 +13,7 @@ class CodeGenerator {
     this.projectRoot = projectRoot;
   }
 
-  /**
-   * Generate Handit service initialization file
-   */
-  async generateHanditService(projectRoot) {
-    const serviceContent =
-      this.language === 'javascript'
-        ? this.generateJSHanditService()
-        : this.generatePythonHanditService();
 
-    const fileName =
-      this.language === 'javascript'
-        ? 'handit_service.js'
-        : 'handit_service.py';
-    const filePath = path.join(projectRoot, fileName);
-
-    await fs.writeFile(filePath, serviceContent);
-    console.log(chalk.green(`✓ Created ${fileName}`));
-
-    return filePath;
-  }
-
-  /**
-   * Generate JavaScript Handit service file
-   */
-  generateJSHanditService() {
-    return `/**
- * Handit.ai service initialization.
- * This file creates the Handit.ai configuration for tracing your agent.
- */
-const { config, startTracing, trackNode, endTracing } = require('@handit.ai/node');
-
-// Configure Handit.ai with your API key
-config({ 
-    apiKey: process.env.HANDIT_API_KEY  // Sets up authentication for Handit.ai services
-});
-
-module.exports = {
-  startTracing,
-  trackNode,
-  endTracing
-};
-`;
-  }
-
-  /**
-   * Generate Python Handit service file
-   */
-  generatePythonHanditService() {
-    return `"""
-Handit.ai service initialization and configuration.
-This file creates a singleton tracker instance that can be imported across your application.
-"""
-import os
-from dotenv import load_dotenv
-from handit import HanditTracker
-
-# Load environment variables from .env file
-load_dotenv()
-
-# Create a singleton tracker instance
-tracker = HanditTracker()  # Creates a global tracker instance for consistent tracing across the app
-
-# Configure with your API key from environment variables
-tracker.config(api_key=os.getenv("HANDIT_API_KEY"))  # Sets up authentication for Handit.ai services
-`;
-  }
 
   /**
    * Generate structured changes for instrumenting a function
@@ -125,11 +60,15 @@ tracker.config(api_key=os.getenv("HANDIT_API_KEY"))  # Sets up authentication fo
    * Step 1: Generate complete instrumented code
    */
   async generateCompleteInstrumentedCode(node, originalCode, allNodes, apiKey) {
+    // Detect if this is a FastAPI endpoint
+    const isFastAPIEndpoint = this.language === 'python' ? await this.detectFastAPIEndpoint(node) : false;
+    
     const prompt = this.createInstrumentationPrompt(
       node,
       originalCode,
       allNodes,
-      apiKey
+      apiKey,
+      isFastAPIEndpoint
     );
 
     const response = await callLLMAPI({
@@ -138,30 +77,30 @@ tracker.config(api_key=os.getenv("HANDIT_API_KEY"))  # Sets up authentication fo
           role: 'system',
           content: `You are an expert code instrumentation assistant. Your job is to integrate the Handit.ai observability SDK into a user's codebase.
 
-Your task is to generate the COMPLETE instrumented function code with Handit.ai tracing added.
-
-DO NOT ADD NEW FUNCTIONS WHEN NO NEEDED, WE ARE GOING TO PROCESS A LOT OF FUNCTIONS IN AN ITERATIVE WAY, YOU ARE GOING TO GET THE TREE OF EXECUTION.
+Your task is to generate the COMPLETE instrumented function code with SIMPLIFIED Handit.ai tracing added ONLY to the entry point.
 
 IMPORTANT RULES:
 1. Return ONLY the complete instrumented code, no explanations
 2. Preserve ALL original function logic exactly
-3. Add Handit.ai tracing appropriately
+3. Add Handit.ai tracing ONLY to the entry point function - no tracing for child functions
 4. Make sure the code compiles and is valid
-5. Use appropriate nodeType: 'model' for LLM calls, 'tool' for all other calls
-6. Only add startTracing() and endTracing() for entry points
-7. For child functions, accept executionId parameter and use trackNode()
-8. Add executionId to function parameters and pass to child functions
-9. If Handit integration already exists, don't add it again
-10. Never add additional imports that are not needed, just import handit functions. 
-11. Use the apiKey provided to you to configure the Handit.ai SDK, but just add it to the entry point.
-12. If handit is already configured or called in the function, return the parameter of required changes as false, else return true.
-13. The user API Key is ${apiKey}
-14. For llm nodes use as input an object with the following format: {messages: [...], model: "..."}, and the output is an object with the following format: {output: full_output_of_the_llm_call}.
-15. For tool nodes use as input an object with the following format: {input: ...}, and the output is an object with the following format: {output: full_output_of_the_tool_call}.
-16. If using python, always serialize the input and output of the llm and tool nodes.
+5. If Handit integration already exists, don't add it again
+6. Never add additional imports that are not needed
+7. The user API Key is ${apiKey}
+
+PYTHON APPROACH:
+- Use @tracing(agent="agent-name") decorator on the entry point function
+- Import: from handit_ai import tracing, configure
+- Add configure(HANDIT_API_KEY=os.getenv("HANDIT_API_KEY")) at the top
+- For FastAPI endpoints, put the decorator below the @app.post/@app.get decorator
+
+JAVASCRIPT APPROACH:
+- Use startTracing/endTracing wrapper around the entry point function
+- Import: import { configure, startTracing, endTracing } from '@handit.ai/handit-ai'
+- Add configure({ HANDIT_API_KEY: process.env.HANDIT_API_KEY }) at the top
+- Wrap function body with try/finally and startTracing/endTracing calls
 
 Return everything in the following json format:
-
 
 {
     "code": "instrumented code",
@@ -572,57 +511,111 @@ Return ONLY a JSON array like this:
   /**
    * Create instrumentation prompt for generating complete code
    */
-  createInstrumentationPrompt(node, originalCode, allNodes, apiKey) {
-    const isEntryPoint = allNodes[0]?.id === node.id;
-    // load quickstart.mdx as string
-    const documentation = fs.readFileSync(
-      path.join(__dirname, '..', '..', 'quickstart.mdx'),
-      'utf8'
-    );
-
+  createInstrumentationPrompt(node, originalCode, allNodes, apiKey, isFastAPIEndpoint = false) {
+    const isEntryPoint = true; // We only instrument entry points now
+    
     const basePrompt = `
-Generate the complete instrumented code for this ${this.language} function with Handit.ai tracing.
+Generate the complete instrumented code for this ${this.language} function with SIMPLIFIED Handit.ai tracing.
 
-The basic documentation for the handit integration is:
-${documentation}
+IMPORTANT: We are using a SIMPLIFIED approach - only add tracing to the entry point function. Do NOT trace child functions.
 
 FUNCTION DETAILS:
 - Name: ${node.name}
 - File: ${node.file}
 - Line: ${node.line}
 - Agent Name: ${this.agentName}
-- Is Entry Point: ${isEntryPoint}
-- Handit uses API Key: ${apiKey}
+- Language: ${this.language}
+- API Key: ${apiKey}
+- Is FastAPI Endpoint: ${isFastAPIEndpoint}
 
 ORIGINAL CODE:
 \`\`\`${this.language}
 ${originalCode}
 \`\`\`
 
-REQUIREMENTS:
-1. Return the COMPLETE instrumented function code
+SIMPLIFIED TRACING REQUIREMENTS:
+
+${this.language === 'python' ? `
+PYTHON APPROACH:
+1. Import: from handit_ai import tracing, configure
+2. Add configure(HANDIT_API_KEY=os.getenv("HANDIT_API_KEY")) at the top
+3. Add @tracing(agent="${this.agentName}") decorator to the entry point function
+4. ${isFastAPIEndpoint ? 'For FastAPI endpoints, put the @tracing decorator BELOW the @app.post/@app.get decorator' : 'Add the decorator directly above the function definition'}
+5. Do NOT modify child functions - leave them unchanged
+6. Package to install: pip install handit_ai
+
+${isFastAPIEndpoint ? `FastAPI Example:
+\`\`\`python
+from handit_ai import tracing, configure
+import os
+
+configure(HANDIT_API_KEY=os.getenv("HANDIT_API_KEY"))
+
+@app.post("/process")
+@tracing(agent="${this.agentName}")
+async def process_customer_request(user_message: str):
+    # Your existing agent logic (unchanged)
+    intent = await classify_intent(user_message)      # Not traced individually
+    context = await search_knowledge(intent)          # Not traced individually  
+    response = await generate_response(context)       # Not traced individually
+    return response
+\`\`\`
+` : `Regular Function Example:
+\`\`\`python
+from handit_ai import tracing, configure
+import os
+
+configure(HANDIT_API_KEY=os.getenv("HANDIT_API_KEY"))
+
+@tracing(agent="${this.agentName}")
+async def process_customer_request(user_message: str):
+    # Your existing agent logic (unchanged)
+    intent = await classify_intent(user_message)      # Not traced individually
+    context = await search_knowledge(intent)          # Not traced individually  
+    response = await generate_response(context)       # Not traced individually
+    return response
+\`\`\`
+`}
+` : `
+JAVASCRIPT APPROACH:
+1. Import: import { configure, startTracing, endTracing } from '@handit.ai/handit-ai'
+2. Add configure({ HANDIT_API_KEY: process.env.HANDIT_API_KEY }) at the top
+3. Wrap the entry point function with startTracing/endTracing calls
+4. Use try/finally to ensure endTracing is always called
+5. Do NOT modify child functions - leave them unchanged
+6. Package to install: npm i @handit.ai/handit-ai
+
+Example:
+\`\`\`javascript
+import { configure, startTracing, endTracing } from '@handit.ai/handit-ai';
+
+configure({
+  HANDIT_API_KEY: process.env.HANDIT_API_KEY
+});
+
+export const processCustomerRequest = async (userMessage) => {
+  startTracing({ agent: "${this.agentName}" });
+  try {
+    // Your existing agent logic (unchanged)
+    const intent = await classifyIntent(userMessage);     // Not traced individually
+    const context = await searchKnowledge(intent);       // Not traced individually
+    const response = await generateResponse(context);     // Not traced individually
+    return response;
+  } finally {
+    endTracing();
+  }
+};
+\`\`\`
+`}
+
+CRITICAL RULES:
+1. ONLY instrument the entry point function - do NOT add tracing to any child functions
 2. Preserve ALL original function logic exactly
-3. Add Handit.ai tracing appropriately
-4. Use appropriate nodeType: 'model' for LLM calls, 'tool' for all other calls
-5. Only add startTracing() and endTracing() if this is the entry point
-6. For child functions, accept executionId parameter and use trackNode()
-7. Add executionId to function parameters and pass to child functions
-8. If Handit integration already exists, don't add it again
-9. Add the executionId to the parameters of the function, and pass it to the child functions, use the full structure of the nodes to determine the parameters.
-10. Items are processed in the order they are added, so you need to add the executionId to the parameters of the function, and pass it to the child functions, use the full structure of the nodes to determine the parameters.
-11. If handit is already configured, return the parameter of required changes as false, else return true.
+3. If Handit integration already exists, return requiredChanges: false
+4. Make sure the code compiles and is valid
+5. Add imports only if not already present
 
-
-THIS IS THE FULL STRUCTURE OF THE NODES WE ARE TRACING:
-${JSON.stringify(allNodes, null, 2)}
-
-ALSO DO NOT ADD ADDITIONAL FUNCTIONS OR CODE WE DO NOT NEED. REMEMBER THAT THE FULL STRUCTURE FUNCTIONS IS ALREADY IMPLEMENTED.
-
-
-${isEntryPoint ? `ENTRY POINT: Add startTracing() at beginning and endTracing() in finally block, also add config({ apiKey: ${apiKey} }). If the language is python, you do not need to add the config of apikey, just add the startTracing() and endTracing(), but import at the top the tracker from handit_service.py which is in the root of the project.` : 'CHILD FUNCTION: Accept executionId parameter, use trackNode() and import the trackNode function. On python Import the tracker from handit_service.py which is in the root of the project.'}
-
-Return everything in the format
-
+Return everything in the following json format:
 
 {
     "code": "instrumented code",
@@ -631,6 +624,29 @@ Return everything in the format
 `;
 
     return basePrompt;
+  }
+
+  /**
+   * Detect if the function is a FastAPI endpoint
+   */
+  async detectFastAPIEndpoint(node) {
+    try {
+      const filePath = path.resolve(node.file);
+      const fileContent = await fs.readFile(filePath, 'utf8');
+      const lines = fileContent.split('\n');
+      
+      // Check if the line before the function has FastAPI decorator
+      const functionLineIndex = node.line - 1; // Convert to 0-based
+      if (functionLineIndex > 0) {
+        const previousLine = lines[functionLineIndex - 1];
+        const decoratorMatch = previousLine.match(/^@(\w+)\.(post|get|put|delete|patch)\s*\(/);
+        return !!decoratorMatch;
+      }
+      
+      return false;
+    } catch (error) {
+      return false;
+    }
   }
 
   /**
