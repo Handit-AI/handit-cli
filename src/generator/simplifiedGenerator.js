@@ -300,37 +300,196 @@ Please add Handit.ai monitoring to the "${functionName}" function following the 
     const originalLines = originalContent.split('\n');
     const modifiedLines = modifiedContent.split('\n');
 
-    // Simple diff display
-    let i = 0, j = 0;
-    const maxLines = Math.max(originalLines.length, modifiedLines.length);
+    // Use a smarter diff algorithm
+    const changes = this.computeSmartDiff(originalLines, modifiedLines);
     
-    for (let lineNum = 1; lineNum <= maxLines; lineNum++) {
+    // Show summary
+    const additions = changes.filter(c => c.type === 'add').length;
+    const modifications = changes.filter(c => c.type === 'modify').length;
+    
+    console.log(chalk.yellow.bold('📊 Summary:'));
+    if (additions > 0) console.log(chalk.green(`  + ${additions} lines added`));
+    if (modifications > 0) console.log(chalk.blue(`  ~ ${modifications} lines modified`));
+    console.log('');
+
+    // Show changes with context
+    this.showChangesWithContext(originalLines, changes);
+
+    console.log(chalk.gray('─'.repeat(60)));
+  }
+
+  /**
+   * Compute a smart diff that groups actual changes
+   */
+  computeSmartDiff(originalLines, modifiedLines) {
+    const changes = [];
+    let i = 0, j = 0;
+    
+    while (i < originalLines.length || j < modifiedLines.length) {
       const originalLine = originalLines[i];
       const modifiedLine = modifiedLines[j];
       
-      if (originalLine === modifiedLine) {
-        // Lines are the same
-        console.log(chalk.gray(`  ${lineNum.toString().padStart(3)}: ${originalLine || ''}`));
+      if (i >= originalLines.length) {
+        // Only modified lines left
+        changes.push({
+          type: 'add',
+          line: j + 1,
+          content: modifiedLine,
+          originalLine: null
+        });
+        j++;
+      } else if (j >= modifiedLines.length) {
+        // Only original lines left
+        changes.push({
+          type: 'remove',
+          line: i + 1,
+          content: originalLine,
+          modifiedLine: null
+        });
+        i++;
+      } else if (originalLine === modifiedLine) {
+        // Lines match, advance both
         i++;
         j++;
-      } else if (!originalLine) {
-        // New line added
-        console.log(chalk.green(`+ ${lineNum.toString().padStart(3)}: ${modifiedLine}`));
-        j++;
-      } else if (!modifiedLine) {
-        // Line removed
-        console.log(chalk.red(`- ${lineNum.toString().padStart(3)}: ${originalLine}`));
-        i++;
       } else {
-        // Line modified
-        console.log(chalk.red(`- ${lineNum.toString().padStart(3)}: ${originalLine}`));
-        console.log(chalk.green(`+ ${lineNum.toString().padStart(3)}: ${modifiedLine}`));
-        i++;
-        j++;
+        // Look ahead to see if this is a simple insertion/deletion
+        let foundMatch = false;
+        
+        // Check if next few original lines match current modified line
+        for (let k = 1; k <= 3 && i + k < originalLines.length; k++) {
+          if (originalLines[i + k] === modifiedLine) {
+            // Found match, this is an insertion
+            for (let l = 0; l < k; l++) {
+              changes.push({
+                type: 'add',
+                line: j + 1,
+                content: originalLines[i + l],
+                originalLine: null
+              });
+            }
+            i += k;
+            foundMatch = true;
+            break;
+          }
+        }
+        
+        if (!foundMatch) {
+          // Check if next few modified lines match current original line
+          for (let k = 1; k <= 3 && j + k < modifiedLines.length; k++) {
+            if (modifiedLines[j + k] === originalLine) {
+              // Found match, this is a deletion
+              for (let l = 0; l < k; l++) {
+                changes.push({
+                  type: 'add',
+                  line: i + 1,
+                  content: modifiedLines[j + l],
+                  modifiedLine: null
+                });
+              }
+              j += k;
+              foundMatch = true;
+              break;
+            }
+          }
+        }
+        
+        if (!foundMatch) {
+          // This is a modification
+          changes.push({
+            type: 'modify',
+            line: i + 1,
+            content: originalLine,
+            modifiedContent: modifiedLine
+          });
+          i++;
+          j++;
+        }
       }
     }
+    
+    return changes;
+  }
 
-    console.log(chalk.gray('─'.repeat(60)));
+  /**
+   * Show changes with context around them
+   */
+  showChangesWithContext(originalLines, changes) {
+    if (changes.length === 0) {
+      console.log(chalk.gray('No changes detected'));
+      return;
+    }
+
+    // Group changes by proximity
+    const changeGroups = this.groupChangesByProximity(changes);
+    
+    changeGroups.forEach((group, groupIndex) => {
+      if (groupIndex > 0) {
+        console.log(chalk.gray('   ...'));
+      }
+      
+      const startLine = Math.max(1, group.startLine - 2);
+      const endLine = Math.min(originalLines.length, group.endLine + 2);
+      
+      // Show context before changes
+      for (let i = startLine; i < group.startLine; i++) {
+        const lineContent = originalLines[i - 1] || '';
+        console.log(chalk.gray(`  ${i.toString().padStart(3)}: ${lineContent}`));
+      }
+      
+      // Show changes
+      group.changes.forEach(change => {
+        if (change.type === 'add') {
+          console.log(chalk.green(`+ ${change.line.toString().padStart(3)}: ${change.content}`));
+        } else if (change.type === 'remove') {
+          console.log(chalk.red(`- ${change.line.toString().padStart(3)}: ${change.content}`));
+        } else if (change.type === 'modify') {
+          console.log(chalk.red(`- ${change.line.toString().padStart(3)}: ${change.content}`));
+          console.log(chalk.green(`+ ${change.line.toString().padStart(3)}: ${change.modifiedContent}`));
+        }
+      });
+      
+      // Show context after changes
+      for (let i = group.endLine + 1; i <= endLine; i++) {
+        const lineContent = originalLines[i - 1] || '';
+        console.log(chalk.gray(`  ${i.toString().padStart(3)}: ${lineContent}`));
+      }
+    });
+  }
+
+  /**
+   * Group changes by proximity to show them together
+   */
+  groupChangesByProximity(changes) {
+    if (changes.length === 0) return [];
+    
+    const groups = [];
+    let currentGroup = {
+      changes: [changes[0]],
+      startLine: changes[0].line,
+      endLine: changes[0].line
+    };
+    
+    for (let i = 1; i < changes.length; i++) {
+      const change = changes[i];
+      const lastChange = currentGroup.changes[currentGroup.changes.length - 1];
+      
+      // If changes are close together (within 5 lines), group them
+      if (change.line - lastChange.line <= 5) {
+        currentGroup.changes.push(change);
+        currentGroup.endLine = change.line;
+      } else {
+        // Start a new group
+        groups.push(currentGroup);
+        currentGroup = {
+          changes: [change],
+          startLine: change.line,
+          endLine: change.line
+        };
+      }
+    }
+    
+    groups.push(currentGroup);
+    return groups;
   }
 
   /**
