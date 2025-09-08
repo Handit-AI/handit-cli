@@ -9,7 +9,7 @@ const program = new Command();
 program
   .name('handit-cli')
   .description('Handit CLI for agent setup and trace monitoring')
-  .version('1.2.0')
+  .version('1.3.1')
   .option('--test', 'Use test environment (localhost)');
 
 // Setup command
