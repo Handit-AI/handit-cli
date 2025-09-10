@@ -6,6 +6,58 @@ const inquirer = require('inquirer').default;
 const { findPossibleFilesWithGPT, findFunctionInFileWithGPT } = require('./openai');
 
 /**
+ * Preprocess user file input to handle full paths and quotes
+ * @param {string} userInput - Raw user input
+ * @param {string} projectRoot - Current project root directory
+ * @returns {string} - Processed relative path
+ */
+function preprocessUserFileInput(userInput, projectRoot) {
+  if (!userInput || typeof userInput !== 'string') {
+    return userInput;
+  }
+
+  // Remove surrounding quotes if present
+  let processedInput = userInput.trim();
+  if ((processedInput.startsWith('"') && processedInput.endsWith('"')) ||
+      (processedInput.startsWith("'") && processedInput.endsWith("'"))) {
+    processedInput = processedInput.slice(1, -1);
+  }
+
+  // Handle tilde expansion for home directory
+  if (processedInput.startsWith('~/')) {
+    const homeDir = require('os').homedir();
+    processedInput = path.join(homeDir, processedInput.slice(2));
+  }
+
+  // Check if it's an absolute path
+  if (path.isAbsolute(processedInput)) {
+    try {
+      // Normalize the path to handle any inconsistencies
+      const normalizedInput = path.normalize(processedInput);
+      const normalizedProjectRoot = path.normalize(projectRoot);
+      
+      // Convert absolute path to relative path from project root
+      const relativePath = path.relative(normalizedProjectRoot, normalizedInput);
+      
+      // If the relative path doesn't start with '..', it's within the project
+      if (!relativePath.startsWith('..') && relativePath !== '') {
+        console.log(chalk.gray(`📁 Converted absolute path to relative: ${relativePath}`));
+        return relativePath;
+      } else {
+        console.log(chalk.yellow(`⚠️  File path is outside project directory. Using as provided: ${processedInput}`));
+        return processedInput;
+      }
+    } catch (error) {
+      console.log(chalk.yellow(`⚠️  Could not process absolute path. Using as provided: ${processedInput}`));
+      return processedInput;
+    }
+  }
+
+  // Return the processed input (already relative or just filename)
+  return processedInput;
+}
+
+/**
  * Get all files in the project recursively
  * @param {string} projectRoot - Project root directory
  * @returns {Promise<Array>} - Array of file paths
@@ -101,14 +153,17 @@ async function detectFileAndFunction(userFileInput, userFunctionInput, projectRo
   console.log(chalk.blue.bold('\n🔍 Smart File Detection'));
   console.log(chalk.gray('Using AI to find the correct file and function...\n'));
   
-  // Step 1: Get all files in project
+  // Step 1: Preprocess user file input to handle full paths and quotes
+  const processedFileInput = preprocessUserFileInput(userFileInput, projectRoot);
+  
+  // Step 2: Get all files in project
   const allFiles = await getAllFiles(projectRoot);
   
-  // Step 2: Find possible files
-  const possibleFiles = await findPossibleFiles(userFileInput, allFiles);
+  // Step 3: Find possible files
+  const possibleFiles = await findPossibleFiles(processedFileInput, allFiles);
   
   if (possibleFiles.length === 0) {
-    throw new Error(`No files found matching "${userFileInput}". Please check the file path.`);
+    throw new Error(`No files found matching "${processedFileInput}". Please check the file path.`);
   }
   
   // Step 3: If multiple files found, let user choose
@@ -225,5 +280,6 @@ module.exports = {
   detectFileAndFunction,
   getAllFiles,
   findPossibleFiles,
-  findFunctionInFile
+  findFunctionInFile,
+  preprocessUserFileInput
 }; 

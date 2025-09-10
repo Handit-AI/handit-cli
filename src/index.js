@@ -752,7 +752,6 @@ async function runSetup(options = {}) {
     await setupRepositoryConnection(null, { fromSetup: true });
 
     // After connecting GitHub, fetch integration and optionally run assessment
-    await maybeRunInitialAssessment();
 
     // Step 3: Detect project language
     const languageSpinner = ora('Detecting project language...').start();
@@ -781,9 +780,6 @@ async function runSetup(options = {}) {
 
     // After confirming connection, update repository URL on the agent
     await updateRepositoryUrlForAgent(projectInfo.agentName);
-
-    // Step 7: Setup evaluators
-    await setupEvaluators(projectInfo.agentName);
 
     // Success summary
     console.log('\n' + chalk.green.bold('✅ Setup complete'));
