@@ -92,7 +92,6 @@ async function runPrompts(config, language) {
   console.log(chalk.white(`  Agent Name: ${chalk.blue(agentName)}`));
   console.log(chalk.white(`  Agent Entry File: ${chalk.blue(entryFile)}`));
   console.log(chalk.white(`  Agent Entry Function: ${chalk.blue(entryFunction)}`));
-  console.log(chalk.white(`  Language: ${chalk.blue(language || 'Will be detected from file')}`));
   console.log('');
 
   const { confirm } = await inquirer.prompt([
