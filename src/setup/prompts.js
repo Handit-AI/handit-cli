@@ -56,7 +56,7 @@ async function runPrompts(config, language) {
       type: 'input',
       name: 'entryFile',
       message: `What is the path to the file containing your agent's entry function?`,
-      default: config.entryFile || (language === 'javascript' ? 'index.js' : 'main.py'),
+      default: config.entryFile || 'index.js',
       validate: async (input) => {
         if (!input.trim()) {
           return 'File path cannot be empty';
@@ -92,7 +92,7 @@ async function runPrompts(config, language) {
   console.log(chalk.white(`  Agent Name: ${chalk.blue(agentName)}`));
   console.log(chalk.white(`  Agent Entry File: ${chalk.blue(entryFile)}`));
   console.log(chalk.white(`  Agent Entry Function: ${chalk.blue(entryFunction)}`));
-  console.log(chalk.white(`  Language: ${chalk.blue(language)}`));
+  console.log(chalk.white(`  Language: ${chalk.blue(language || 'Will be detected from file')}`));
   console.log('');
 
   const { confirm } = await inquirer.prompt([

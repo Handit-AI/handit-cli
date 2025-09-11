@@ -5,7 +5,7 @@ const fs = require('fs-extra');
 
 // Import modules
 const { authenticate } = require('./auth');
-const { detectLanguage } = require('./setup/detectLanguage');
+const { detectLanguage, detectLanguageFromFile } = require('./setup/detectLanguage');
 const { runPrompts } = require('./setup/prompts');
 const { monitorTraces } = require('./monitor');
 const { evaluateTraces } = require('./evaluate');
@@ -482,6 +482,8 @@ async function updateRepositoryUrlForAgent(agentName) {
 
     if (!agent) {
       agentsSpinner.fail('Agent not found to update repository URL.');
+      const agent = await handitApi.createAgent({ name: agentName, repository: repositoryUrl });
+      agentsSpinner.succeed(`Created agent: ${agent.name}`);
       return;
     }
 
@@ -586,7 +588,7 @@ async function maybeRunInitialAssessment() {
     const detected = await detectFileAndFunction(entryFile, entryFunction, process.cwd());
 
     // Build execution tree (no confirmation UI here)
-    const language = await detectLanguage(process.cwd());
+    const language = detectLanguageFromFile(detected.file);
     const callGraph = await extractCallGraph(detected.file, detected.function, language);
 
     // Convert execution tree to simplified calls list for payload
@@ -753,13 +755,13 @@ async function runSetup(options = {}) {
 
     // After connecting GitHub, fetch integration and optionally run assessment
 
-    // Step 3: Detect project language
-    const languageSpinner = ora('Detecting project language...').start();
-    const language = await detectLanguage(config.projectRoot);
-    languageSpinner.succeed(`Detected: ${chalk.blue(language)}`);
+    // Step 3: Run setup prompts (language will be detected from entry file)
+    const projectInfo = await runPrompts(config, null);
 
-    // Step 4: Run setup prompts
-    const projectInfo = await runPrompts(config, language);
+    // Step 4: Detect language from entry file
+    const languageSpinner = ora('Detecting file language...').start();
+    const language = detectLanguageFromFile(projectInfo.entryFile);
+    languageSpinner.succeed(`Detected: ${chalk.blue(language)} (from ${projectInfo.entryFile})`);
 
     // Step 5: Generate simplified entry point tracing
     const { SimplifiedCodeGenerator } = require('./generator/simplifiedGenerator');
@@ -774,9 +776,6 @@ async function runSetup(options = {}) {
       console.log(chalk.yellow('Setup cancelled - no tracing applied'));
       return;
     }
-
-    // Step 6: Test connection with agent
-    await testConnectionWithAgent(projectInfo.agentName);
 
     // After confirming connection, update repository URL on the agent
     await updateRepositoryUrlForAgent(projectInfo.agentName);

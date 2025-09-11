@@ -2,7 +2,29 @@ const fs = require('fs-extra');
 const path = require('path');
 
 /**
- * Detect the programming language of the project
+ * Detect the programming language from a file extension
+ * @param {string} filePath - Path to the file
+ * @returns {string} - 'javascript' or 'python'
+ */
+function detectLanguageFromFile(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  
+  // Python files
+  if (ext === '.py') {
+    return 'python';
+  }
+  
+  // JavaScript/TypeScript files
+  if (ext === '.js' || ext === '.ts' || ext === '.jsx' || ext === '.tsx') {
+    return 'javascript';
+  }
+  
+  // Default to JavaScript if extension is not recognized
+  return 'javascript';
+}
+
+/**
+ * Detect the programming language of the project (legacy function)
  * @param {string} projectRoot - Path to project root
  * @returns {Promise<string>} - 'javascript' or 'python'
  */
@@ -71,5 +93,6 @@ async function findFiles(dir, pattern) {
 }
 
 module.exports = {
-  detectLanguage
+  detectLanguage,
+  detectLanguageFromFile
 }; 

@@ -382,6 +382,23 @@ class HanditApi {
       throw new Error(`Network error: ${error.message}`);
     }
   }
+  
+  /**
+   * Create an agent
+   */
+  async createAgent(agentData) {
+    try {
+      const response = await axios.post(`${this.apiUrl}/agents/by-name`, agentData, {
+        headers: this.getAuthHeaders()
+      });
+      return response.data;
+    } catch (error) {
+      if (error.response) {
+        throw new Error(`Agent creation failed: ${error.response.data.message || error.response.statusText}`);
+      }
+      throw new Error(`Network error: ${error.message}`);
+    }
+  }
 
   /**
    * Get GitHub integration info for the current user/company
