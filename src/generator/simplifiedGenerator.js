@@ -9,11 +9,12 @@ const { callLLMAPI } = require('../utils/openai');
  * Simplified code generator that only instruments the entry point using AI
  */
 class SimplifiedCodeGenerator {
-  constructor(language, agentName, projectRoot, apiToken = null) {
+  constructor(language, agentName, projectRoot, apiToken = null, stagingApiToken = null) {
     this.language = language;
     this.agentName = agentName;
     this.projectRoot = projectRoot;
     this.apiToken = apiToken;
+    this.stagingApiToken = stagingApiToken;
   }
 
   /**
@@ -496,15 +497,16 @@ Please add Handit.ai monitoring to the "${functionName}" function following the 
    * Show setup instructions with the user's actual API token
    */
   showSetupInstructions() {
-    console.log(chalk.blue.bold('\n🎯 Setup Instructions'));
+    console.log(chalk.green.bold('\n🎉 Congratulations! Your agent is now connected!'));
     console.log(chalk.gray('─'.repeat(60)));
     
     if (this.language === 'python') {
       console.log(chalk.yellow('📦 Install the Python SDK:'));
       console.log(chalk.white('   pip install handit_ai'));
       console.log('');
-      console.log(chalk.yellow('🔑 Set your API key:'));
-      console.log(chalk.white(`   export HANDIT_API_KEY=${this.apiToken || 'your_api_key_here'}`));
+      console.log(chalk.yellow('🔑 Set your API key in your environment:'));
+      console.log(chalk.white('   # Add to your .env file or export directly'));
+      console.log(chalk.white(`   export HANDIT_API_KEY=${this.stagingApiToken || this.apiToken || 'your_api_key_here'}`));
       console.log('');
       console.log(chalk.yellow('🚀 Run your agent:'));
       console.log(chalk.white('   python your_agent_file.py'));
@@ -512,13 +514,20 @@ Please add Handit.ai monitoring to the "${functionName}" function following the 
       console.log(chalk.yellow('📦 Install the JavaScript SDK:'));
       console.log(chalk.white('   npm install @handit.ai/handit-ai'));
       console.log('');
-      console.log(chalk.yellow('🔑 Set your API key:'));
-      console.log(chalk.white(`   export HANDIT_API_KEY=${this.apiToken || 'your_api_key_here'}`));
+      console.log(chalk.yellow('🔑 Set your API key in your environment:'));
+      console.log(chalk.white('   # Add to your .env file or export directly'));
+      console.log(chalk.white(`   export HANDIT_API_KEY=${this.stagingApiToken || this.apiToken || 'your_api_key_here'}`));
       console.log('');
       console.log(chalk.yellow('🚀 Run your agent:'));
       console.log(chalk.white('   node your_agent_file.js'));
     }
     
+    console.log('');
+    console.log(chalk.cyan.bold('🔧 API Keys:'));
+    console.log(chalk.gray('   Staging (recommended for development):'));
+    console.log(chalk.white(`   ${this.stagingApiToken || 'Not available'}`));
+    console.log(chalk.gray('   Production (for live deployments):'));
+    console.log(chalk.white(`   ${this.apiToken || 'Not available'}`));
     console.log('');
     console.log(chalk.green('✅ Your agent is now instrumented with handit.ai monitoring!'));
     console.log(chalk.gray('   Traces will appear in your dashboard at https://dashboard.handit.ai'));

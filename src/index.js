@@ -749,13 +749,9 @@ async function runSetup(options = {}) {
     }
     
     const apiToken = authResult.apiToken;
+    const stagingApiToken = authResult.stagingApiToken;
 
-    // Step 2: Connect GitHub repository (immediately after login)
-    await setupRepositoryConnection(null, { fromSetup: true });
-
-    // After connecting GitHub, fetch integration and optionally run assessment
-
-    // Step 3: Run setup prompts (language will be detected from entry file)
+    // Step 2: Run setup prompts (language will be detected from entry file)
     const projectInfo = await runPrompts(config, null);
 
     // Step 4: Detect language from entry file
@@ -765,7 +761,7 @@ async function runSetup(options = {}) {
 
     // Step 5: Generate simplified entry point tracing
     const { SimplifiedCodeGenerator } = require('./generator/simplifiedGenerator');
-    const simplifiedGenerator = new SimplifiedCodeGenerator(language, projectInfo.agentName, config.projectRoot, apiToken);
+    const simplifiedGenerator = new SimplifiedCodeGenerator(language, projectInfo.agentName, config.projectRoot, apiToken, stagingApiToken);
     
     const result = await simplifiedGenerator.generateEntryPointTracing(
       projectInfo.entryFile,
@@ -776,6 +772,10 @@ async function runSetup(options = {}) {
       console.log(chalk.yellow('Setup cancelled - no tracing applied'));
       return;
     }
+
+    // Step 3: Test connection with agent
+    await testConnectionWithAgent(projectInfo.agentName);
+
 
     // After confirming connection, update repository URL on the agent
     await updateRepositoryUrlForAgent(projectInfo.agentName);

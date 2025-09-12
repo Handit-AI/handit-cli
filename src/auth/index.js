@@ -47,7 +47,11 @@ async function authenticate() {
     const tokenStorage = new TokenStorage();
     const tokens = await tokenStorage.loadTokens();
     console.log(chalk.green('✅ Already authenticated.'));
-    return { authenticated: true, apiToken: tokens?.apiToken };
+    return { 
+      authenticated: true, 
+      apiToken: tokens?.apiToken,
+      stagingApiToken: tokens?.stagingApiToken
+    };
   }
 
   // Ask user if they have an account
@@ -159,7 +163,12 @@ async function handleBrowserLogin() {
       
       console.log(chalk.green(`Authenticated as ${authResult.user.firstName} ${authResult.user.lastName} (${authResult.company.name}).`));
       
-      return { authenticated: true, user: authResult.user, apiToken: authResult.apiToken };
+      return { 
+        authenticated: true, 
+        user: authResult.user, 
+        apiToken: authResult.apiToken,
+        stagingApiToken: authResult.stagingApiToken
+      };
     } else {
       throw new Error('Authentication failed');
     }
