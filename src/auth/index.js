@@ -186,10 +186,82 @@ async function handleSignup() {
   const handitApi = new HanditApi();
   
   console.log(chalk.blue('\nCreate your Handit account'));
-  console.log(chalk.gray('Open the dashboard and sign up:'));
-  console.log(chalk.cyan(handitApi.getDashboardUrl() + '/signup'));
-  console.log(chalk.gray('After creating your account, run this command again to login.'));
-  process.exit(0);
+  console.log(chalk.gray('Let\'s create your account right here in the CLI.\n'));
+
+  // Collect user information
+  const { email, password, passwordConfirm } = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'email',
+      message: 'Email address:',
+      validate: (input) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!input.trim()) return 'Email is required';
+        if (!emailRegex.test(input)) return 'Please enter a valid email address';
+        return true;
+      }
+    },
+    {
+      type: 'password',
+      name: 'password',
+      message: 'Password:',
+      validate: (input) => {
+        if (!input.trim()) return 'Password is required';
+        if (input.length < 8) return 'Password must be at least 8 characters long';
+        return true;
+      }
+    },
+    {
+      type: 'password',
+      name: 'passwordConfirm',
+      message: 'Confirm password:',
+      validate: (input, answers) => {
+        if (!input.trim()) return 'Password confirmation is required';
+        if (input !== answers.password) return 'Passwords do not match';
+        return true;
+      }
+    }
+  ]);
+
+  // Extract first name from email (part before @)
+  const firstName = email.split('@')[0];
+  const lastName = '';
+
+  const spinner = ora('Creating your account...').start();
+  
+  try {
+    const signupResult = await handitApi.signupCompany(email, password, firstName, lastName);
+    
+    if (signupResult.success) {
+      // Save authentication data
+      const authData = {
+        user: signupResult.user,
+        company: { name: signupResult.user.companyId }, // We'll get proper company info later
+        authToken: signupResult.token,
+        apiToken: null, // Will be set later if needed
+        stagingApiToken: null
+      };
+      
+      await saveAuth(authData);
+      spinner.succeed('Account created successfully!');
+      
+      console.log(chalk.green(`Welcome to Handit, ${signupResult.user.firstName}!`));
+      console.log(chalk.gray(`Account created for ${signupResult.user.email}`));
+      
+      return { 
+        authenticated: true, 
+        user: signupResult.user, 
+        authToken: signupResult.token,
+        apiToken: null,
+        stagingApiToken: null
+      };
+    } else {
+      throw new Error('Account creation failed');
+    }
+  } catch (error) {
+    spinner.fail('Account creation failed');
+    throw new Error(`Signup failed: ${error.message}`);
+  }
 }
 
 module.exports = {

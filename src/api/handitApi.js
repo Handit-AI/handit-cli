@@ -11,6 +11,39 @@ class HanditApi {
   }
 
   /**
+   * Signup new company and user
+   */
+  async signupCompany(email, password, firstName, lastName = '') {
+    try {
+      const response = await axios.post(`${this.apiUrl}/auth/signup-company`, {
+        email,
+        password,
+        firstName,
+        lastName
+      }, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.data && response.data.token && response.data.createdUser) {
+        return {
+          success: true,
+          user: response.data.createdUser,
+          token: response.data.token
+        };
+      } else {
+        throw new Error('Invalid signup response');
+      }
+    } catch (error) {
+      if (error.response) {
+        throw new Error(`Signup failed: ${error.response.data.message || error.response.statusText}`);
+      }
+      throw new Error(`Network error: ${error.message}`);
+    }
+  }
+
+  /**
    * Authenticate CLI with code from dashboard
    */
   async authenticateWithCode(code) {
