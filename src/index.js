@@ -14,7 +14,7 @@ const { evaluateTraces } = require('./evaluate');
  * Test connection with agent name
  */
 async function testConnectionWithAgent(agentName) {
-  const inquirer = require('inquirer').default;
+  const inquirer = require('inquirer');
   const { HanditApi } = require('./api/handitApi');
   const { TokenStorage } = require('./auth/tokenStorage');
 
@@ -87,7 +87,7 @@ async function testConnectionWithAgent(agentName) {
  * Setup evaluators for an agent
  */
 async function setupEvaluators(agentName) {
-  const inquirer = require('inquirer').default;
+  const inquirer = require('inquirer');
   const { HanditApi } = require('./api/handitApi');
   const { TokenStorage } = require('./auth/tokenStorage');
 
@@ -300,7 +300,7 @@ async function setupEvaluators(agentName) {
  * Setup repository connection for automatic PR creation
  */
 async function setupRepositoryConnection(agentName = null, options = {}) {
-  const inquirer = require('inquirer').default;
+  const inquirer = require('inquirer');
   const { HanditApi } = require('./api/handitApi');
   const { TokenStorage } = require('./auth/tokenStorage');
   const { spawn } = require('child_process');
@@ -502,7 +502,7 @@ async function updateRepositoryUrlForAgent(agentName) {
  * Optionally run initial assessment right after GitHub connection
  */
 async function maybeRunInitialAssessment() {
-  const inquirer = require('inquirer').default;
+  const inquirer = require('inquirer');
   const { HanditApi } = require('./api/handitApi');
   const { TokenStorage } = require('./auth/tokenStorage');
   const { detectFileAndFunction } = require('./utils/fileDetector');
@@ -898,7 +898,7 @@ async function runGitHubConnection(options = {}) {
  * Evaluators setup workflow - Setup evaluators for an existing agent
  */
 async function runEvaluatorsSetup(options = {}) {
-  const inquirer = require('inquirer').default;
+  const inquirer = require('inquirer');
 
   try {
     console.log(chalk.blue.bold('🔍 Handit Evaluators Setup'));

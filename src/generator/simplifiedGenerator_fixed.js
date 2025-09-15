@@ -1,7 +1,7 @@
 const fs = require('fs-extra');
 const path = require('path');
 const chalk = require('chalk');
-const inquirer = require('inquirer').default;
+const inquirer = require('inquirer');
 const ora = require('ora').default;
 const { callLLMAPI } = require('../utils/openai');
 
