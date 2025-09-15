@@ -2,7 +2,7 @@ const inquirer = require('inquirer');
 const chalk = require('chalk');
 const fs = require('fs-extra');
 const path = require('path');
-const ora = require('ora').default;
+const ora = require('ora');
 const { HanditApi } = require('../api/handitApi');
 const { TokenStorage } = require('./tokenStorage');
 

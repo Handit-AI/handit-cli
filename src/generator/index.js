@@ -1,7 +1,7 @@
 const fs = require('fs-extra');
 const path = require('path');
 const chalk = require('chalk');
-const ora = require('ora').default;
+const ora = require('ora');
 const { CodeGenerator } = require('./codeGenerator');
 const { IterativeCodeGenerator } = require('./iterativeGenerator');
 

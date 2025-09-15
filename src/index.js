@@ -1,5 +1,5 @@
 const chalk = require('chalk');
-const ora = require('ora').default;
+const ora = require('ora');
 const path = require('path');
 const fs = require('fs-extra');
 

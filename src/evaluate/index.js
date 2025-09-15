@@ -1,6 +1,6 @@
 const fs = require('fs-extra');
 const path = require('path');
-const ora = require('ora').default;
+const ora = require('ora');
 
 /**
  * Evaluate collected traces and suggest setup improvements
