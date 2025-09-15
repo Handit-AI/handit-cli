@@ -177,7 +177,13 @@ async function showInkDiffViewer(filePath, changes) {
             unmount();
             resolve(false);
           }
-        })
+        }),
+        {
+          exitOnCtrlC: false,
+          patchConsole: false, // Don't patch console to avoid clearing
+          stdout: process.stdout,
+          stdin: process.stdin
+        }
       );
     });
   } catch (error) {

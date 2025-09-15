@@ -8,25 +8,22 @@
  */
 async function runSimpleInkPrompts(config, language) {
   try {
-    // Use unified Ink wizard that preserves all steps
-    const { showUnifiedSetupWizard } = await import('./UnifiedInkSetupWizard.js');
-    const projectInfo = await showUnifiedSetupWizard(config);
+    // Use modular Ink wizard with component architecture
+    const { showModularSetupWizard } = require('./ModularInkSetupWizard.js');
+    const projectInfo = await showModularSetupWizard(config);
     
-    // Run the smart detection like the original function
-    const { detectFileAndFunction } = require('../utils/fileDetector');
-    
-    const detected = await detectFileAndFunction(
-      projectInfo.entryFile, 
-      projectInfo.entryFunction, 
-      config.projectRoot
-    );
-
+    // The modular wizard handles file detection internally
     return {
       agentName: projectInfo.agentName,
-      entryFile: detected.file,
-      entryFunction: detected.function
+      entryFile: projectInfo.entryFile,
+      entryFunction: projectInfo.entryFunction
     };
   } catch (error) {
+    // If user cancelled with Ctrl+C, don't fall back - just exit
+    if (error.message === 'Setup cancelled by user') {
+      throw error; // Re-throw to let the main flow handle cancellation
+    }
+    
     console.log('Falling back to original setup prompts...');
     console.log('Error:', error.message);
     
@@ -65,7 +62,7 @@ async function runSimpleInkSetup(options = {}) {
     const apiToken = authResult.apiToken;
     const stagingApiToken = authResult.stagingApiToken;
 
-    // Step 2: Use Ink-based setup prompts (new UI)
+    // Step 2: Use unified Ink wizard for setup only
     console.log('\n'); // Add some space
     const projectInfo = await runSimpleInkPrompts(config, null);
 
@@ -110,8 +107,8 @@ async function runSimpleInkSetup(options = {}) {
 
   } catch (error) {
     if (error.message === 'Setup cancelled by user') {
-      console.log(chalk.yellow('Setup cancelled by user'));
-      return;
+      console.log(chalk.yellow('\nSetup cancelled by user'));
+      process.exit(0); // Clean exit instead of continuing
     }
     throw new Error(`Setup failed: ${error.message}`);
   }

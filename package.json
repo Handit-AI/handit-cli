@@ -1,6 +1,6 @@
 {
   "name": "@handit.ai/cli",
-  "version": "1.4.23",
+  "version": "1.4.25",
   "description": "AI-Powered Agent Instrumentation & Monitoring CLI Tool",
   "main": "src/index.js",
   "bin": {
