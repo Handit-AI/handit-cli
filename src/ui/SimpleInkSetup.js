@@ -8,9 +8,9 @@
  */
 async function runSimpleInkPrompts(config, language) {
   try {
-    // Use console-based setup to avoid clearing terminal
-    const { showConsoleInkSetup } = require('./ConsoleInkSetup.js');
-    const projectInfo = await showConsoleInkSetup(config);
+    // Use unified Ink wizard that preserves all steps
+    const { showUnifiedSetupWizard } = await import('./UnifiedInkSetupWizard.js');
+    const projectInfo = await showUnifiedSetupWizard(config);
     
     // Run the smart detection like the original function
     const { detectFileAndFunction } = require('../utils/fileDetector');

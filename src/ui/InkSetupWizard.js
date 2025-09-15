@@ -282,7 +282,12 @@ async function showSetupWizard(config) {
               onComplete: handleStepComplete,
               onBack: handleBack,
               defaultFile: config.entryFile || 'index.js'
-            }));
+            }), {
+              exitOnCtrlC: false,
+              patchConsole: false,
+              stdout: process.stdout,
+              stdin: process.stdin
+            });
           } else if (currentStep === 2) {
             currentStep = 3;
             // Re-render with step 3
@@ -290,7 +295,12 @@ async function showSetupWizard(config) {
               onComplete: handleStepComplete,
               onBack: handleBack,
               defaultFunction: config.entryFunction || 'main'
-            }));
+            }), {
+              exitOnCtrlC: false,
+              patchConsole: false,
+              stdout: process.stdout,
+              stdin: process.stdin
+            });
           } else if (currentStep === 3) {
             // All steps complete
             resolve(projectInfo);
@@ -305,13 +315,23 @@ async function showSetupWizard(config) {
               const { unmount } = render(React.createElement(AgentNameStep, {
                 onComplete: handleStepComplete,
                 onBack: handleBack
-              }));
+              }), {
+                exitOnCtrlC: false,
+                patchConsole: false,
+                stdout: process.stdout,
+                stdin: process.stdin
+              });
             } else if (currentStep === 2) {
               const { unmount } = render(React.createElement(EntryFileStep, {
                 onComplete: handleStepComplete,
                 onBack: handleBack,
                 defaultFile: config.entryFile || 'index.js'
-              }));
+              }), {
+                exitOnCtrlC: false,
+                patchConsole: false,
+                stdout: process.stdout,
+                stdin: process.stdin
+              });
             }
           } else {
             reject(new Error('Setup cancelled by user'));
@@ -327,7 +347,9 @@ async function showSetupWizard(config) {
       // Start with step 1 - preserve existing output
       const { unmount } = render(React.createElement(SetupWizard), {
         exitOnCtrlC: false,
-        patchConsole: false // Don't patch console to avoid clearing
+        patchConsole: false, // Don't patch console to avoid clearing
+        stdout: process.stdout,
+        stdin: process.stdin
       });
     });
   } catch (error) {
