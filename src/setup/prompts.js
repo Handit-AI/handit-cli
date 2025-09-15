@@ -85,29 +85,6 @@ async function runPrompts(config, language) {
   // Use smart detection to find the correct file and function
   const detected = await detectFileAndFunction(entryFile, entryFunction, config.projectRoot);
 
-  // Confirm setup
-  console.log(chalk.cyan.bold('\n✅ Step 3: Confirm Setup'));
-  console.log(chalk.gray('Please review your agent configuration:\n'));
-  
-  console.log(chalk.white(`  Agent Name: ${chalk.blue(agentName)}`));
-  console.log(chalk.white(`  Agent Entry File: ${chalk.blue(entryFile)}`));
-  console.log(chalk.white(`  Agent Entry Function: ${chalk.blue(entryFunction)}`));
-  console.log('');
-
-  const { confirm } = await inquirer.prompt([
-    {
-      type: 'confirm',
-      name: 'confirm',
-      message: 'Does this look correct?',
-      default: true
-    }
-  ]);
-
-  if (!confirm) {
-    console.log(chalk.yellow('Setup cancelled. Run the command again to restart.'));
-    process.exit(0);
-  }
-
   return {
     agentName,
     entryFile: detected.file,
