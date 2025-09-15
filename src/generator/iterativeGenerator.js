@@ -4,6 +4,7 @@ const chalk = require('chalk');
 const inquirer = require('inquirer');
 const ora = require('ora');
 const { CodeGenerator } = require('./codeGenerator');
+const { showInkDiffViewer } = require('../ui/InkDiffViewer');
 
 /**
  * Iterative code generation with visual diffs and user confirmation
@@ -115,42 +116,23 @@ class IterativeCodeGenerator {
       return { applied: false };
      }
 
-     // Show visual diff
-     this.showStructuredDiff(node, originalArray, changes);
+     // Show visual diff and get user confirmation
+     const shouldApply = await this.showStructuredDiff(node, originalArray, changes);
      
-     // Ask for user confirmation
-     const { action } = await inquirer.prompt([
-       {
-         type: 'list',
-         name: 'action',
-         message: `Do you want to make this edit to ${node.file.split('/').pop()}?`,
-         choices: [
-           { name: 'Yes', value: 'apply' },
-           { name: 'No', value: 'skip' }
-         ],
-         default: 'apply'
-       }
-     ]);
-
-     switch (action) {
-       case 'apply':
-         return {
-           applied: true,
-           originalCode,
-           originalArray,
-           structuredChanges: changes,
-           filePath: path.resolve(node.file)
-         };
-       
-       case 'skip':
-         return { applied: false };
-       
-       default:
-         return { applied: false };
+     if (shouldApply) {
+       return {
+         applied: true,
+         originalCode,
+         originalArray,
+         structuredChanges: changes,
+         filePath: path.resolve(node.file)
+       };
+     } else {
+       return { applied: false };
      }
    }
 
-   showStructuredDiff(node, originalCode, structuredChanges) {
+   async showStructuredDiff(node, originalCode, structuredChanges) {
     // Convert structured changes to the format expected by the new diff viewer
     const changes = structuredChanges.fullCode.map(item => ({
       type: item.type,
@@ -158,8 +140,8 @@ class IterativeCodeGenerator {
       modifiedContent: item.modifiedContent
     }));
     
-    // Show the new styled diff viewer
-    this.showStyledDiffViewer(node.file, changes);
+    // Show the beautiful Ink-based diff viewer
+    return await showInkDiffViewer(node.file, changes);
   }
 
   /**
