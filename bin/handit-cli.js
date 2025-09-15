@@ -3,25 +3,28 @@
 const { Command } = require('commander');
 const chalk = require('chalk');
 const { runSetup, runTraceMonitor, runEvaluation, runGitHubConnection, runEvaluatorsSetup } = require('../src/index.js');
+const { runSimpleInkSetup } = require('../src/ui/SimpleInkSetup.js');
 
 const program = new Command();
 
 program
   .name('handit-cli')
   .description('Handit CLI for agent setup and trace monitoring')
-  .version('1.4.3')
+  .version('1.4.19')
   .option('--test', 'Use test environment (localhost)');
 
 // Setup command
 program
   .command('setup')
   .description('Set up Handit instrumentation for your agent')
+  .option('-f, --file <file>', 'Entry file path')
+  .option('-e, --entry <function>', 'Entry function name')
+  .option('-y, --yes', 'Non-interactive mode')
   .action(async (options) => {
     try {
-      console.log(chalk.blue.bold('🚀 Handit Setup CLI'));
-      console.log(chalk.gray('Setting up Handit instrumentation for your agent...\n'));
       
-      await runSetup(options);
+        await runSimpleInkSetup(options);
+     
     } catch (error) {
       console.error(chalk.red.bold('❌ Error:'), error.message);
       if (options.dev) {

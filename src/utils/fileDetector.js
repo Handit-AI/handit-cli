@@ -41,14 +41,11 @@ function preprocessUserFileInput(userInput, projectRoot) {
       
       // If the relative path doesn't start with '..', it's within the project
       if (!relativePath.startsWith('..') && relativePath !== '') {
-        console.log(chalk.gray(`📁 Converted absolute path to relative: ${relativePath}`));
         return relativePath;
       } else {
-        console.log(chalk.yellow(`⚠️  File path is outside project directory. Using as provided: ${processedInput}`));
         return processedInput;
       }
     } catch (error) {
-      console.log(chalk.yellow(`⚠️  Could not process absolute path. Using as provided: ${processedInput}`));
       return processedInput;
     }
   }

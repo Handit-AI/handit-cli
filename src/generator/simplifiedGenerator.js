@@ -122,7 +122,7 @@ from typing import Dict
 from handit_ai import configure, tracing
 import os
 
-configure(HANDIT_API_KEY=os.getenv("HANDIT_API_KEY"))  # Get your API key from https://dashboard.handit.ai/settings/integrations
+configure(HANDIT_API_KEY=os.getenv("HANDIT_API_KEY"))
 
 @tracing(agent="${agentNameForCode}")
 def process_data(input_data):
@@ -144,7 +144,7 @@ from fastapi import FastAPI
 from handit_ai import configure, tracing
 import os
 
-configure(HANDIT_API_KEY=os.getenv("HANDIT_API_KEY"))  # Get your API key from https://dashboard.handit.ai/settings/integrations
+configure(HANDIT_API_KEY=os.getenv("HANDIT_API_KEY"))
 
 app = FastAPI()
 
@@ -178,7 +178,7 @@ AFTER:
 import express from 'express';
 import { configure, startTracing, endTracing } from '@handit.ai/handit-ai';
 
-configure({ HANDIT_API_KEY: process.env.HANDIT_API_KEY }); // Get your API key from https://dashboard.handit.ai/settings/integrations
+configure({ HANDIT_API_KEY: process.env.HANDIT_API_KEY });
 
 const processRequest = async (data) => {
   startTracing({ agent: "${agentNameForCode}" });
@@ -204,7 +204,7 @@ AFTER:
 import express from 'express';
 import { configure, startTracing, endTracing } from '@handit.ai/handit-ai';
 
-configure({ HANDIT_API_KEY: process.env.HANDIT_API_KEY }); // Get your API key from https://dashboard.handit.ai/settings/integrations
+configure({ HANDIT_API_KEY: process.env.HANDIT_API_KEY });
 
 const app = express();
 
