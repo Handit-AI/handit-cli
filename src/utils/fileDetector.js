@@ -255,19 +255,6 @@ async function detectFileAndFunction(userFileInput, userFunctionInput, projectRo
   console.log(chalk.white(`  Code: ${chalk.gray(selectedFunction.lineContent)}`));
   console.log('');
   
-  const { confirm } = await inquirer.prompt([
-    {
-      type: 'confirm',
-      name: 'confirm',
-      message: 'Is this the correct entry point for your agent?',
-      default: true
-    }
-  ]);
-  
-  if (!confirm) {
-    console.log(chalk.yellow('Detection cancelled. Please try again with more specific input.'));
-    process.exit(0);
-  }
   
   return {
     file: selectedFile.file,

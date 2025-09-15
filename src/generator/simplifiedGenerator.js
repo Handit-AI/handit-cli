@@ -44,19 +44,23 @@ class SimplifiedCodeGenerator {
       }
 
       // Use AI to generate the complete modified file
-      const aiSpinner = ora('🤖 AI is generating the modified code...').start();
+      const aiSpinner = ora('🤖 Setting up your Autonomous Engineer...').start();
       const modifiedContent = await this.addHanditIntegrationToFile(fileContent, entryFile, entryFunction, this.agentName);
-      aiSpinner.succeed('AI code generation complete');
+      aiSpinner.succeed('Autonomous Engineer setup complete');
 
       // Show visual diff
       this.showVisualDiffAI(fileContent, modifiedContent, entryFile);
 
-      // Ask for confirmation
+      // Ask for confirmation with simple Yes/No options
       const { shouldApply } = await inquirer.prompt([
         {
-          type: 'confirm',
+          type: 'list',
           name: 'shouldApply',
-          message: 'Apply this tracing to your entry point?',
+          message: `Do you want to make this edit to ${entryFile.split('/').pop()}?`,
+          choices: [
+            { name: 'Yes', value: true },
+            { name: 'No', value: false }
+          ],
           default: true
         }
       ]);
@@ -108,9 +112,9 @@ FOR PYTHON FILES:
    import os
 
 2. Add configuration call after imports:
-   configure(HANDIT_API_KEY=os.getenv("HANDIT_API_KEY"))  # Get API key from https://dashboard.handit.ai/settings/integrations
+   configure(HANDIT_API_KEY=os.getenv("HANDIT_API_KEY"))
 
-3. Add @tracing decorator directly before the target function:
+3. Always Add @tracing decorator directly before the target function:
    @tracing(agent="${agentNameForCode}")
 
 IMPORTANT FOR FASTAPI/FLASK: If the function has route decorators like @app.post(), @app.get(), @router.post(), etc., 
@@ -294,29 +298,78 @@ Please add Handit.ai monitoring to the "${functionName}" function following the 
    * Show visual diff between original and AI-generated content
    */
   showVisualDiffAI(originalContent, modifiedContent, filePath) {
-    console.log(chalk.blue.bold('\n📋 Proposed Changes'));
-    console.log(chalk.gray(`File: ${filePath}`));
-    console.log(chalk.gray('─'.repeat(60)));
-
     const originalLines = originalContent.split('\n');
     const modifiedLines = modifiedContent.split('\n');
 
     // Use a smarter diff algorithm
     const changes = this.computeSmartDiff(originalLines, modifiedLines);
     
-    // Show summary
-    const additions = changes.filter(c => c.type === 'add').length;
-    const modifications = changes.filter(c => c.type === 'modify').length;
+    // Show the new styled diff viewer
+    this.showStyledDiffViewer(filePath, changes);
+  }
+
+  /**
+   * Show styled diff viewer with boxes like in the image
+   */
+  showStyledDiffViewer(filePath, changes) {
+    // Outer box border
+    const borderWidth = 80;
+    const borderChar = '─';
+    const cornerChars = { tl: '┌', tr: '┐', bl: '└', br: '┘', v: '│', h: borderChar };
     
-    console.log(chalk.yellow.bold('📊 Summary:'));
-    if (additions > 0) console.log(chalk.green(`  + ${additions} lines added`));
-    if (modifications > 0) console.log(chalk.blue(`  ~ ${modifications} lines modified`));
-    console.log('');
+    // File title (outside the outer box)
+    console.log(chalk.white.bold(`\n${filePath}`));
+    
+    // Outer box top border
+    console.log(chalk.gray(cornerChars.tl + cornerChars.h.repeat(borderWidth - 2) + cornerChars.tr));
+    
+    // Outer box content (empty space)
+    console.log(chalk.gray(cornerChars.v + ' '.repeat(borderWidth - 2) + cornerChars.v));
+    
+    // Inner box title and border
+    const innerTitle = `Editing ${filePath.split('/').pop()}`;
+    const innerBorderWidth = Math.max(borderWidth - 4, innerTitle.length + 4);
+    
+    console.log(chalk.gray(cornerChars.v + ' ' + chalk.white.bold(innerTitle) + ' '.repeat(innerBorderWidth - innerTitle.length - 1) + chalk.gray(cornerChars.v)));
+    console.log(chalk.gray(cornerChars.v + ' ' + cornerChars.tl + cornerChars.h.repeat(innerBorderWidth - 4) + cornerChars.tr + ' '.repeat(borderWidth - innerBorderWidth - 3) + cornerChars.v));
+    
+    // Inner box content with changes
+    this.showChangesInInnerBox(changes, borderWidth, innerBorderWidth);
+    
+    // Inner box bottom border
+    console.log(chalk.gray(cornerChars.v + ' ' + cornerChars.bl + cornerChars.h.repeat(innerBorderWidth - 4) + cornerChars.br + ' '.repeat(borderWidth - innerBorderWidth - 3) + cornerChars.v));
+    
+    // Outer box bottom content
+    console.log(chalk.gray(cornerChars.v + ' '.repeat(borderWidth - 2) + cornerChars.v));
+    console.log(chalk.gray(cornerChars.bl + cornerChars.h.repeat(borderWidth - 2) + cornerChars.br));
+  }
 
-    // Show changes with context
-    this.showChangesWithContext(originalLines, changes);
-
-    console.log(chalk.gray('─'.repeat(60)));
+  /**
+   * Show changes inside the inner box with proper styling
+   */
+  showChangesInInnerBox(changes, outerWidth, innerWidth) {
+    const additions = changes.filter(c => c.type === 'add');
+    const removals = changes.filter(c => c.type === 'remove');
+    const modifications = changes.filter(c => c.type === 'modify');
+    
+    // Show all changes with proper background colors
+    [...additions, ...removals, ...modifications].forEach(change => {
+      let lineContent = '';
+      
+      if (change.type === 'add') {
+        lineContent = chalk.bgGreen.white(`+ ${change.content}`);
+      } else if (change.type === 'remove') {
+        lineContent = chalk.bgRed.white(`- ${change.content}`);
+      } else if (change.type === 'modify') {
+        // Show both old and new lines for modifications
+        console.log(chalk.gray('│') + ' ' + chalk.bgRed.white(`- ${change.content}`) + ' '.repeat(Math.max(0, innerWidth - change.content.length - 4)) + ' '.repeat(outerWidth - innerWidth - 3) + chalk.gray('│'));
+        lineContent = chalk.bgGreen.white(`+ ${change.modifiedContent}`);
+      }
+      
+      // Pad the line content to fit within the inner box
+      const paddedContent = lineContent + ' '.repeat(Math.max(0, innerWidth - lineContent.length - 4));
+      console.log(chalk.gray('│') + ' ' + paddedContent + ' '.repeat(outerWidth - innerWidth - 3) + chalk.gray('│'));
+    });
   }
 
   /**

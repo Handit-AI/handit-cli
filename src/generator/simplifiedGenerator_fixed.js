@@ -53,12 +53,16 @@ class SimplifiedCodeGenerator {
       // Show visual diff with the amazing diff viewer
       this.showVisualDiff(entryNode, lines, changes);
 
-      // Ask for confirmation
+      // Ask for confirmation with simple Yes/No options
       const { shouldApply } = await inquirer.prompt([
         {
-          type: 'confirm',
+          type: 'list',
           name: 'shouldApply',
-          message: 'Apply this tracing to your entry point?',
+          message: `Do you want to make this edit to ${entryFile.split('/').pop()}?`,
+          choices: [
+            { name: 'Yes', value: true },
+            { name: 'No', value: false }
+          ],
           default: true
         }
       ]);

@@ -123,10 +123,10 @@ class IterativeCodeGenerator {
        {
          type: 'list',
          name: 'action',
-         message: `Apply this instrumentation to ${node.name}?`,
+         message: `Do you want to make this edit to ${node.file.split('/').pop()}?`,
          choices: [
-           { name: '✅ Yes - Apply changes and continue', value: 'apply' },
-           { name: '⏭️  No - Skip this function', value: 'skip' }
+           { name: 'Yes', value: 'apply' },
+           { name: 'No', value: 'skip' }
          ],
          default: 'apply'
        }
@@ -151,28 +151,79 @@ class IterativeCodeGenerator {
    }
 
    showStructuredDiff(node, originalCode, structuredChanges) {
-    // Dark theme styling - similar to the image
-    console.log(chalk.bgBlack.white('─'.repeat(80)));
-    console.log(chalk.bgBlack.cyan.bold(`🔍 Code Changes for ${node.name}`));
-    console.log(chalk.bgBlack.white('─'.repeat(80)));
+    // Convert structured changes to the format expected by the new diff viewer
+    const changes = structuredChanges.fullCode.map(item => ({
+      type: item.type,
+      content: item.content,
+      modifiedContent: item.modifiedContent
+    }));
+    
+    // Show the new styled diff viewer
+    this.showStyledDiffViewer(node.file, changes);
+  }
 
-    // Summary section with dark background
-    console.log(chalk.bgBlack.yellow.bold('📊 Summary:'));
-    console.log(
-      chalk.bgBlack.green(
-        `  + ${structuredChanges.fullCode.filter(item => item.type === 'add').length} lines added`
-      )
-    );
-    console.log(
-      chalk.bgBlack.red(
-        `  - ${structuredChanges.fullCode.filter(item => item.type === 'remove').length} lines removed`
-      )
-    );
+  /**
+   * Show styled diff viewer with boxes like in the image
+   */
+  showStyledDiffViewer(filePath, changes) {
+    // Outer box border
+    const borderWidth = 80;
+    const borderChar = '─';
+    const cornerChars = { tl: '┌', tr: '┐', bl: '└', br: '┘', v: '│', h: borderChar };
+    
+    // File title (outside the outer box)
+    console.log(chalk.white.bold(`\n${filePath}`));
+    
+    // Outer box top border
+    console.log(chalk.gray(cornerChars.tl + cornerChars.h.repeat(borderWidth - 2) + cornerChars.tr));
+    
+    // Outer box content (empty space)
+    console.log(chalk.gray(cornerChars.v + ' '.repeat(borderWidth - 2) + cornerChars.v));
+    
+    // Inner box title and border
+    const innerTitle = `Editing ${filePath.split('/').pop()}`;
+    const innerBorderWidth = Math.max(borderWidth - 4, innerTitle.length + 4);
+    
+    console.log(chalk.gray(cornerChars.v + ' ' + chalk.white.bold(innerTitle) + ' '.repeat(innerBorderWidth - innerTitle.length - 1) + chalk.gray(cornerChars.v)));
+    console.log(chalk.gray(cornerChars.v + ' ' + cornerChars.tl + cornerChars.h.repeat(innerBorderWidth - 4) + cornerChars.tr + ' '.repeat(borderWidth - innerBorderWidth - 3) + cornerChars.v));
+    
+    // Inner box content with changes
+    this.showChangesInInnerBox(changes, borderWidth, innerBorderWidth);
+    
+    // Inner box bottom border
+    console.log(chalk.gray(cornerChars.v + ' ' + cornerChars.bl + cornerChars.h.repeat(innerBorderWidth - 4) + cornerChars.br + ' '.repeat(borderWidth - innerBorderWidth - 3) + cornerChars.v));
+    
+    // Outer box bottom content
+    console.log(chalk.gray(cornerChars.v + ' '.repeat(borderWidth - 2) + cornerChars.v));
+    console.log(chalk.gray(cornerChars.bl + cornerChars.h.repeat(borderWidth - 2) + cornerChars.br));
+  }
 
-    // Show context around changes with dark theme
-    this.showContextAroundChangesDark(originalCode, structuredChanges, node);
-
-    console.log(chalk.bgBlack.white('─'.repeat(80)));
+  /**
+   * Show changes inside the inner box with proper styling
+   */
+  showChangesInInnerBox(changes, outerWidth, innerWidth) {
+    const additions = changes.filter(c => c.type === 'add');
+    const removals = changes.filter(c => c.type === 'remove');
+    const modifications = changes.filter(c => c.type === 'modify');
+    
+    // Show all changes with proper background colors
+    [...additions, ...removals, ...modifications].forEach(change => {
+      let lineContent = '';
+      
+      if (change.type === 'add') {
+        lineContent = chalk.bgGreen.white(`+ ${change.content}`);
+      } else if (change.type === 'remove') {
+        lineContent = chalk.bgRed.white(`- ${change.content}`);
+      } else if (change.type === 'modify') {
+        // Show both old and new lines for modifications
+        console.log(chalk.gray('│') + ' ' + chalk.bgRed.white(`- ${change.content}`) + ' '.repeat(Math.max(0, innerWidth - change.content.length - 4)) + ' '.repeat(outerWidth - innerWidth - 3) + chalk.gray('│'));
+        lineContent = chalk.bgGreen.white(`+ ${change.modifiedContent}`);
+      }
+      
+      // Pad the line content to fit within the inner box
+      const paddedContent = lineContent + ' '.repeat(Math.max(0, innerWidth - lineContent.length - 4));
+      console.log(chalk.gray('│') + ' ' + paddedContent + ' '.repeat(outerWidth - innerWidth - 3) + chalk.gray('│'));
+    });
   }
 
       /**

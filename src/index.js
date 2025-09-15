@@ -773,9 +773,6 @@ async function runSetup(options = {}) {
       return;
     }
 
-    // Step 3: Test connection with agent
-    await testConnectionWithAgent(projectInfo.agentName);
-
 
     // After confirming connection, update repository URL on the agent
     await updateRepositoryUrlForAgent(projectInfo.agentName);
