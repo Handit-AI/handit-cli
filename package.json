@@ -1,6 +1,6 @@
 {
   "name": "@handit.ai/cli",
-  "version": "1.4.10",
+  "version": "1.4.11",
   "description": "AI-Powered Agent Instrumentation & Monitoring CLI Tool",
   "main": "src/index.js",
   "bin": {
@@ -52,12 +52,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/handit/handit-cli.git"
+    "url": "git+https://github.com/Handit-AI/handit-cli.git"
   },
   "bugs": {
-    "url": "https://github.com/handit/handit-cli/issues"
+    "url": "https://github.com/Handit-AI/handit-cli/issues"
   },
-  "homepage": "https://github.com/handit/handit-cli#readme",
+  "homepage": "https://github.com/Handit-AI/handit-cli#readme",
   "publishConfig": {
     "access": "public"
   }
