@@ -145,6 +145,8 @@ CRITICAL: Return ONLY a JSON array of change objects. Each object should have:
 - "originalLine": the original line content to replace (for replace type)
 - Start your index at 1, not 0.
 
+DECORATOR PLACEMENT RULE: For Python @tracing decorators, place them on the line IMMEDIATELY BEFORE the function definition. If function is on line X, decorator goes on line X-1.
+
 Do not include explanations, comments, or instructions. Return only the JSON array. Give the changes line by line, do not group them together using \\n or anything else, if they are in a different line, give them a different line number. Also give the original line numbers, do not guess or move the lines based on the target file, just give the position that they will take in the original file, without thinking on other changes.
 
 CRITICAL INDENTATION RULES:
@@ -174,8 +176,10 @@ import os
 configure(HANDIT_API_KEY=os.getenv("HANDIT_API_KEY"))
 
 3. Function Decorator:
-   - Standard functions: @tracing(agent="${agentName}") directly before function
-   - FastAPI/Flask routes: @tracing(agent="${agentName}") AFTER route decorator, BEFORE function
+   - @tracing(agent="${agentName}") should be placed on the line immediately before the function definition line
+   - The decorator line number should be: function_line_number
+   - If there are existing decorators above the function, place @tracing below them but still before the function definition
+   - Example: If function is on line 37, place @tracing on line 37 as the decorator line number, because we are goint to push the function to the next line, so the decorator will be on the line before the function definition.
 
 JAVASCRIPT/TYPESCRIPT IMPLEMENTATION:
 
@@ -198,6 +202,7 @@ try {
 EXAMPLES:
 
 Python Route Handler - Return this JSON array (NOTE: Preserve exact indentation):
+If function is on line 8, decorator goes on line 7:
 [
   {"type": "add", "content": "from handit_ai import configure, tracing\\nimport os", "line": 1},
   {"type": "add", "content": "configure(HANDIT_API_KEY=os.getenv(\\"HANDIT_API_KEY\\"))", "line": 4},
@@ -217,12 +222,14 @@ JavaScript Function - Return this JSON array:
   {"type": "add", "content": "configure({ HANDIT_API_KEY: process.env.HANDIT_API_KEY });", "line": 3},
   {"type": "replace", "content": "startTracing({ agent: \\"ProcessAgent\\" });\\n  try {\\n    const result = await analyze(input);\\n    return result;\\n  } finally {\\n    endTracing();\\n  }", "originalLine": "const result = await analyze(input);\\n  return result;"}
 ]
+
+ALWAYS RETURN THE ADDING OF ITEMS IN THE CORRECT ORDER, DO NOT GROUP THEM TOGETHER, DO NOT ADD THEM IN THE SAME LINE, AND IF YOU HAVE SEQUENTIAL ADDITIONS, DO NOT GROUP THEM TOGETHER, DO NOT ADD THEM IN THE SAME LINE.
 `;
 
 // Add line numbers to the content for better AI understanding
 const contentWithLineNumbers = content
   .split('\n')
-  .map((line, index) => `${(index + 1).toString().padStart(3, ' ')}| ${line}`)
+  .map((line, index) => `Line: ${(index + 1).toString().padStart(3, ' ')}| ${line}`)
   .join('\n');
 
 const userPrompt = `Add Handit.ai monitoring to function "${functionName}" that starts at line ${lineNumber}, only add handit to that exact function, also only add handit imports after user imports with agent name "${agentNameForCode}".
@@ -276,6 +283,7 @@ ${contentWithLineNumbers}
         }
         result = lines.join('\n');
       }
+
 
       // Parse the JSON array of changes
       let changes;
