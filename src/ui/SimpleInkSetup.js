@@ -64,7 +64,7 @@ async function runSimpleInkSetup(options = {}) {
     const language = detectLanguageFromFile(projectInfo.entryFile);
     languageSpinner.succeed(`Detected: ${chalk.blue(language)} (from ${projectInfo.entryFile})`);
 
-    // Step 4: Generate simplified entry point tracing (keep existing logic)
+    // Step 4: Check if code generation was already applied by the Ink wizard
     const { SimplifiedCodeGenerator } = require('../generator/simplifiedGenerator');
     const simplifiedGenerator = new SimplifiedCodeGenerator(
       language, 
@@ -74,14 +74,19 @@ async function runSimpleInkSetup(options = {}) {
       stagingApiToken
     );
     
-    const result = await simplifiedGenerator.generateEntryPointTracing(
-      projectInfo.entryFile,
-      projectInfo.entryFunction
-    );
+    if (projectInfo.applied) {
+      console.log(chalk.green('✅ Code generation already completed in setup wizard'));
+    } else {
+      // Generate simplified entry point tracing (fallback for non-Ink flows)
+      const result = await simplifiedGenerator.generateEntryPointTracing(
+        projectInfo.entryFile,
+        projectInfo.entryFunction
+      );
 
-    if (!result.applied) {
-      console.log(chalk.yellow('Setup cancelled - no tracing applied'));
-      return;
+      if (!result.applied) {
+        console.log(chalk.yellow('Setup cancelled - no tracing applied'));
+        return;
+      }
     }
 
     // Step 5: Update repository URL (keep existing logic)
