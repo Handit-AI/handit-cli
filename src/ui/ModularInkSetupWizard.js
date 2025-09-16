@@ -144,6 +144,7 @@ async function showModularSetupWizard(config) {
       const [aiGenerationProgress, setAiGenerationProgress] = React.useState(0);
       const [codeChanges, setCodeChanges] = React.useState(null);
       const [originalFileContent, setOriginalFileContent] = React.useState(null);
+      const [modifiedFileContent, setModifiedFileContent] = React.useState(null);
       const [shouldApplyCode, setShouldApplyCode] = React.useState(null);
       
       // Input buffer for handling large inputs (currently unused but reserved for future use)
@@ -361,33 +362,16 @@ async function showModularSetupWizard(config) {
           } else if (input === 'y' || input === 'Y' || (key.return && selectedDiffOption === 0)) {
             setShouldApplyCode(true);
             // Write the file when user confirms
-            if (codeChanges.length > 0 && selectedFile) {
+            if (codeChanges.length > 0 && selectedFile && modifiedFileContent) {
               setTimeout(async () => {
                 try {
                   const fs = require('fs-extra');
                   const path = require('path');
                   const filePath = path.resolve(selectedFile.file);
                   
-                  // Re-generate the modified content to write to file
-                  const { SimplifiedCodeGenerator } = require('../generator/simplifiedGenerator');
-                  const { detectLanguageFromFile } = require('../setup/detectLanguage');
-                  const language = detectLanguageFromFile(selectedFile.file);
-                  
-                  const generator = new SimplifiedCodeGenerator(
-                    language, 
-                    agentName || 'my-agent', 
-                    config.projectRoot
-                  );
-                  
-                  const fileContent = await fs.readFile(filePath, 'utf8');
-                  const modifiedContent = await generator.addHanditIntegrationToFile(
-                    fileContent, 
-                    selectedFile.file, 
-                    selectedFunction.name, 
-                    agentName || 'my-agent'
-                  );
-                  
-                  await fs.writeFile(filePath, modifiedContent);
+                  // Use the already generated modified content
+                  await fs.writeFile(filePath, modifiedFileContent);
+                  console.log(`✅ Successfully applied changes to ${selectedFile.file}`);
                 } catch (error) {
                   setError(`Failed to write file: ${error.message}`);
                 }
@@ -513,6 +497,7 @@ async function showModularSetupWizard(config) {
               const changes = generator.computeSmartDiff(originalLines, modifiedLines);
               setCodeChanges(changes);
               setOriginalFileContent(originalLines);
+              setModifiedFileContent(modifiedContent);
               setCurrentStep(8); // Move to diff viewer
               
             } catch (error) {
