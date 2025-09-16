@@ -843,7 +843,7 @@ async function showModularSetupWizard(config) {
     }
 
     render(React.createElement(ModularSetupWizard), {
-      exitOnCtrlC: false,
+      exitOnCtrlC: true,
       patchConsole: false,
       stdout: process.stdout,
       stdin: process.stdin,

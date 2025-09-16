@@ -68,7 +68,7 @@ async function runSimpleInkSetup(options = {}) {
     if (projectInfo.applied === true || (projectInfo.agentName && projectInfo.entryFile)) {
       console.log(chalk.green('✅ Setup already completed in Ink wizard'));
       console.log(chalk.gray('All steps including code generation, repository URL update, and setup instructions have been completed.'));
-      return;
+      process.exit(0);
     } else {
       // Step 4: Detect language from entry file (fallback for non-Ink flows)
       const languageSpinner = ora('Detecting file language...').start();
