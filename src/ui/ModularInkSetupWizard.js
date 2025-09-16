@@ -112,10 +112,12 @@ async function showModularSetupWizard(config) {
   const { AgentNameStep } = require('./components/AgentNameStep');
   const { EntryFileStep } = require('./components/EntryFileStep');
   const { EntryFunctionStep } = require('./components/EntryFunctionStep');
-  const { FileDetectionStep } = require('./components/FileDetectionStep');
+  // FileDetectionStep no longer used - replaced with HierarchicalTodoList
   const { FileSelectionStep } = require('./components/FileSelectionStep');
   const { FunctionSelectionStep } = require('./components/FunctionSelectionStep');
   const { CodeDiffViewer } = require('./components/CodeDiffViewer');
+  const { Checklist } = require('./components/Checklist');
+  const { HierarchicalTodoList } = require('./components/HierarchicalTodoList');
 
   return new Promise((resolve, reject) => {
     function ModularSetupWizard() {
@@ -149,6 +151,20 @@ async function showModularSetupWizard(config) {
       // File Writing state
       const [fileWritingStatus, setFileWritingStatus] = React.useState('');
       const [fileWritingProgress, setFileWritingProgress] = React.useState(0);
+      
+      // Checklist states for progress tracking
+      const [fileDetectionCompletedSteps, setFileDetectionCompletedSteps] = React.useState([]);
+      const [aiGenerationCompletedSteps, setAiGenerationCompletedSteps] = React.useState([]);
+      const [fileWritingCompletedSteps, setFileWritingCompletedSteps] = React.useState([]);
+      
+      // Current step tracking for each process
+      const [fileDetectionCurrentStep, setFileDetectionCurrentStep] = React.useState(0);
+      const [aiGenerationCurrentStep, setAiGenerationCurrentStep] = React.useState(0);
+      const [fileWritingCurrentStep, setFileWritingCurrentStep] = React.useState(0);
+      
+      // Define steps for each checklist (now defined inline in HierarchicalTodoList components)
+      
+      // Step arrays are now defined inline in HierarchicalTodoList components for better clarity
       const [originalFileContent, setOriginalFileContent] = React.useState(null);
       const [modifiedFileContent, setModifiedFileContent] = React.useState(null);
       const [shouldApplyCode, setShouldApplyCode] = React.useState(null);
@@ -387,23 +403,35 @@ async function showModularSetupWizard(config) {
                 try {
                   setFileWritingStatus('📝 Applying changes to file...');
                   setFileWritingProgress(20);
+                  setFileWritingCompletedSteps([]); // Reset completed steps first
+                  setFileWritingCurrentStep(0); // Reset current step
+                  setFileWritingCurrentStep(1); // Set current step
+                  setFileWritingCompletedSteps([1]); // Then mark first step
                   
                   const fs = require('fs-extra');
                   const path = require('path');
                   const filePath = path.resolve(selectedFile.file);
                   
                   // Simulate progressive file writing
-                  await new Promise(resolve => setTimeout(resolve, 200));
+                  await new Promise(resolve => setTimeout(resolve, 800));
+                  setFileWritingStatus('📝 Writing to file...');
                   setFileWritingProgress(50);
+                  setFileWritingCurrentStep(2);
+                  setFileWritingCompletedSteps([1, 2]);
                   
                   // Use the already generated modified content
                   await fs.writeFile(filePath, modifiedFileContent);
                   
+                  setFileWritingStatus('🔍 Validating changes...');
                   setFileWritingProgress(80);
-                  await new Promise(resolve => setTimeout(resolve, 300));
+                  setFileWritingCurrentStep(3);
+                  await new Promise(resolve => setTimeout(resolve, 800));
+                  setFileWritingCompletedSteps([1, 2, 3]);
                   
                   setFileWritingProgress(100);
                   setFileWritingStatus('✅ Changes applied successfully!');
+                  setFileWritingCurrentStep(4);
+                  setFileWritingCompletedSteps([1, 2, 3, 4]);
                   
                   console.log(`✅ Successfully applied changes to ${selectedFile.file}`);
                 } catch (error) {
@@ -429,22 +457,30 @@ async function showModularSetupWizard(config) {
               try {
                 setFileDetectionStatus('🔍 Analyzing files in project...');
                 setFileDetectionProgress(0);
+                setFileDetectionCompletedSteps([]); // Reset completed steps
+                setFileDetectionCurrentStep(0); // Reset current step
                 
-                await new Promise(resolve => setTimeout(resolve, 300));
+                await new Promise(resolve => setTimeout(resolve, 800));
                 setFileDetectionProgress(20);
                 setFileDetectionStatus('📁 Scanning project directory...');
+                setFileDetectionCurrentStep(1); // Set current step
+                setFileDetectionCompletedSteps([1]);
                 
                 const { getAllFiles, findPossibleFiles } = require('../utils/fileDetector');
                 
-                await new Promise(resolve => setTimeout(resolve, 400));
+                await new Promise(resolve => setTimeout(resolve, 800));
                 setFileDetectionProgress(50);
                 setFileDetectionStatus('🔍 Finding relevant files...');
+                setFileDetectionCurrentStep(2); // Set current step
+                setFileDetectionCompletedSteps([1, 2]);
                 
                 const allFiles = await getAllFiles(config.projectRoot);
                 
-                await new Promise(resolve => setTimeout(resolve, 300));
+                await new Promise(resolve => setTimeout(resolve, 800));
                 setFileDetectionProgress(80);
                 setFileDetectionStatus('🎯 Analyzing file relevance...');
+                setFileDetectionCurrentStep(3); // Set current step
+                setFileDetectionCompletedSteps([1, 2, 3]);
                 
                 const files = await findPossibleFiles(entryFile, allFiles);
                 
@@ -452,6 +488,8 @@ async function showModularSetupWizard(config) {
                 
                 setFileDetectionProgress(100);
                 setFileDetectionStatus('✅ File analysis complete!');
+                setFileDetectionCurrentStep(4); // Set current step
+                setFileDetectionCompletedSteps([1, 2, 3, 4]);
                 setPossibleFiles(files);
                 
                 // Auto-select if only one file found
@@ -480,24 +518,36 @@ async function showModularSetupWizard(config) {
             try {
               setFileDetectionStatus('🔍 Analyzing functions in file...');
               setFileDetectionProgress(0);
+              setFileDetectionCompletedSteps([]); // Reset completed steps
+              setFileDetectionCurrentStep(0); // Reset current step
               
               await new Promise(resolve => setTimeout(resolve, 200));
               setFileDetectionProgress(25);
               setFileDetectionStatus('📖 Reading file content...');
+              setFileDetectionCurrentStep(1);
+              setFileDetectionCompletedSteps([1]);
               
               const { findFunctionInFile } = require('../utils/fileDetector');
               
               await new Promise(resolve => setTimeout(resolve, 300));
               setFileDetectionProgress(60);
               setFileDetectionStatus('🔍 Finding functions...');
+              setFileDetectionCurrentStep(2);
+              setFileDetectionCompletedSteps([1, 2]);
               
               const analysis = await findFunctionInFile(entryFunction, selectedFile.file, config.projectRoot);
               
-
+              await new Promise(resolve => setTimeout(resolve, 200));
+              setFileDetectionProgress(80);
+              setFileDetectionStatus('🔍 Analyzing function signatures...');
+              setFileDetectionCurrentStep(3);
+              setFileDetectionCompletedSteps([1, 2, 3]);
               
               await new Promise(resolve => setTimeout(resolve, 200));
               setFileDetectionProgress(100);
               setFileDetectionStatus('✅ Function analysis complete!');
+              setFileDetectionCurrentStep(4);
+              setFileDetectionCompletedSteps([1, 2, 3, 4]);
               
               setFileAnalysis(analysis);
               
@@ -527,20 +577,27 @@ async function showModularSetupWizard(config) {
             try {
               setAiGenerationStatus('🔄 AI-Powered Code Generation');
               setAiGenerationProgress(10);
+              setAiGenerationCompletedSteps([]); // Reset completed steps
+              setAiGenerationCurrentStep(0); // Reset current step
               
               // Use the existing SimplifiedCodeGenerator
               const { SimplifiedCodeGenerator } = require('../generator/simplifiedGenerator');
               
-              await new Promise(resolve => setTimeout(resolve, 300));
+              await new Promise(resolve => setTimeout(resolve, 800));
               setAiGenerationStatus('📖 Reading file content...');
               setAiGenerationProgress(25);
+              setAiGenerationCurrentStep(1);
+              setAiGenerationCompletedSteps([1]);
               
               // Detect language from the selected file
               const { detectLanguageFromFile } = require('../setup/detectLanguage');
               const language = detectLanguageFromFile(selectedFile.file);
               
-              await new Promise(resolve => setTimeout(resolve, 200));
+              await new Promise(resolve => setTimeout(resolve, 800));
+              setAiGenerationStatus('🔍 Detecting language...');
               setAiGenerationProgress(40);
+              setAiGenerationCurrentStep(2);
+              setAiGenerationCompletedSteps([1, 2]);
               
               const generator = new SimplifiedCodeGenerator(
                 language, 
@@ -548,15 +605,14 @@ async function showModularSetupWizard(config) {
                 config.projectRoot
               );
               
-              setAiGenerationStatus('🤖 Adding monitoring and optimization features...');
+              setAiGenerationStatus('🤖 Generating AI integration...');
               setAiGenerationProgress(60);
+              setAiGenerationCurrentStep(3);
+              setAiGenerationCompletedSteps([1, 2, 3]);
               
               // Generate the modified content using the existing logic
               const filePath = path.resolve(selectedFile.file);
               const fileContent = await fs.readFile(filePath, 'utf8');
-              
-              await new Promise(resolve => setTimeout(resolve, 400));
-              setAiGenerationProgress(75);
               
               const modifiedContent = await generator.addHanditIntegrationToFile(
                 fileContent, 
@@ -566,11 +622,11 @@ async function showModularSetupWizard(config) {
                 selectedFunction.line
               );
               
-
-              
-              await new Promise(resolve => setTimeout(resolve, 300));
+              await new Promise(resolve => setTimeout(resolve, 800));
               setAiGenerationProgress(100);
-              setAiGenerationStatus('✅ AI-generated handit integration complete');
+              setAiGenerationStatus('✅ AI generation complete');
+              setAiGenerationCurrentStep(4);
+              setAiGenerationCompletedSteps([1, 2, 3, 4]);
               
               // Compute diff using the existing SimplifiedCodeGenerator logic
               // Clean up the lines to avoid undefined issues
@@ -609,16 +665,22 @@ async function showModularSetupWizard(config) {
               // Update repository URL with progressive progress
               setFileWritingStatus('🔗 Updating repository URL...');
               setFileWritingProgress(10);
+              setFileWritingCurrentStep(1);
+              setFileWritingCompletedSteps([1]);
               
               const { updateRepositoryUrlForAgent } = require('../index');
               
               await new Promise(resolve => setTimeout(resolve, 300));
               setFileWritingProgress(30);
+              setFileWritingCurrentStep(2);
+              setFileWritingCompletedSteps([1, 2]);
               
               await updateRepositoryUrlForAgent(agentName || 'my-agent');
               
               setFileWritingProgress(60);
               setFileWritingStatus('✅ Repository URL updated successfully!');
+              setFileWritingCurrentStep(3);
+              setFileWritingCompletedSteps([1, 2, 3]);
               
               // Show final success message and setup instructions
               setFileWritingStatus('📋 Generating setup instructions...');
@@ -630,6 +692,8 @@ async function showModularSetupWizard(config) {
               
               await new Promise(resolve => setTimeout(resolve, 200));
               setFileWritingProgress(90);
+              setFileWritingCurrentStep(4);
+              setFileWritingCompletedSteps([1, 2, 3, 4]);
               
               const generator = new SimplifiedCodeGenerator(
                 language, 
@@ -712,12 +776,28 @@ async function showModularSetupWizard(config) {
         
         
         // Step 5: File Detection
-        currentStep === 5 ? React.createElement(Box, { key: 'file-detection-step' },
-          FileDetectionStep(React, Box, Text, {
-            status: fileDetectionStatus,
-            progress: fileDetectionProgress
-          })
-        ) : null,
+        currentStep === 5 ? React.createElement(Box, { key: 'file-detection-step', flexDirection: 'column', marginTop: 2 }, [
+          React.createElement(Text, { key: 'file-detection-title', color: '#71f2af', bold: true }, 
+            '🔍 File Detection'
+          ),
+          React.createElement(Box, { key: 'file-detection-progress', marginTop: 2, flexDirection: 'column' }, [
+            React.createElement(Text, { key: 'file-detection-status', color: '#c8c8c84d' }, fileDetectionStatus || '🔍 Analyzing files in project...'),
+            React.createElement(Box, { key: 'todo-container', marginTop: 1 },
+              HierarchicalTodoList(React, Box, Text, {
+                title: "File Detection Progress",
+                mainTask: "Analyze project structure",
+                subTasks: [
+                  'Scanning project directory',
+                  'Finding relevant files',
+                  'Analyzing file relevance',
+                  'File detection complete'
+                ],
+                currentStep: fileDetectionCurrentStep,
+                completedSteps: fileDetectionCompletedSteps
+              })
+            )
+          ]),
+        ]) : null,
         
         // Step 5.5: File Selection
         currentStep === 5.5 ? React.createElement(Box, { key: 'file-selection-step' },
@@ -735,10 +815,20 @@ async function showModularSetupWizard(config) {
           ),
           React.createElement(Box, { key: 'step6-progress', marginTop: 2, flexDirection: 'column' }, [
             React.createElement(Text, { key: 'step6-status', color: '#c8c8c84d' }, fileDetectionStatus || '🔍 Analyzing functions in file...'),
-            React.createElement(Box, { key: 'step6-bar', marginTop: 1, width: 40 }, [
-            React.createElement(Text, { key: 'step6-bar-fill', backgroundColor: '#71f2af' }, '█'.repeat(Math.floor((fileDetectionProgress || 0) / 2.5))),
-            React.createElement(Text, { key: 'step6-bar-empty', color: '#0c272e' }, '░'.repeat(40 - Math.floor((fileDetectionProgress || 0) / 2.5))),
-            ]),
+            React.createElement(Box, { key: 'todo-container', marginTop: 1 },
+              HierarchicalTodoList(React, Box, Text, {
+                title: "Function Detection Progress",
+                mainTask: "Analyze functions in file",
+                subTasks: [
+                  'Reading file content',
+                  'Finding functions',
+                  'Analyzing function signatures',
+                  'Function detection complete'
+                ],
+                currentStep: fileDetectionCurrentStep,
+                completedSteps: fileDetectionCompletedSteps
+              })
+            )
           ]),
         ]) : null,
         
@@ -756,10 +846,20 @@ async function showModularSetupWizard(config) {
         currentStep === 7 ? React.createElement(Box, { key: 'step7', flexDirection: 'column', marginTop: 2 }, [
           React.createElement(Text, { key: 'step7-title', color: '#71f2af', bold: true }, aiGenerationStatus || '🔄 AI-Powered Code Generation'),
           aiGenerationStatus && !aiGenerationStatus.includes('complete') ? React.createElement(Box, { key: 'step8-progress', marginTop: 2, flexDirection: 'column' }, [
-            React.createElement(Box, { key: 'step8-bar', marginTop: 1, width: 40 }, [
-              React.createElement(Text, { key: 'step8-bar-fill', backgroundColor: '#71f2af' }, '█'.repeat(Math.floor((aiGenerationProgress || 0) / 2.5))),
-              React.createElement(Text, { key: 'step8-bar-empty', color: '#0c272e' }, '░'.repeat(40 - Math.floor((aiGenerationProgress || 0) / 2.5))),
-            ]),
+            React.createElement(Box, { key: 'todo-container', marginTop: 1 },
+              HierarchicalTodoList(React, Box, Text, {
+                title: "AI Code Generation",
+                mainTask: "Generate monitoring integration",
+                subTasks: [
+                  'Reading file content',
+                  'Detecting language',
+                  'Generating AI integration',
+                  'AI generation complete'
+                ],
+                currentStep: aiGenerationCurrentStep,
+                completedSteps: aiGenerationCompletedSteps
+              })
+            )
           ]) : null,
         ]) : null,
         
@@ -784,10 +884,20 @@ async function showModularSetupWizard(config) {
           // File Writing Progress Bar
           fileWritingStatus ? React.createElement(Box, { key: 'file-writing-progress', marginTop: 2, flexDirection: 'column' }, [
             React.createElement(Text, { key: 'file-writing-status', color: '#c8c8c84d' }, fileWritingStatus),
-            React.createElement(Box, { key: 'file-writing-bar', marginTop: 1, width: 40 }, [
-              React.createElement(Text, { key: 'file-writing-bar-fill', backgroundColor: '#71f2af' }, '█'.repeat(Math.floor((fileWritingProgress || 0) / 2.5))),
-              React.createElement(Text, { key: 'file-writing-bar-empty', color: '#0c272e' }, '░'.repeat(40 - Math.floor((fileWritingProgress || 0) / 2.5))),
-            ]),
+            React.createElement(Box, { key: 'todo-container', marginTop: 1 },
+              HierarchicalTodoList(React, Box, Text, {
+                title: "File Writing Progress",
+                mainTask: "Apply changes to file",
+                subTasks: [
+                  'Preparing changes',
+                  'Writing to file',
+                  'Validating changes',
+                  'Changes applied successfully'
+                ],
+                currentStep: fileWritingCurrentStep,
+                completedSteps: fileWritingCompletedSteps
+              })
+            )
           ]) : null,
         ]) : null,
         
