@@ -83,7 +83,7 @@ async function showSetupWizard(config) {
           // Header
           React.createElement(Box, { key: 'header', flexDirection: 'column', alignItems: 'center', marginBottom: 2 }, [
             React.createElement(Text, { key: 'title', color: 'cyan', bold: true }, '🚀 Autonomous Engineer Setup'),
-            React.createElement(Text, { key: 'subtitle', color: 'white', bold: true }, 'Transform your AI agent into an autonomous engineer'),
+            React.createElement(Text, { key: 'subtitle', color: 'white', bold: true }, 'Add monitoring, evaluation, and optimization to your AI agent'),
             React.createElement(Text, { key: 'description', color: 'yellow' }, 'Configure monitoring, evaluation, and optimization for continuous improvement'),
           ]),
           

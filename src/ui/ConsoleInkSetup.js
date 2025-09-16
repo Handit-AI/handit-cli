@@ -21,7 +21,7 @@ async function showConsoleInkSetup(config) {
 
   console.log('');
   console.log(chalk.cyan.bold('🚀 Autonomous Engineer Setup'));
-  console.log(chalk.white.bold('Transform your AI agent into an autonomous engineer'));
+  console.log(chalk.white.bold('Add monitoring, evaluation, and optimization to your AI agent'));
   console.log(chalk.yellow('Configure monitoring, evaluation, and optimization for continuous improvement'));
   console.log('');
 

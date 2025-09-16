@@ -117,14 +117,14 @@ function CodeDiffViewer(React, Box, Text, { filePath, changes, originalFileConte
   return React.createElement(Box, { key: 'diff-viewer', flexDirection: 'column', marginTop: 2 }, [
     // File title
     React.createElement(Box, { key: 'diff-title' }, 
-      React.createElement(Text, { bold: true, color: 'cyan' }, filePath)
+      React.createElement(Text, { bold: true, color: '#71f2af' }, filePath)
     ),
     
     // Outer box
     React.createElement(Box, { key: 'diff-outer-box', borderStyle: 'double', borderColor: 'white', padding: 1, marginTop: 1, flexDirection: 'column' }, [
       // Editing title (above everything, centered)
       React.createElement(Box, { key: 'diff-editing-title', marginBottom: 1, alignItems: 'center' },
-        React.createElement(Text, { bold: true, color: 'yellow' }, `📝 Editing ${fileName}`)
+        React.createElement(Text, { bold: true, color: '#1f4d53' }, `📝 Editing ${fileName}`)
       ),
       
       // Inner box with only the diff content
@@ -134,7 +134,7 @@ function CodeDiffViewer(React, Box, Text, { filePath, changes, originalFileConte
           diffLines.map((diffLine, index) => {
             if (diffLine.type === 'separator') {
               return React.createElement(Box, { key: `diff-separator-${index}` },
-                React.createElement(Text, { color: 'gray' }, diffLine.content)
+                React.createElement(Text, { color: '#1f4d53' }, diffLine.content)
               );
             }
             
@@ -144,7 +144,7 @@ function CodeDiffViewer(React, Box, Text, { filePath, changes, originalFileConte
             const textColor = diffLine.type === 'context' ? 'gray' : 'white';
             
             return React.createElement(Box, { key: `diff-line-${index}`, flexDirection: 'row' }, [
-              React.createElement(Text, { color: 'gray', width: 6 }, lineNum),
+              React.createElement(Text, { color: '#1f4d53', width: 6 }, lineNum),
               React.createElement(Text, { 
                 backgroundColor: bgColor,
                 color: textColor, 
@@ -158,11 +158,11 @@ function CodeDiffViewer(React, Box, Text, { filePath, changes, originalFileConte
       
       // Confirmation prompt (below inner box, centered)
       React.createElement(Box, { key: 'diff-prompt', flexDirection: 'column', alignItems: 'center' }, [
-        React.createElement(Text, { key: 'diff-question', color: 'yellow', marginBottom: 1 }, '❓ Do you want to make this edit to the file?'),
+        React.createElement(Text, { key: 'diff-question', color: '#1f4d53', marginBottom: 1 }, '❓ Do you want to make this edit to the file?'),
         React.createElement(Box, { key: 'diff-options', flexDirection: 'row', marginBottom: 1 }, [
           React.createElement(Box, { key: 'diff-yes', marginRight: 2 },
             React.createElement(Text, { 
-              color: selectedOption === 0 ? 'green' : 'gray', 
+              color: selectedOption === 0 ? '#71f2af' : '#1f4d53', 
               bold: selectedOption === 0, 
               backgroundColor: selectedOption === 0 ? 'green' : 'black', 
               paddingX: 1 
@@ -170,14 +170,14 @@ function CodeDiffViewer(React, Box, Text, { filePath, changes, originalFileConte
           ),
           React.createElement(Box, { key: 'diff-no' },
             React.createElement(Text, { 
-              color: selectedOption === 1 ? 'red' : 'gray', 
+              color: selectedOption === 1 ? '#ff6b6b' : '#1f4d53', 
               bold: selectedOption === 1, 
               backgroundColor: selectedOption === 1 ? 'red' : 'black', 
               paddingX: 1 
             }, '✗ No')
           )
         ]),
-        React.createElement(Text, { key: 'diff-help', color: 'gray' }, '← → to navigate, Y/N or Enter to confirm')
+        React.createElement(Text, { key: 'diff-help', color: '#1f4d53' }, '← → to navigate, Y/N or Enter to confirm')
       ])
     ]),
   ]);
