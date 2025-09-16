@@ -70,7 +70,7 @@ function CodeDiffViewer(React, Box, Text, { filePath, changes, originalFileConte
       // Show changes
       group.changes.forEach(change => {
         const content = change.content || change.modifiedContent || '';
-        const displayContent = content.trim() === '' ? '(empty line)' : content;
+        const displayContent = content.trim() === '' ? '' : content;
         
         if (change.type === 'add') {
           diffLines.push({
@@ -133,7 +133,7 @@ function CodeDiffViewer(React, Box, Text, { filePath, changes, originalFileConte
         React.createElement(Box, { key: 'diff-changes', flexDirection: 'column' },
           diffLines.map((diffLine, index) => {
             if (diffLine.type === 'separator') {
-              return React.createElement(Box, { key: `diff-separator-${index}`, marginY: 1 },
+              return React.createElement(Box, { key: `diff-separator-${index}` },
                 React.createElement(Text, { color: 'gray' }, diffLine.content)
               );
             }
@@ -143,7 +143,7 @@ function CodeDiffViewer(React, Box, Text, { filePath, changes, originalFileConte
             const bgColor = diffLine.type === 'add' ? 'green' : diffLine.type === 'remove' ? 'red' : 'transparent';
             const textColor = diffLine.type === 'context' ? 'gray' : 'white';
             
-            return React.createElement(Box, { key: `diff-line-${index}`, flexDirection: 'row', marginBottom: 1 }, [
+            return React.createElement(Box, { key: `diff-line-${index}`, flexDirection: 'row' }, [
               React.createElement(Text, { color: 'gray', width: 6 }, lineNum),
               React.createElement(Text, { 
                 backgroundColor: bgColor,
