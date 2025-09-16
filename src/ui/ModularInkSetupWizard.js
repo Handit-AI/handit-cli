@@ -514,15 +514,56 @@ async function showModularSetupWizard(config) {
       React.useEffect(() => {
         if (currentStep === 9 && shouldApplyCode !== null) {
           setTimeout(() => {
-            resolve({
-              agentName: agentName || 'my-agent',
-              entryFile: selectedFile?.file || entryFile,
-              entryFunction: selectedFunction?.name || entryFunction,
-              applied: shouldApplyCode
-            });
+            setCurrentStep(10); // Move to final completion step
           }, 1000);
         }
       }, [currentStep, shouldApplyCode]);
+
+      // Final completion step effect
+      React.useEffect(() => {
+        if (currentStep === 10) {
+          setTimeout(async () => {
+            try {
+              // Update repository URL
+              const { updateRepositoryUrlForAgent } = require('../index');
+              await updateRepositoryUrlForAgent(agentName || 'my-agent');
+              
+              // Show final success message and setup instructions
+              const { SimplifiedCodeGenerator } = require('../generator/simplifiedGenerator');
+              const { detectLanguageFromFile } = require('../setup/detectLanguage');
+              const language = detectLanguageFromFile(selectedFile?.file || entryFile);
+              
+              const generator = new SimplifiedCodeGenerator(
+                language, 
+                agentName || 'my-agent', 
+                config.projectRoot
+              );
+              
+              // Show completion message
+              console.log('\n' + require('chalk').green.bold('✅ Setup complete'));
+              console.log(`Agent: ${require('chalk').blue(agentName || 'my-agent')}`);
+              console.log(`Entry point instrumented: ${require('chalk').blue(selectedFunction?.name || entryFunction)}`);
+              console.log(`Config: ${require('chalk').blue('handit.config.json')}`);
+              
+              // Show setup instructions
+              generator.showSetupInstructions();
+              
+              // Resolve after showing instructions
+              setTimeout(() => {
+                resolve({
+                  agentName: agentName || 'my-agent',
+                  entryFile: selectedFile?.file || entryFile,
+                  entryFunction: selectedFunction?.name || entryFunction,
+                  applied: shouldApplyCode
+                });
+              }, 2000);
+              
+            } catch (error) {
+              setError(`Final setup failed: ${error.message}`);
+            }
+          }, 1000);
+        }
+      }, [currentStep]);
 
 
         // Get current input value for cursor
@@ -639,6 +680,20 @@ async function showModularSetupWizard(config) {
             selectedOption: selectedDiffOption
           })
         ) : null,
+        
+        // Step 9: Processing Changes
+        currentStep === 9 ? React.createElement(Box, { key: 'step9', flexDirection: 'column', marginTop: 2 }, [
+          React.createElement(Text, { key: 'step9-title', color: 'green', bold: true }, '✅ Changes Applied Successfully!'),
+          React.createElement(Text, { key: 'step9-subtitle', color: 'cyan', bold: true }, '🔧 Finalizing setup...'),
+          React.createElement(Text, { key: 'step9-description', color: 'yellow' }, 'Please wait while we complete the setup process.'),
+        ]) : null,
+        
+        // Step 10: Final Completion
+        currentStep === 10 ? React.createElement(Box, { key: 'step10', flexDirection: 'column', marginTop: 2 }, [
+          React.createElement(Text, { key: 'step10-title', color: 'green', bold: true }, '🎉 Setup Complete!'),
+          React.createElement(Text, { key: 'step10-subtitle', color: 'cyan', bold: true }, 'Your agent is now connected and ready to use.'),
+          React.createElement(Text, { key: 'step10-description', color: 'yellow' }, 'Check the console for setup instructions and next steps.'),
+        ]) : null,
         
         // Error message
         error ? React.createElement(Box, { key: 'error', marginTop: 2 }, [

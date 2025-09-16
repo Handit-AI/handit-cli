@@ -65,19 +65,21 @@ async function runSimpleInkSetup(options = {}) {
     languageSpinner.succeed(`Detected: ${chalk.blue(language)} (from ${projectInfo.entryFile})`);
 
     // Step 4: Check if code generation was already applied by the Ink wizard
-    const { SimplifiedCodeGenerator } = require('../generator/simplifiedGenerator');
-    const simplifiedGenerator = new SimplifiedCodeGenerator(
-      language, 
-      projectInfo.agentName, 
-      config.projectRoot, 
-      apiToken, 
-      stagingApiToken
-    );
-    
     if (projectInfo.applied) {
-      console.log(chalk.green('✅ Code generation already completed in setup wizard'));
+      console.log(chalk.green('✅ Setup already completed in Ink wizard'));
+      console.log(chalk.gray('All steps including code generation, repository URL update, and setup instructions have been completed.'));
+      return;
     } else {
       // Generate simplified entry point tracing (fallback for non-Ink flows)
+      const { SimplifiedCodeGenerator } = require('../generator/simplifiedGenerator');
+      const simplifiedGenerator = new SimplifiedCodeGenerator(
+        language, 
+        projectInfo.agentName, 
+        config.projectRoot, 
+        apiToken, 
+        stagingApiToken
+      );
+      
       const result = await simplifiedGenerator.generateEntryPointTracing(
         projectInfo.entryFile,
         projectInfo.entryFunction
@@ -87,20 +89,20 @@ async function runSimpleInkSetup(options = {}) {
         console.log(chalk.yellow('Setup cancelled - no tracing applied'));
         return;
       }
+
+      // Step 5: Update repository URL (keep existing logic)
+      const { updateRepositoryUrlForAgent } = require('../index');
+      await updateRepositoryUrlForAgent(projectInfo.agentName);
+
+      // Step 6: Success summary (keep existing logic)
+      console.log('\n' + chalk.green.bold('✅ Setup complete'));
+      console.log(`Agent: ${chalk.blue(projectInfo.agentName)}`);
+      console.log(`Entry point instrumented: ${chalk.blue(projectInfo.entryFunction)}`);
+      console.log(`Config: ${chalk.blue('handit.config.json')}`);
+
+      // Step 7: Show setup instructions (keep existing logic)
+      simplifiedGenerator.showSetupInstructions();
     }
-
-    // Step 5: Update repository URL (keep existing logic)
-    const { updateRepositoryUrlForAgent } = require('../index');
-    await updateRepositoryUrlForAgent(projectInfo.agentName);
-
-    // Step 6: Success summary (keep existing logic)
-    console.log('\n' + chalk.green.bold('✅ Setup complete'));
-    console.log(`Agent: ${chalk.blue(projectInfo.agentName)}`);
-    console.log(`Entry point instrumented: ${chalk.blue(projectInfo.entryFunction)}`);
-    console.log(`Config: ${chalk.blue('handit.config.json')}`);
-
-    // Step 7: Show setup instructions (keep existing logic)
-    simplifiedGenerator.showSetupInstructions();
 
   } catch (error) {
     if (error.message === 'Setup cancelled by user') {
