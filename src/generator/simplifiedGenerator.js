@@ -555,6 +555,26 @@ Please add Handit.ai monitoring to the "${functionName}" function following the 
     console.log(chalk.gray('   Traces will appear in your dashboard at https://dashboard.handit.ai'));
     console.log(chalk.gray('─'.repeat(60)));
   }
+
+  getSetupInstructions() {
+    const instructions = {
+      title: '🎉 Congratulations! Your agent is now connected!',
+      language: this.language,
+      apiKey: this.stagingApiToken || this.apiToken || 'your_api_key_here',
+      stagingApiToken: this.stagingApiToken || 'Not available',
+      productionApiToken: this.apiToken || 'Not available'
+    };
+
+    if (this.language === 'python') {
+      instructions.sdkInstall = 'pip install handit_ai';
+      instructions.runCommand = 'python your_agent_file.py';
+    } else {
+      instructions.sdkInstall = 'npm install @handit.ai/handit-ai';
+      instructions.runCommand = 'node your_agent_file.js';
+    }
+
+    return instructions;
+  }
 }
 
 module.exports = { SimplifiedCodeGenerator };

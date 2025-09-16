@@ -146,6 +146,7 @@ async function showModularSetupWizard(config) {
       const [originalFileContent, setOriginalFileContent] = React.useState(null);
       const [modifiedFileContent, setModifiedFileContent] = React.useState(null);
       const [shouldApplyCode, setShouldApplyCode] = React.useState(null);
+      const [setupInstructions, setSetupInstructions] = React.useState(null);
       
       // Input buffer for handling large inputs (currently unused but reserved for future use)
       // const [inputBuffer, setInputBuffer] = React.useState('');
@@ -353,6 +354,17 @@ async function showModularSetupWizard(config) {
           }
         }
 
+        // Handle final completion step (step 10)
+        if (currentStep === 10 && key.ctrl && input === 'c') {
+          resolve({
+            agentName: agentName || 'my-agent',
+            entryFile: selectedFile?.file || entryFile,
+            entryFunction: selectedFunction?.name || entryFunction,
+            applied: shouldApplyCode
+          });
+          return;
+        }
+
         // Handle diff viewer
         if (currentStep === 8 && codeChanges) {
           if (key.leftArrow) {
@@ -539,24 +551,11 @@ async function showModularSetupWizard(config) {
                 config.projectRoot
               );
               
-              // Show completion message
-              console.log('\n' + require('chalk').green.bold('✅ Setup complete'));
-              console.log(`Agent: ${require('chalk').blue(agentName || 'my-agent')}`);
-              console.log(`Entry point instrumented: ${require('chalk').blue(selectedFunction?.name || entryFunction)}`);
-              console.log(`Config: ${require('chalk').blue('handit.config.json')}`);
+              // Store setup instructions for display in UI
+              const setupInstructions = generator.getSetupInstructions();
+              setSetupInstructions(setupInstructions);
               
-              // Show setup instructions
-              generator.showSetupInstructions();
-              
-              // Resolve after showing instructions
-              setTimeout(() => {
-                resolve({
-                  agentName: agentName || 'my-agent',
-                  entryFile: selectedFile?.file || entryFile,
-                  entryFunction: selectedFunction?.name || entryFunction,
-                  applied: shouldApplyCode
-                });
-              }, 2000);
+              // Don't auto-resolve - let user exit with Ctrl+C to keep instructions visible
               
             } catch (error) {
               setError(`Final setup failed: ${error.message}`);
@@ -688,11 +687,46 @@ async function showModularSetupWizard(config) {
           React.createElement(Text, { key: 'step9-description', color: 'yellow' }, 'Please wait while we complete the setup process.'),
         ]) : null,
         
-        // Step 10: Final Completion
+        // Step 10: Final Completion with Setup Instructions
         currentStep === 10 ? React.createElement(Box, { key: 'step10', flexDirection: 'column', marginTop: 2 }, [
           React.createElement(Text, { key: 'step10-title', color: 'green', bold: true }, '🎉 Setup Complete!'),
           React.createElement(Text, { key: 'step10-subtitle', color: 'cyan', bold: true }, 'Your agent is now connected and ready to use.'),
-          React.createElement(Text, { key: 'step10-description', color: 'yellow' }, 'Check the console for setup instructions and next steps.'),
+          
+          // Setup Instructions Box
+          setupInstructions ? React.createElement(Box, { key: 'setup-instructions', borderStyle: 'single', borderColor: 'green', padding: 1, marginTop: 2, flexDirection: 'column' }, [
+            React.createElement(Text, { key: 'instructions-title', color: 'green', bold: true, marginBottom: 1 }, setupInstructions.title),
+            
+            // SDK Installation
+            React.createElement(Box, { key: 'sdk-section', marginBottom: 1 }, [
+              React.createElement(Text, { key: 'sdk-label', color: 'yellow', bold: true }, '📦 Install SDK:'),
+              React.createElement(Text, { key: 'sdk-command', color: 'white', marginLeft: 2 }, `   ${setupInstructions.sdkInstall}`)
+            ]),
+            
+            // API Key Setup
+            React.createElement(Box, { key: 'api-section', marginBottom: 1 }, [
+              React.createElement(Text, { key: 'api-label', color: 'yellow', bold: true }, '🔑 Set API Key:'),
+              React.createElement(Text, { key: 'api-command', color: 'white', marginLeft: 2 }, `   export HANDIT_API_KEY=${setupInstructions.apiKey}`)
+            ]),
+            
+            // Run Command
+            React.createElement(Box, { key: 'run-section', marginBottom: 1 }, [
+              React.createElement(Text, { key: 'run-label', color: 'yellow', bold: true }, '🚀 Run Agent:'),
+              React.createElement(Text, { key: 'run-command', color: 'white', marginLeft: 2 }, `   ${setupInstructions.runCommand}`)
+            ]),
+            
+            // API Keys Info
+            React.createElement(Box, { key: 'keys-section', marginTop: 1 }, [
+              React.createElement(Text, { key: 'keys-label', color: 'cyan', bold: true }, '🔧 API Keys:'),
+              React.createElement(Text, { key: 'staging-key', color: 'gray', marginLeft: 2 }, `   Staging: ${setupInstructions.stagingApiToken}`),
+              React.createElement(Text, { key: 'production-key', color: 'gray', marginLeft: 2 }, `   Production: ${setupInstructions.productionApiToken}`)
+            ]),
+            
+            // Final Message
+            React.createElement(Text, { key: 'final-message', color: 'green', bold: true, marginTop: 1 }, '✅ Your agent is now instrumented with handit.ai monitoring!'),
+            React.createElement(Text, { key: 'dashboard-link', color: 'gray', marginTop: 1 }, '   Traces will appear in your dashboard at https://dashboard.handit.ai')
+          ]) : null,
+          
+          React.createElement(Text, { key: 'step10-exit', color: 'gray', marginTop: 2 }, 'Press Ctrl+C to exit'),
         ]) : null,
         
         // Error message
