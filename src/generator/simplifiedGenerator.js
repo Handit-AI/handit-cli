@@ -256,6 +256,7 @@ Please add Handit.ai monitoring to the "${functionName}" function following the 
 
       let result = response.choices[0].message.content;
       
+      
       // Remove markdown code block markers if present
       if (result.startsWith('```')) {
         const lines = result.split('\n');
@@ -269,6 +270,7 @@ Please add Handit.ai monitoring to the "${functionName}" function following the 
         }
         result = lines.join('\n');
       }
+      
       
       console.log(chalk.gray(`✅ AI-generated handit integration for ${filePath}`));
       
@@ -287,7 +289,10 @@ Please add Handit.ai monitoring to the "${functionName}" function following the 
     const modifiedLines = modifiedContent.split('\n');
 
     // Use a smarter diff algorithm
-    const changes = this.computeSmartDiff(originalLines, modifiedLines);
+    // Clean up the lines to avoid undefined issues
+    const cleanOriginalLines = originalLines.map(line => line || '');
+    const cleanModifiedLines = modifiedLines.map(line => line || '');
+    const changes = this.computeSmartDiff(cleanOriginalLines, cleanModifiedLines);
     
     // Show the beautiful Ink-based diff viewer
     return await showInkDiffViewer(filePath, changes);
@@ -301,16 +306,17 @@ Please add Handit.ai monitoring to the "${functionName}" function following the 
     const changes = [];
     let i = 0, j = 0;
     
+    
     while (i < originalLines.length || j < modifiedLines.length) {
-      const originalLine = originalLines[i];
-      const modifiedLine = modifiedLines[j];
+      const originalLine = i < originalLines.length ? originalLines[i] : undefined;
+      const modifiedLine = j < modifiedLines.length ? modifiedLines[j] : undefined;
       
       if (i >= originalLines.length) {
         // Only modified lines left
         changes.push({
           type: 'add',
           line: j + 1,
-          content: modifiedLine,
+          content: modifiedLine || '', // Handle undefined/empty lines
           originalLine: null
         });
         j++;
@@ -319,7 +325,7 @@ Please add Handit.ai monitoring to the "${functionName}" function following the 
         changes.push({
           type: 'remove',
           line: i + 1,
-          content: originalLine,
+          content: originalLine || '', // Handle undefined/empty lines
           modifiedLine: null
         });
         i++;
@@ -336,10 +342,12 @@ Please add Handit.ai monitoring to the "${functionName}" function following the 
           if (originalLines[i + k] === modifiedLine) {
             // Found match, this is an insertion
             for (let l = 0; l < k; l++) {
+              const lineIndex = i + l;
+              const lineContent = lineIndex < originalLines.length ? originalLines[lineIndex] : '';
               changes.push({
                 type: 'add',
                 line: j + 1,
-                content: originalLines[i + l],
+                content: lineContent,
                 originalLine: null
               });
             }
@@ -355,10 +363,12 @@ Please add Handit.ai monitoring to the "${functionName}" function following the 
             if (modifiedLines[j + k] === originalLine) {
               // Found match, this is a deletion
               for (let l = 0; l < k; l++) {
+                const lineIndex = j + l;
+                const lineContent = lineIndex < modifiedLines.length ? modifiedLines[lineIndex] : '';
                 changes.push({
                   type: 'add',
                   line: i + 1,
-                  content: modifiedLines[j + l],
+                  content: lineContent,
                   modifiedLine: null
                 });
               }
@@ -374,8 +384,8 @@ Please add Handit.ai monitoring to the "${functionName}" function following the 
           changes.push({
             type: 'modify',
             line: i + 1,
-            content: originalLine,
-            modifiedContent: modifiedLine
+            content: originalLine || '', // Handle undefined/empty lines
+            modifiedContent: modifiedLine || '' // Handle undefined/empty lines
           });
           i++;
           j++;

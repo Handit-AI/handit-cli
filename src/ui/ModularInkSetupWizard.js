@@ -198,8 +198,11 @@ async function showModularSetupWizard(config) {
                   
                   // Re-generate the modified content to write to file
                   const { SimplifiedCodeGenerator } = require('../generator/simplifiedGenerator');
+                  const { detectLanguageFromFile } = require('../setup/detectLanguage');
+                  const language = detectLanguageFromFile(selectedFile.file);
+                  
                   const generator = new SimplifiedCodeGenerator(
-                    config.language, 
+                    language, 
                     agentName || 'my-agent', 
                     config.projectRoot
                   );
@@ -302,8 +305,12 @@ async function showModularSetupWizard(config) {
               setAiGenerationStatus('📖 Reading file content...');
               setAiGenerationProgress(30);
               
+              // Detect language from the selected file
+              const { detectLanguageFromFile } = require('../setup/detectLanguage');
+              const language = detectLanguageFromFile(selectedFile.file);
+              
               const generator = new SimplifiedCodeGenerator(
-                config.language, 
+                language, 
                 agentName || 'my-agent', 
                 config.projectRoot
               );
@@ -314,6 +321,8 @@ async function showModularSetupWizard(config) {
               // Generate the modified content using the existing logic
               const filePath = path.resolve(selectedFile.file);
               const fileContent = await fs.readFile(filePath, 'utf8');
+              
+              
               const modifiedContent = await generator.addHanditIntegrationToFile(
                 fileContent, 
                 selectedFile.file, 
@@ -321,15 +330,20 @@ async function showModularSetupWizard(config) {
                 agentName || 'my-agent'
               );
               
+              
               setAiGenerationProgress(100);
               setAiGenerationStatus('✅ AI-generated handit integration complete');
               
               // Compute diff using the existing SimplifiedCodeGenerator logic
-              const changes = generator.computeSmartDiff(fileContent.split('\n'), modifiedContent.split('\n'));
+              // Clean up the lines to avoid undefined issues
+              const originalLines = fileContent.split('\n').map(line => line || '');
+              const modifiedLines = modifiedContent.split('\n').map(line => line || '');
+              const changes = generator.computeSmartDiff(originalLines, modifiedLines);
               setCodeChanges(changes);
               setCurrentStep(8); // Move to diff viewer
               
             } catch (error) {
+              console.error('AI Generation Error:', error);
               setError(`AI code generation failed: ${error.message}`);
             }
           }
