@@ -143,6 +143,10 @@ async function showModularSetupWizard(config) {
       const [aiGenerationStatus, setAiGenerationStatus] = React.useState('');
       const [aiGenerationProgress, setAiGenerationProgress] = React.useState(0);
       const [codeChanges, setCodeChanges] = React.useState(null);
+      
+      // File Writing state
+      const [fileWritingStatus, setFileWritingStatus] = React.useState('');
+      const [fileWritingProgress, setFileWritingProgress] = React.useState(0);
       const [originalFileContent, setOriginalFileContent] = React.useState(null);
       const [modifiedFileContent, setModifiedFileContent] = React.useState(null);
       const [shouldApplyCode, setShouldApplyCode] = React.useState(null);
@@ -377,14 +381,29 @@ async function showModularSetupWizard(config) {
             if (codeChanges.length > 0 && selectedFile && modifiedFileContent) {
               setTimeout(async () => {
                 try {
+                  setFileWritingStatus('📝 Applying changes to file...');
+                  setFileWritingProgress(20);
+                  
                   const fs = require('fs-extra');
                   const path = require('path');
                   const filePath = path.resolve(selectedFile.file);
                   
+                  // Simulate progressive file writing
+                  await new Promise(resolve => setTimeout(resolve, 200));
+                  setFileWritingProgress(50);
+                  
                   // Use the already generated modified content
                   await fs.writeFile(filePath, modifiedFileContent);
+                  
+                  setFileWritingProgress(80);
+                  await new Promise(resolve => setTimeout(resolve, 300));
+                  
+                  setFileWritingProgress(100);
+                  setFileWritingStatus('✅ Changes applied successfully!');
+                  
                   console.log(`✅ Successfully applied changes to ${selectedFile.file}`);
                 } catch (error) {
+                  setFileWritingStatus('❌ Failed to apply changes');
                   setError(`Failed to write file: ${error.message}`);
                 }
               }, 100);
@@ -470,12 +489,16 @@ async function showModularSetupWizard(config) {
               const path = require('path');
               const { SimplifiedCodeGenerator } = require('../generator/simplifiedGenerator');
               
+              await new Promise(resolve => setTimeout(resolve, 300));
               setAiGenerationStatus('📖 Reading file content...');
-              setAiGenerationProgress(30);
+              setAiGenerationProgress(25);
               
               // Detect language from the selected file
               const { detectLanguageFromFile } = require('../setup/detectLanguage');
               const language = detectLanguageFromFile(selectedFile.file);
+              
+              await new Promise(resolve => setTimeout(resolve, 200));
+              setAiGenerationProgress(40);
               
               const generator = new SimplifiedCodeGenerator(
                 language, 
@@ -490,6 +513,8 @@ async function showModularSetupWizard(config) {
               const filePath = path.resolve(selectedFile.file);
               const fileContent = await fs.readFile(filePath, 'utf8');
               
+              await new Promise(resolve => setTimeout(resolve, 400));
+              setAiGenerationProgress(75);
               
               const modifiedContent = await generator.addHanditIntegrationToFile(
                 fileContent, 
@@ -498,7 +523,7 @@ async function showModularSetupWizard(config) {
                 agentName || 'my-agent'
               );
               
-              
+              await new Promise(resolve => setTimeout(resolve, 300));
               setAiGenerationProgress(100);
               setAiGenerationStatus('✅ AI-generated handit integration complete');
               
@@ -536,14 +561,30 @@ async function showModularSetupWizard(config) {
         if (currentStep === 10) {
           setTimeout(async () => {
             try {
-              // Update repository URL
+              // Update repository URL with progressive progress
+              setFileWritingStatus('🔗 Updating repository URL...');
+              setFileWritingProgress(10);
+              
               const { updateRepositoryUrlForAgent } = require('../index');
+              
+              await new Promise(resolve => setTimeout(resolve, 300));
+              setFileWritingProgress(30);
+              
               await updateRepositoryUrlForAgent(agentName || 'my-agent');
               
+              setFileWritingProgress(60);
+              setFileWritingStatus('✅ Repository URL updated successfully!');
+              
               // Show final success message and setup instructions
+              setFileWritingStatus('📋 Generating setup instructions...');
+              setFileWritingProgress(80);
+              
               const { SimplifiedCodeGenerator } = require('../generator/simplifiedGenerator');
               const { detectLanguageFromFile } = require('../setup/detectLanguage');
               const language = detectLanguageFromFile(selectedFile?.file || entryFile);
+              
+              await new Promise(resolve => setTimeout(resolve, 200));
+              setFileWritingProgress(90);
               
               const generator = new SimplifiedCodeGenerator(
                 language, 
@@ -556,6 +597,9 @@ async function showModularSetupWizard(config) {
               // Store setup instructions for display in UI
               const setupInstructions = generator.getSetupInstructions();
               setSetupInstructions(setupInstructions);
+              
+              setFileWritingProgress(100);
+              setFileWritingStatus('🎉 Setup complete!');
               
               // Auto-close after 3 seconds
               setTimeout(() => {
@@ -694,6 +738,15 @@ async function showModularSetupWizard(config) {
           React.createElement(Text, { key: 'step9-title', color: 'green', bold: true }, '✅ Changes Applied Successfully!'),
           React.createElement(Text, { key: 'step9-subtitle', color: 'cyan', bold: true }, '🔧 Finalizing setup...'),
           React.createElement(Text, { key: 'step9-description', color: 'yellow' }, 'Please wait while we complete the setup process.'),
+          
+          // File Writing Progress Bar
+          fileWritingStatus ? React.createElement(Box, { key: 'file-writing-progress', marginTop: 2, flexDirection: 'column' }, [
+            React.createElement(Text, { key: 'file-writing-status', color: 'yellow' }, fileWritingStatus),
+            React.createElement(Box, { key: 'file-writing-bar', marginTop: 1, width: 40 }, [
+              React.createElement(Text, { key: 'file-writing-bar-fill', backgroundColor: 'green' }, '█'.repeat(Math.floor((fileWritingProgress || 0) / 2.5))),
+              React.createElement(Text, { key: 'file-writing-bar-empty', color: 'gray' }, '░'.repeat(40 - Math.floor((fileWritingProgress || 0) / 2.5))),
+            ]),
+          ]) : null,
         ]) : null,
         
         // Step 10: Final Completion with Setup Instructions
