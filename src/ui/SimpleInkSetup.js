@@ -56,7 +56,12 @@ async function runSimpleInkSetup(options = {}) {
 
     // Step 2: Use unified Ink wizard for setup only
     console.log('\n'); // Add some space
-    const projectInfo = await runSimpleInkPrompts(config, null);
+    const configWithTokens = {
+      ...config,
+      apiToken,
+      stagingApiToken
+    };
+    const projectInfo = await runSimpleInkPrompts(configWithTokens, null);
 
     // Step 3: Detect language from entry file (keep existing logic)
     const languageSpinner = ora('Detecting file language...').start();
