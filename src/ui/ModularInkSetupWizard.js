@@ -143,6 +143,7 @@ async function showModularSetupWizard(config) {
       const [aiGenerationStatus, setAiGenerationStatus] = React.useState('');
       const [aiGenerationProgress, setAiGenerationProgress] = React.useState(0);
       const [codeChanges, setCodeChanges] = React.useState(null);
+      const [originalFileContent, setOriginalFileContent] = React.useState(null);
       const [shouldApplyCode, setShouldApplyCode] = React.useState(null);
       
       // Input buffer for handling large inputs (currently unused but reserved for future use)
@@ -511,6 +512,7 @@ async function showModularSetupWizard(config) {
               const modifiedLines = modifiedContent.split('\n').map(line => line || '');
               const changes = generator.computeSmartDiff(originalLines, modifiedLines);
               setCodeChanges(changes);
+              setOriginalFileContent(originalLines);
               setCurrentStep(8); // Move to diff viewer
               
             } catch (error) {
@@ -646,6 +648,7 @@ async function showModularSetupWizard(config) {
           CodeDiffViewer(React, Box, Text, {
             filePath: selectedFile?.file,
             changes: codeChanges,
+            originalFileContent: originalFileContent,
             onConfirm: () => setShouldApplyCode(true),
             onReject: () => setShouldApplyCode(false),
             selectedOption: selectedDiffOption

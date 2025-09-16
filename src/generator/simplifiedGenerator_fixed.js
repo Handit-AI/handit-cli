@@ -150,7 +150,7 @@ Return ONLY a JSON object with the exact positions and content:
           content: prompt,
         },
       ],
-      model: 'gpt-4o',
+      model: 'gpt-4.1',
       response_format: { type: 'json_object' },
       temperature: 0.1
     });
