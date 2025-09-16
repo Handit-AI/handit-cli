@@ -1,10 +1,47 @@
 const axios = require('axios');
 const path = require('path');
+const fs = require('fs');
 const { EnvironmentConfig } = require('../config/environment');
 const { TokenStorage } = require('../auth/tokenStorage');
 
 const config = new EnvironmentConfig();
 const apiUrl = config.getApiUrl();
+
+/**
+ * Debug logger that works with Ink UI
+ * Writes to a debug file and also tries console.log
+ */
+function debugLog(message, data = null) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] ${message}`;
+  
+  // Try console.log first (might work in some contexts)
+  try {
+    console.log(logMessage);
+    if (data) {
+      console.log(JSON.stringify(data, null, 2));
+    }
+  } catch (e) {
+    // Console might not be available in Ink context
+  }
+  
+  // Always write to debug file
+  try {
+    const debugFile = path.join(__dirname, '../../debug-openai.log');
+    const logEntry = data 
+      ? `${logMessage}\n${JSON.stringify(data, null, 2)}\n---\n`
+      : `${logMessage}\n---\n`;
+    
+    fs.appendFileSync(debugFile, logEntry);
+  } catch (e) {
+    // If we can't write to file, at least try to write to stderr
+    try {
+      process.stderr.write(logMessage + '\n');
+    } catch (e2) {
+      // Last resort - do nothing
+    }
+  }
+}
 
 /**
  * Get authentication headers for API calls
@@ -35,21 +72,71 @@ async function getAuthHeaders() {
  * @returns {Promise<Object>} - API response
  */
 async function callLLMAPI({ messages, model, response_format, temperature, max_tokens }) {
+  debugLog('callLLMAPI called', {
+    model,
+    messageCount: messages.length,
+    response_format,
+    temperature,
+    max_tokens,
+    apiUrl
+  });
+
   try {
     const headers = await getAuthHeaders();
+    debugLog('Auth headers obtained', { 
+      hasAuth: !!headers.Authorization,
+      headerKeys: Object.keys(headers)
+    });
     
-    const response = await axios.post(`${apiUrl}/cli/auth/llm`, {
+    const requestBody = {
       messages,
       model,
       ...(response_format && { responseFormat: response_format }),
       ...(temperature !== undefined && { temperature }),
       ...(max_tokens && { max_tokens })
-    }, {
-      headers
+    };
+
+    debugLog('Making HTTP request', {
+      url: `${apiUrl}/cli/auth/llm`,
+      bodySize: JSON.stringify(requestBody).length,
+      hasMessages: !!requestBody.messages,
+      messageCount: requestBody.messages.length
     });
+
+    const response = await axios.post(`${apiUrl}/cli/auth/llm`, requestBody, {
+      headers,
+      timeout: 30000 // 30 second timeout
+    });
+
+    debugLog('HTTP response received', {
+      status: response.status,
+      statusText: response.statusText,
+      hasData: !!response.data,
+      hasResult: !!response.data.result,
+      resultType: typeof response.data.result
+    });
+
+    if (!response.data || !response.data.result) {
+      throw new Error('Invalid response structure - missing data.result');
+    }
+
     return response.data.result;
   } catch (error) {
-    console.error('LLM API error:', error.message);
+    debugLog('LLM API error', {
+      error: error.message,
+      code: error.code,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      responseData: error.response?.data
+    });
+    
+    // Try console.error as well
+    try {
+      console.error('LLM API error:', error.message);
+    } catch (e) {
+      // Ignore console errors
+    }
+    
     throw error;
   }
 }
@@ -61,9 +148,15 @@ async function callLLMAPI({ messages, model, response_format, temperature, max_t
  * @returns {Promise<Array>} - Possible file paths with confidence scores
  */
 async function findPossibleFilesWithGPT(userInput, allFiles) {
+  debugLog('findPossibleFilesWithGPT called', {
+    userInput,
+    allFilesCount: allFiles.length,
+    allFiles: allFiles.slice(0, 10) // Log first 10 files to avoid huge logs
+  });
+
   try {
-    const response = await callLLMAPI({
-      model: "gpt-3.5-turbo",
+    const requestPayload = {
+      model: "gpt-4o",
       messages: [
         {
           role: "system",
@@ -99,14 +192,75 @@ Return the most likely matches as a JSON array.`
       ],
       response_format: { type: "json_object" },
       temperature: 0.1
+    };
+
+    debugLog('Making LLM API call', {
+      model: requestPayload.model,
+      messageCount: requestPayload.messages.length,
+      userContentLength: requestPayload.messages[1].content.length,
+      allFilesCount: allFiles.length
     });
 
-    const result = JSON.parse(response.choices[0].message.content);
-    return result.results || [];
+    const response = await callLLMAPI(requestPayload);
+    
+    debugLog('LLM API response received', {
+      responseType: typeof response,
+      hasChoices: response && response.choices,
+      choicesLength: response && response.choices ? response.choices.length : 0,
+      firstChoiceContent: response && response.choices && response.choices[0] ? 
+        response.choices[0].message.content.substring(0, 200) + '...' : 'No content'
+    });
+
+    if (!response || !response.choices || !response.choices[0] || !response.choices[0].message) {
+      throw new Error('Invalid response structure from LLM API');
+    }
+
+    const content = response.choices[0].message.content;
+    debugLog('Parsing JSON response', { contentLength: content.length });
+
+    let result;
+    try {
+      result = JSON.parse(content);
+      debugLog('JSON parsed successfully', { 
+        hasResults: !!result.results,
+        resultsLength: result.results ? result.results.length : 0,
+        results: result.results
+      });
+    } catch (parseError) {
+      debugLog('JSON parse error', { 
+        error: parseError.message,
+        content: content.substring(0, 500)
+      });
+      throw new Error(`Failed to parse JSON response: ${parseError.message}`);
+    }
+
+    if (!result.results || !Array.isArray(result.results)) {
+      debugLog('Invalid result structure', { result });
+      throw new Error('Response does not contain valid results array');
+    }
+
+    debugLog('Returning results', { 
+      resultCount: result.results.length,
+      results: result.results
+    });
+
+    return result.results;
   } catch (error) {
-    console.error('LLM API error:', error.message);
-    // Fallback to simple pattern matching
-    return findPossibleFilesFallback(userInput, allFiles);
+    debugLog('Error in findPossibleFilesWithGPT', {
+      error: error.message,
+      stack: error.stack,
+      userInput,
+      allFilesCount: allFiles.length
+    });
+    
+    debugLog('Falling back to pattern matching');
+    const fallbackResult = findPossibleFilesFallback(userInput, allFiles);
+    debugLog('Fallback result', { 
+      resultCount: fallbackResult.length,
+      results: fallbackResult
+    });
+    
+    return fallbackResult;
   }
 }
 

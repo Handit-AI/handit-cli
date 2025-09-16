@@ -3,6 +3,104 @@
  */
 const React = require('react');
 
+/**
+ * Reconstruct a full file path from potentially chunked inputs
+ * @param {string} existingPath - The existing path fragment
+ * @param {string} newChunk - The new chunk to add
+ * @returns {string|null} - The reconstructed path or null if not applicable
+ */
+function reconstructPath(existingPath, newChunk) {
+  const path = require('path');
+  const fs = require('fs-extra');
+  
+  // Remove quotes from both parts
+  const cleanExisting = existingPath.replace(/^['"]|['"]$/g, '');
+  const cleanNewChunk = newChunk.replace(/^['"]|['"]$/g, '');
+  
+  // Try different reconstruction strategies
+  const strategies = [
+    // Strategy 1: Direct concatenation
+    () => cleanExisting + cleanNewChunk,
+    
+    // Strategy 2: Remove trailing quote from existing, add new chunk
+    () => cleanExisting.replace(/['"]$/, '') + cleanNewChunk,
+    
+    // Strategy 3: Remove leading quote from new chunk, concatenate
+    () => cleanExisting + cleanNewChunk.replace(/^['"]/, ''),
+    
+    // Strategy 4: Handle truncated words (like "projec" -> "projects")
+    () => {
+      // Look for common truncation patterns
+      const truncationPatterns = [
+        { from: /projec$/, to: 'projects' },
+        { from: /docu$/, to: 'documents' },
+        { from: /handi$/, to: 'handit' },
+        { from: /src\/$/, to: 'src/' }
+      ];
+      
+      let reconstructed = cleanExisting;
+      for (const pattern of truncationPatterns) {
+        if (pattern.from.test(reconstructed)) {
+          reconstructed = reconstructed.replace(pattern.from, pattern.to);
+          break;
+        }
+      }
+      
+      return reconstructed + cleanNewChunk;
+    }
+  ];
+  
+  // Try each strategy and validate the result
+  for (const strategy of strategies) {
+    try {
+      const candidate = strategy();
+      
+      // Validate the candidate path
+      if (isValidPath(candidate)) {
+        return candidate;
+      }
+    } catch (error) {
+      // Continue to next strategy
+      continue;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Check if a path looks valid
+ * @param {string} pathCandidate - The path to validate
+ * @returns {boolean} - Whether the path looks valid
+ */
+function isValidPath(pathCandidate) {
+  const path = require('path');
+  const fs = require('fs-extra');
+  
+  // Basic validation
+  if (!pathCandidate || pathCandidate.length < 5) return false;
+  
+  // Check for common path patterns
+  const hasValidPattern = (
+    // Unix-style absolute path
+    pathCandidate.startsWith('/') ||
+    // Windows-style absolute path
+    pathCandidate.match(/^[A-Za-z]:/) ||
+    // Relative path with file extension
+    (pathCandidate.includes('/') && pathCandidate.includes('.'))
+  );
+  
+  if (!hasValidPattern) return false;
+  
+  // Try to resolve and check if file exists
+  try {
+    const resolvedPath = path.resolve(pathCandidate);
+    return fs.existsSync(resolvedPath);
+  } catch (error) {
+    return false;
+  }
+}
+
 async function showModularSetupWizard(config) {
   const { render } = await import('ink');
   const { Box, Text, useInput } = await import('ink');
@@ -22,8 +120,10 @@ async function showModularSetupWizard(config) {
       // State management
       const [currentStep, setCurrentStep] = React.useState(1);
       const [agentName, setAgentName] = React.useState('');
-      const [entryFile, setEntryFile] = React.useState('');
-      const [entryFunction, setEntryFunction] = React.useState('');
+  const [entryFile, setEntryFile] = React.useState('');
+  const [entryFunction, setEntryFunction] = React.useState('');
+  const [previousInput, setPreviousInput] = React.useState('');
+  const previousInputRef = React.useRef('');
       const [error, setError] = React.useState(null);
       
       // File detection state
@@ -87,13 +187,17 @@ async function showModularSetupWizard(config) {
             // Handle regular input (including paste operations with multiple characters)
             let processedInput = input;
             
+            
             // Debug large inputs
             if (process.env.DEBUG_INPUT && input.length > 50) {
               console.log('Large input detected:', input.length, 'characters');
             }
             
             // Handle drag and drop file paths or multi-line content
-            if (input.includes('\n') || input.includes('\r') || input.includes('/') || input.includes('\\')) {
+            // Also handle file paths that look like they might be truncated
+            if (input.includes('\n') || input.includes('\r') || input.includes('/') || input.includes('\\') || 
+                (currentStep === 2 && input.includes('.') && input.length > 10)) {
+              
               let cleanedInput = input;
               
               // Handle multi-line input (common with drag and drop or large paste)
@@ -133,12 +237,48 @@ async function showModularSetupWizard(config) {
                       processedInput = cleanedInput;
                     }
                   } else {
-                    // It's already a relative path
-                    processedInput = cleanedInput;
+                    // It's a relative path, but it might be truncated
+                    // Try to find the full path by searching from common locations
+                    const possiblePaths = [
+                      path.resolve(projectRoot, cleanedInput),
+                      path.resolve(process.cwd(), cleanedInput),
+                      path.resolve(process.env.HOME || '', cleanedInput),
+                      path.resolve('/Users', cleanedInput),
+                      path.resolve('/Users', process.env.USER || '', cleanedInput),
+                      path.resolve('/Users', process.env.USER || '', 'Documents', cleanedInput)
+                    ];
+                    
+                    // Find the first path that exists
+                    const existingPath = possiblePaths.find(p => fs.existsSync(p));
+                    if (existingPath) {
+                      // Try to make it relative to project root
+                      const relativePath = path.relative(projectRoot, existingPath);
+                      if (!relativePath.startsWith('..') && relativePath !== '') {
+                        processedInput = relativePath;
+                      } else {
+                        processedInput = existingPath;
+                      }
+                    } else {
+                      processedInput = cleanedInput;
+                    }
                   }
                 } catch (error) {
                   // If path processing fails, use the cleaned input
                   processedInput = cleanedInput;
+                }
+                
+                // Debug: Log the final processed input
+                if (process.env.DEBUG_DRAG_DROP) {
+                  const fs = require('fs-extra');
+                  const debugLog = {
+                    timestamp: new Date().toISOString(),
+                    step: currentStep,
+                    cleanedInput: cleanedInput,
+                    processedInput: processedInput,
+                    isAbsolute: path.isAbsolute(cleanedInput),
+                    projectRoot: projectRoot
+                  };
+                  fs.appendFileSync('/tmp/drag-drop-debug.log', JSON.stringify(debugLog, null, 2) + '\n---\n');
                 }
               } else {
                 processedInput = cleanedInput;
@@ -149,7 +289,38 @@ async function showModularSetupWizard(config) {
             if (currentStep === 1) {
               setAgentName(agentName + processedInput);
             } else if (currentStep === 2) {
-              setEntryFile(entryFile + processedInput);
+              // Smart path reconstruction for drag and drop chunking
+              let newEntryFile = entryFile + processedInput;
+              
+              // Detect if this looks like a path chunk continuation
+              // Special case: if current input starts with "ts/" and looks like a path fragment,
+              // it might be the continuation of a truncated absolute path
+              const isPathChunk = (
+                // Current input looks like a path fragment
+                (processedInput.includes('/') || processedInput.includes('\\')) &&
+                // Either previous input has slashes OR current input starts with "ts/" (common pattern)
+                ((entryFile.includes('/') || entryFile.includes('\\')) || 
+                 (processedInput.startsWith('ts/') && processedInput.includes('.'))) &&
+                // Current input doesn't start with a quote (indicating new path)
+                !processedInput.startsWith("'") && !processedInput.startsWith('"')
+              );
+              
+              
+              if (isPathChunk) {
+                // Try to reconstruct the full path using previous input if entryFile is empty
+                const sourcePath = entryFile || previousInputRef.current;
+                const reconstructedPath = reconstructPath(sourcePath, processedInput);
+                
+                if (reconstructedPath && reconstructedPath !== newEntryFile) {
+                  newEntryFile = reconstructedPath;
+                }
+              }
+              
+              // Store current input as previous for next iteration
+              setPreviousInput(processedInput);
+               previousInputRef.current = processedInput;
+              
+              setEntryFile(newEntryFile);
             } else if (currentStep === 3) {
               setEntryFunction(entryFunction + processedInput);
             }
