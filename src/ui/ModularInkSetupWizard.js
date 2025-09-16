@@ -819,7 +819,6 @@ async function showModularSetupWizard(config) {
             ]),
             
             // Final Message
-            React.createElement(Text, { key: 'final-message', color: 'green', bold: true, marginTop: 1 }, '✅ Your autonomous engineer is ready!'),
             React.createElement(Text, { key: 'dashboard-link', color: 'gray', marginTop: 1 }, '   Traces will appear in your dashboard at https://dashboard.handit.ai')
           ]) : null,
           

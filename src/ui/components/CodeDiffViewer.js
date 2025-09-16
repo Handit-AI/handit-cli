@@ -177,7 +177,7 @@ function CodeDiffViewer(React, Box, Text, { filePath, changes, originalFileConte
             }, '✗ No')
           )
         ]),
-        React.createElement(Text, { key: 'diff-help', color: 'gray' }, 'Use ← → arrows to navigate, Y/N keys, or Enter to confirm')
+        React.createElement(Text, { key: 'diff-help', color: 'gray' }, '← → to navigate, Y/N or Enter to confirm')
       ])
     ]),
   ]);

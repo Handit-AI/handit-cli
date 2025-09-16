@@ -38,7 +38,6 @@ async function saveAuth(authData) {
  * @returns {Promise<Object>} - Authentication result
  */
 async function authenticate() {
-  console.log(chalk.blue.bold('\n🔐 Handit Authentication'));
   console.log(chalk.gray('Authenticate this machine with Handit.\n'));
 
   // Check if already authenticated
