@@ -673,8 +673,8 @@ async function showModularSetupWizard(config) {
           WelcomeHeader(React, Text)
         ),
         
-        // Step 1: Agent Name
-        currentStep >= 1 ? React.createElement(Box, { key: 'agent-name-step' },
+        // Step 1: Agent Name (only show when on step 1)
+        currentStep === 1 ? React.createElement(Box, { key: 'agent-name-step' },
           AgentNameStep(React, Box, Text, {
             agentName: agentName || 'my-agent',
             onInput: setAgentName,
@@ -682,14 +682,24 @@ async function showModularSetupWizard(config) {
           })
         ) : null,
         
-        // Step 2: Entry File
-        currentStep >= 2 ? React.createElement(Box, { key: 'entry-file-step' },
+        // Show completed agent name when not on step 1
+        currentStep > 1 && agentName ? React.createElement(Box, { key: 'agent-name-complete', marginTop: 1 }, [
+          React.createElement(Text, { key: 'agent-complete', color: '#71f2af' }, 'Agent Name: ' + agentName)
+        ]) : null,
+        
+        // Step 2: Entry File (only show when on step 2)
+        currentStep === 2 ? React.createElement(Box, { key: 'entry-file-step' },
           EntryFileStep(React, Box, Text, {
             entryFile: entryFile,
             onInput: setEntryFile,
             currentValue: displayValue
           })
         ) : null,
+        
+        // Show completed file when not on step 2
+        currentStep > 2 && entryFile ? React.createElement(Box, { key: 'entry-file-complete', marginTop: 1 }, [
+          React.createElement(Text, { key: 'file-complete', color: '#71f2af' }, 'Entry Point File: ' + entryFile)
+        ]) : null,
         
         // Step 3: Entry Function (only show when on step 3)
         currentStep === 3 ? React.createElement(Box, { key: 'entry-function-step' },
@@ -699,6 +709,11 @@ async function showModularSetupWizard(config) {
             currentValue: displayValue
           })
         ) : null,
+        
+        // Show completed function when not on step 3
+        currentStep > 3 && entryFunction ? React.createElement(Box, { key: 'entry-function-complete', marginTop: 1 }, [
+          React.createElement(Text, { key: 'function-complete', color: '#71f2af' }, 'Entry Function: ' + entryFunction)
+        ]) : null,
         
         
         // Step 5: File Detection
@@ -724,7 +739,7 @@ async function showModularSetupWizard(config) {
             `🔍 Function Detection in ${selectedFile?.file || 'selected file'}`
           ),
           React.createElement(Box, { key: 'step6-progress', marginTop: 2, flexDirection: 'column' }, [
-            React.createElement(Text, { key: 'step6-status', color: '#1f4d53' }, fileDetectionStatus || '🔍 Analyzing functions in file...'),
+            React.createElement(Text, { key: 'step6-status', color: '#c8c8c84d' }, fileDetectionStatus || '🔍 Analyzing functions in file...'),
             React.createElement(Box, { key: 'step6-bar', marginTop: 1, width: 40 }, [
             React.createElement(Text, { key: 'step6-bar-fill', backgroundColor: '#71f2af' }, '█'.repeat(Math.floor((fileDetectionProgress || 0) / 2.5))),
             React.createElement(Text, { key: 'step6-bar-empty', color: '#0c272e' }, '░'.repeat(40 - Math.floor((fileDetectionProgress || 0) / 2.5))),
@@ -746,7 +761,6 @@ async function showModularSetupWizard(config) {
         currentStep === 7 ? React.createElement(Box, { key: 'step7', flexDirection: 'column', marginTop: 2 }, [
           React.createElement(Text, { key: 'step7-title', color: '#71f2af', bold: true }, aiGenerationStatus || '🔄 AI-Powered Code Generation'),
           aiGenerationStatus && !aiGenerationStatus.includes('complete') ? React.createElement(Box, { key: 'step8-progress', marginTop: 2, flexDirection: 'column' }, [
-            React.createElement(Text, { key: 'step8-status', color: '#1f4d53' }, aiGenerationStatus),
             React.createElement(Box, { key: 'step8-bar', marginTop: 1, width: 40 }, [
               React.createElement(Text, { key: 'step8-bar-fill', backgroundColor: '#71f2af' }, '█'.repeat(Math.floor((aiGenerationProgress || 0) / 2.5))),
               React.createElement(Text, { key: 'step8-bar-empty', color: '#0c272e' }, '░'.repeat(40 - Math.floor((aiGenerationProgress || 0) / 2.5))),
@@ -770,11 +784,11 @@ async function showModularSetupWizard(config) {
         currentStep === 9 ? React.createElement(Box, { key: 'step9', flexDirection: 'column', marginTop: 2 }, [
           React.createElement(Text, { key: 'step9-title', color: '#71f2af', bold: true }, '✅ Changes Applied Successfully!'),
           React.createElement(Text, { key: 'step9-subtitle', color: '#71f2af', bold: true }, '🔧 Finalizing setup...'),
-          React.createElement(Text, { key: 'step9-description', color: '#1f4d53' }, 'Please wait while we complete the setup process.'),
+          React.createElement(Text, { key: 'step9-description', color: '#c8c8c84d' }, 'Please wait while we complete the setup process.'),
           
           // File Writing Progress Bar
           fileWritingStatus ? React.createElement(Box, { key: 'file-writing-progress', marginTop: 2, flexDirection: 'column' }, [
-            React.createElement(Text, { key: 'file-writing-status', color: '#1f4d53' }, fileWritingStatus),
+            React.createElement(Text, { key: 'file-writing-status', color: '#c8c8c84d' }, fileWritingStatus),
             React.createElement(Box, { key: 'file-writing-bar', marginTop: 1, width: 40 }, [
               React.createElement(Text, { key: 'file-writing-bar-fill', backgroundColor: '#71f2af' }, '█'.repeat(Math.floor((fileWritingProgress || 0) / 2.5))),
               React.createElement(Text, { key: 'file-writing-bar-empty', color: '#0c272e' }, '░'.repeat(40 - Math.floor((fileWritingProgress || 0) / 2.5))),
@@ -791,40 +805,42 @@ async function showModularSetupWizard(config) {
           setupInstructions ? React.createElement(Box, { key: 'setup-instructions', borderStyle: 'single', borderColor: 'green', padding: 1, marginTop: 2, flexDirection: 'column' }, [
             React.createElement(Text, { key: 'instructions-title', color: '#71f2af', bold: true, marginBottom: 1 }, setupInstructions.title),
             
-            // SDK Installation
+            // Step 1: SDK Installation
             React.createElement(Box, { key: 'sdk-section', marginBottom: 1 }, [
-              React.createElement(Text, { key: 'sdk-label', color: '#1f4d53', bold: true }, '📦 Install SDK:'),
+              React.createElement(Text, { key: 'sdk-label', color: '#71f2af', bold: true }, '1️⃣  Install the SDK:'),
               React.createElement(Text, { key: 'sdk-command', color: 'white', marginLeft: 2 }, `   ${setupInstructions.sdkInstall}`)
             ]),
             
-            // API Key Setup
+            // Step 2: API Key Setup
             React.createElement(Box, { key: 'api-section', marginBottom: 1 }, [
-              React.createElement(Text, { key: 'api-label', color: '#1f4d53', bold: true }, '🔑 Set API Key:'),
+              React.createElement(Text, { key: 'api-label', color: '#71f2af', bold: true }, '2️⃣  Set the API Key:'),
               React.createElement(Text, { key: 'api-command', color: 'white', marginLeft: 2 }, `   export HANDIT_API_KEY=${setupInstructions.apiKey}`)
             ]),
             
-            // Run Command
+            // Step 3: Run Agent
             React.createElement(Box, { key: 'run-section', marginBottom: 1 }, [
-              React.createElement(Text, { key: 'run-label', color: '#1f4d53', bold: true }, '🚀 Run Agent:'),
-              React.createElement(Text, { key: 'run-command', color: 'white', marginLeft: 2 }, `   ${setupInstructions.runCommand}`)
+              React.createElement(Text, { key: 'run-label', color: '#71f2af', bold: true }, '3️⃣  Run your agent for the first time:'),
+              React.createElement(Text, { key: 'run-command', color: 'white', marginLeft: 2 }, `   ${setupInstructions.runCommand}`),
+              React.createElement(Text, { key: 'run-explanation', color: '#c8c8c84d', marginLeft: 2, marginTop: 1 }, '   → This will create your first trace in the dashboard'),
+              React.createElement(Text, { key: 'run-future', color: '#c8c8c84d', marginLeft: 2 }, '   → After setting up your AI provider, you\'ll see evaluations & optimizations')
             ]),
             
             // API Keys Info
             React.createElement(Box, { key: 'keys-section', marginTop: 1, flexDirection: 'column' }, [
               React.createElement(Text, { key: 'keys-label', color: '#71f2af', bold: true }, '🔧 API Keys:'),
               React.createElement(Box, { key: 'staging-key-box', marginTop: 1 }, [
-                React.createElement(Text, { key: 'staging-key', color: '#1f4d53', marginLeft: 2 }, `   Staging: ${setupInstructions.stagingApiToken}`)
+                React.createElement(Text, { key: 'staging-key', color: '#c8c8c84d', marginLeft: 2 }, `   Staging: ${setupInstructions.stagingApiToken}`)
               ]),
               React.createElement(Box, { key: 'production-key-box', marginTop: 1 }, [
-                React.createElement(Text, { key: 'production-key', color: '#1f4d53', marginLeft: 2 }, `   Production: ${setupInstructions.productionApiToken}`)
+                React.createElement(Text, { key: 'production-key', color: '#c8c8c84d', marginLeft: 2 }, `   Production: ${setupInstructions.productionApiToken}`)
               ])
             ]),
             
             // Final Message
-            React.createElement(Text, { key: 'dashboard-link', color: '#1f4d53', marginTop: 1 }, '   Traces will appear in your dashboard at https://dashboard.handit.ai')
+            React.createElement(Text, { key: 'dashboard-link', color: '#71f2af', marginTop: 1, bold: true }, '   📊 View your traces: https://dashboard.handit.ai')
           ]) : null,
           
-          React.createElement(Text, { key: 'step10-exit', color: '#1f4d53', marginTop: 2 }, 'Setup complete! Closing in 3 seconds...'),
+          React.createElement(Text, { key: 'step10-exit', color: '#c8c8c84d', marginTop: 2 }, 'Setup complete! Closing in 3 seconds...'),
         ]) : null,
         
         // Error message

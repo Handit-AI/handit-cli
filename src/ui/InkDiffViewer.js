@@ -126,7 +126,7 @@ async function showInkDiffViewer(filePath, changes) {
           // Inner box with title
           React.createElement(Box, { key: 'inner-box', flexDirection: 'column' }, [
             React.createElement(Box, { key: 'inner-title', borderStyle: 'single', borderColor: 'yellow', padding: 1 },
-              React.createElement(Text, { bold: true, color: 'yellow' }, `📝 Editing ${fileName}`)
+              React.createElement(Text, { bold: true, color: '#71f2af' }, `📝 Editing ${fileName}`)
             ),
             
             // Changes content
@@ -138,7 +138,7 @@ async function showInkDiffViewer(filePath, changes) {
         
         // Confirmation prompt with selection
         React.createElement(Box, { key: 'prompt', marginTop: 2, flexDirection: 'column' }, [
-          React.createElement(Text, { key: 'question', color: 'yellow' }, '❓ Do you want to make this edit to the file?'),
+          React.createElement(Text, { key: 'question', color: '#71f2af' }, '❓ Do you want to make this edit to the file?'),
           React.createElement(Box, { key: 'options', marginTop: 1, flexDirection: 'row' }, [
             React.createElement(Box, { key: 'yes-option', marginRight: 2 },
               React.createElement(Text, {

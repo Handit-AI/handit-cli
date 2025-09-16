@@ -85,7 +85,7 @@ async function callLLMAPI({ messages, model, response_format, temperature, max_t
 
     const response = await axios.post(`${apiUrl}/cli/auth/llm`, requestBody, {
       headers,
-      timeout: 30000 // 30 second timeout
+      timeout: 1200000 // 20 minute timeout
     });
 
     if (!response.data || !response.data.result) {

@@ -9,7 +9,7 @@ console.log('🎨 Testing Handit Brand Colors...\n');
 console.log('🎯 Handit Brand Colors Applied:');
 console.log('• #0c272e (Dark Teal) - Backgrounds, borders, progress bars');
 console.log('• #71f2af (Bright Green) - Accents, highlights, active states');
-console.log('• #1f4d53 (Medium Teal) - Secondary text, descriptions');
+console.log('• #c8c8c84d (Medium Teal) - Secondary text, descriptions');
 console.log('');
 
 console.log('🔴 BEFORE (Rough UI):');
@@ -38,10 +38,10 @@ console.log('• ModularInkSetupWizard - All step titles, progress bars, instruc
 console.log('');
 
 console.log('🎨 Visual Improvements:');
-console.log('• Input fields: Dark teal background (#0c272e) with medium teal borders (#1f4d53)');
+console.log('• Input fields: Dark teal background (#0c272e) with medium teal borders (#c8c8c84d)');
 console.log('• Cursors: Bright green (#71f2af) for visibility');
 console.log('• Titles: Bright green (#71f2af) for emphasis');
-console.log('• Descriptions: Medium teal (#1f4d53) for readability');
+console.log('• Descriptions: Medium teal (#c8c8c84d) for readability');
 console.log('• Progress bars: Bright green fill (#71f2af) with dark teal empty (#0c272e)');
 console.log('• Selection highlights: Bright green borders (#71f2af) with dark teal background (#0c272e)');
 console.log('');

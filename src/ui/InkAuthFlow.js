@@ -19,7 +19,7 @@ function AuthStatusCheck({ onAuthenticated, onNeedsAuth }) {
   }, []);
 
   return React.createElement(Box, { flexDirection: 'column', alignItems: 'center', padding: 2 }, [
-    React.createElement(Text, { key: 'checking', color: 'yellow' }, '🔍 Checking authentication status...'),
+    React.createElement(Text, { key: 'checking', color: '#71f2af' }, '🔍 Checking authentication status...'),
   ]);
 }
 
@@ -119,7 +119,7 @@ function BrowserAuth({ onCodeEntered, onCancel }) {
   return React.createElement(Box, { flexDirection: 'column', padding: 2 }, [
     // Header
     React.createElement(Box, { key: 'header', flexDirection: 'column', alignItems: 'center', marginBottom: 2 }, [
-      React.createElement(Text, { key: 'title', color: 'yellow', bold: true }, '🔑 Login to Handit'),
+      React.createElement(Text, { key: 'title', color: '#71f2af', bold: true }, '🔑 Login to Handit'),
       React.createElement(Text, { key: 'subtitle', color: 'gray' }, 'Opening default browser to CLI auth page...'),
     ]),
     

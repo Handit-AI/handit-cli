@@ -3,10 +3,11 @@
  */
 function WelcomeHeader(React, Text) {
   return [
-    React.createElement(Text, { key: 'title', color: '#71f2af', bold: true }, '🚀 Autonomous Engineer Setup'),
-    React.createElement(Text, { key: 'subtitle', color: 'white', bold: true }, 'Set up autonomous engineering capabilities for your AI agent'),
-    React.createElement(Text, { key: 'description', color: '#1f4d53' }, 'Configure monitoring, evaluation, and optimization for continuous improvement'),
-    React.createElement(Text, { key: 'separator', color: '#0c272e' }, '─'.repeat(60)),
+    React.createElement(Text, { key: 'welcome', color: '#71f2af', bold: true }, '👋 Welcome to Handit'),
+    React.createElement(Text, { key: 'title', color: 'white', bold: true }, 'Setup your Handit teammate!'),
+    React.createElement(Text, { key: 'process-1', color: '#c8c8c84d' }, 'Ship reliable AI faster. Handit will catch hallucinations, extraction errors & PII'),
+    React.createElement(Text, { key: 'process-2', color: '#c8c8c84d' }, 'and will create verified, tested fixes you approve locally and in prod.'),
+    React.createElement(Text, { key: 'separator', color: '#0c272e', marginTop: 1 }, '─'.repeat(60)),
   ];
 }
 

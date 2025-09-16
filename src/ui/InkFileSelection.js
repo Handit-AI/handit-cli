@@ -89,7 +89,7 @@ async function showInkFileSelection(files) {
           
           // Instructions
           React.createElement(Box, { key: 'instructions' }, [
-            React.createElement(Text, { key: 'help-text', color: 'gray', dimColor: true }, 'Use ↑ ↓ arrows to navigate, Enter to select'),
+            React.createElement(Text, { key: 'help-text', color: '#71f2af', bold: true }, '💡 Use ↑↓ arrows to navigate, Enter to select'),
           ])
         ]);
       }

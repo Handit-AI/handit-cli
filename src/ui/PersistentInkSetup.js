@@ -84,13 +84,13 @@ async function showPersistentSetupWizard(config) {
           // Header
           React.createElement(Box, { key: 'header', flexDirection: 'column', alignItems: 'center', marginBottom: 2 }, [
             React.createElement(Text, { key: 'title', color: 'cyan', bold: true }, '🚀 Autonomous Engineer Setup'),
-            React.createElement(Text, { key: 'subtitle', color: 'white', bold: true }, 'Add monitoring, evaluation, and optimization to your AI agent'),
-            React.createElement(Text, { key: 'description', color: 'yellow' }, 'Configure monitoring, evaluation, and optimization for continuous improvement'),
+            React.createElement(Text, { key: 'subtitle', color: 'white', bold: true }, 'Add Handit monitoring, evaluation, and optimization to your AI agent'),
+            React.createElement(Text, { key: 'description', color: '#c8c8c84d' }, 'Configure monitoring, evaluation, and optimization for continuous improvement'),
           ]),
           
           // Step indicator
           React.createElement(Box, { key: 'step', marginBottom: 2 }, [
-            React.createElement(Text, { key: 'step-text', color: 'yellow', bold: true }, '📝 Step 1: Agent Information'),
+            React.createElement(Text, { key: 'step-text', color: '#71f2af', bold: true }, '📝 Step 1: Agent Information'),
           ]),
           
           // Input prompt
@@ -169,7 +169,7 @@ async function showPersistentSetupWizard(config) {
         return React.createElement(Box, { flexDirection: 'column', padding: 2 }, [
           // Step indicator
           React.createElement(Box, { key: 'step', marginBottom: 2 }, [
-            React.createElement(Text, { key: 'step-text', color: 'yellow', bold: true }, '🎯 Step 2: Agent Entry Point'),
+            React.createElement(Text, { key: 'step-text', color: '#71f2af', bold: true }, '🎯 Step 2: Agent Entry Point'),
           ]),
           
           // Description

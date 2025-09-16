@@ -37,7 +37,7 @@ async function showInkFileDetection() {
         
         return React.createElement(Box, { flexDirection: 'column', alignItems: 'center', padding: 2 }, [
           React.createElement(Text, { key: 'title', color: 'cyan', bold: true }, '🔍 Smart File Detection'),
-          React.createElement(Text, { key: 'subtitle', color: 'yellow' }, 'Using AI to find the correct file and function...'),
+          React.createElement(Text, { key: 'subtitle', color: '#71f2af' }, 'Using AI to find the correct file and function...'),
           React.createElement(Box, { key: 'progress-container', marginTop: 2, marginBottom: 1 }, [
             React.createElement(Text, { key: 'progress-bar', color: 'green' }, `[${progressBar}] ${progress}%`),
           ]),

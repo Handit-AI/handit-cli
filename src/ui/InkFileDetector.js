@@ -85,7 +85,7 @@ async function showInkFileDetection(userFileInput, userFunctionInput, projectRoo
           React.createElement(Text, { key: 'title', color: 'cyan', bold: true }, '🔍 Smart File Detection'),
           React.createElement(Text, { key: 'subtitle', color: 'gray' }, 'Using AI to find the correct file and function...'),
           React.createElement(Box, { key: 'progress', marginTop: 2, flexDirection: 'column' }, [
-            React.createElement(Text, { key: 'status', color: 'yellow' }, status),
+            React.createElement(Text, { key: 'status', color: '#71f2af' }, status),
             React.createElement(Box, { key: 'bar', marginTop: 1, width: 40 }, [
               React.createElement(Text, { key: 'bar-fill', backgroundColor: 'blue' }, '█'.repeat(Math.floor(progress / 2.5))),
               React.createElement(Text, { key: 'bar-empty', color: 'gray' }, '░'.repeat(40 - Math.floor(progress / 2.5))),
@@ -113,7 +113,7 @@ async function showInkFileDetection(userFileInput, userFunctionInput, projectRoo
         });
 
         return React.createElement(Box, { flexDirection: 'column', padding: 2 }, [
-          React.createElement(Text, { key: 'title', color: 'yellow', bold: true }, `Found ${possibleFiles.length} possible files:`),
+          React.createElement(Text, { key: 'title', color: '#71f2af', bold: true }, `Found ${possibleFiles.length} possible files:`),
           React.createElement(Box, { key: 'files', flexDirection: 'column', marginTop: 1 }, 
             possibleFiles.map((file, index) => 
               React.createElement(Box, { key: `file-${index}`, flexDirection: 'row' }, [
@@ -127,8 +127,8 @@ async function showInkFileDetection(userFileInput, userFunctionInput, projectRoo
               ])
             )
           ),
-          React.createElement(Text, { key: 'instructions', color: 'gray', marginTop: 2 }, 
-            'Use arrow keys to navigate, Enter to select'
+          React.createElement(Text, { key: 'instructions', color: '#71f2af', marginTop: 2, bold: true }, 
+            '💡 Use ↑↓ arrows to navigate, Enter to select'
           ),
         ]);
       }
@@ -175,7 +175,7 @@ async function showInkFileDetection(userFileInput, userFunctionInput, projectRoo
         return React.createElement(Box, { flexDirection: 'column', padding: 2 }, [
           React.createElement(Text, { key: 'title', color: 'cyan', bold: true }, `🔍 Function Detection in ${selectedFile.file}`),
           React.createElement(Box, { key: 'progress', marginTop: 2, flexDirection: 'column' }, [
-            React.createElement(Text, { key: 'status', color: 'yellow' }, status),
+            React.createElement(Text, { key: 'status', color: '#71f2af' }, status),
             React.createElement(Box, { key: 'bar', marginTop: 1, width: 40 }, [
               React.createElement(Text, { key: 'bar-fill', backgroundColor: 'blue' }, '█'.repeat(Math.floor(progress / 2.5))),
               React.createElement(Text, { key: 'bar-empty', color: 'gray' }, '░'.repeat(40 - Math.floor(progress / 2.5))),
@@ -215,7 +215,7 @@ async function showInkFileDetection(userFileInput, userFunctionInput, projectRoo
         };
 
         return React.createElement(Box, { flexDirection: 'column', padding: 2 }, [
-          React.createElement(Text, { key: 'title', color: 'yellow', bold: true }, 
+          React.createElement(Text, { key: 'title', color: '#71f2af', bold: true }, 
             `Found ${fileAnalysis.functions.length} possible functions/endpoints in ${selectedFile.file}:`
           ),
           React.createElement(Box, { key: 'functions', flexDirection: 'column', marginTop: 1 }, 
@@ -230,8 +230,8 @@ async function showInkFileDetection(userFileInput, userFunctionInput, projectRoo
               ])
             )
           ),
-          React.createElement(Text, { key: 'instructions', color: 'gray', marginTop: 2 }, 
-            'Use arrow keys to navigate, Enter to select'
+          React.createElement(Text, { key: 'instructions', color: '#71f2af', marginTop: 2, bold: true }, 
+            '💡 Use ↑↓ arrows to navigate, Enter to select'
           ),
         ]);
       }

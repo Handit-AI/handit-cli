@@ -558,7 +558,7 @@ Please add Handit.ai monitoring to the "${functionName}" function following the 
 
   getSetupInstructions() {
     const instructions = {
-      title: '🎉 Congratulations! Your agent is now connected!',
+      title: '🎉 Congratulations! Your agent is now connected to Handit!',
       language: this.language,
       apiKey: this.stagingApiToken || this.apiToken || 'your_api_key_here',
       stagingApiToken: this.stagingApiToken || 'Not available',

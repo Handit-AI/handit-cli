@@ -21,7 +21,6 @@ async function runCompleteInkSetup(options = {}) {
 
   try {
     // Step 1: Use existing authentication (keep original logic)
-    console.log(chalk.blue.bold('\n🔐 Handit Authentication'));
     const { authenticate } = require('../auth');
     const authResult = await authenticate();
     if (!authResult.authenticated) {
