@@ -158,8 +158,8 @@ async function showModularSetupWizard(config) {
           console.log('Input received:', JSON.stringify(input), 'Length:', input.length, 'Key:', JSON.stringify(key));
         }
 
-        // Handle Ctrl+C
-        if (key.ctrl && input === 'c') {
+        // Handle Ctrl+C (only if not in final step with auto-close)
+        if (key.ctrl && input === 'c' && currentStep !== 10) {
           reject(new Error('Setup cancelled by user'));
           return;
         }
@@ -557,7 +557,14 @@ async function showModularSetupWizard(config) {
               const setupInstructions = generator.getSetupInstructions();
               setSetupInstructions(setupInstructions);
               
-              // Don't auto-resolve - let user exit with Ctrl+C to keep instructions visible
+              // Auto-close after 3 seconds
+              setTimeout(() => {
+                resolve({
+                  agentName: agentName || 'my-agent',
+                  entryFile: selectedFile?.file || entryFile,
+                  applied: true
+                });
+              }, 3000);
               
             } catch (error) {
               setError(`Final setup failed: ${error.message}`);
@@ -728,7 +735,7 @@ async function showModularSetupWizard(config) {
             React.createElement(Text, { key: 'dashboard-link', color: 'gray', marginTop: 1 }, '   Traces will appear in your dashboard at https://dashboard.handit.ai')
           ]) : null,
           
-          React.createElement(Text, { key: 'step10-exit', color: 'gray', marginTop: 2 }, 'Press Ctrl+C to exit'),
+          React.createElement(Text, { key: 'step10-exit', color: 'gray', marginTop: 2 }, 'Setup complete! Closing in 3 seconds...'),
         ]) : null,
         
         // Error message
