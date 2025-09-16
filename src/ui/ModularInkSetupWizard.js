@@ -364,7 +364,7 @@ async function showModularSetupWizard(config) {
             agentName: agentName || 'my-agent',
             entryFile: selectedFile?.file || entryFile,
             entryFunction: selectedFunction?.name || entryFunction,
-            applied: shouldApplyCode
+            applied: true  // Always true when reaching step 10 (setup complete)
           });
           return;
         }
@@ -636,6 +636,7 @@ async function showModularSetupWizard(config) {
                 resolve({
                   agentName: agentName || 'my-agent',
                   entryFile: selectedFile?.file || entryFile,
+                  entryFunction: selectedFunction?.name || entryFunction,
                   applied: true
                 });
               }, 3000);
