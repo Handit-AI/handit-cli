@@ -807,10 +807,14 @@ async function showModularSetupWizard(config) {
             ]),
             
             // API Keys Info
-            React.createElement(Box, { key: 'keys-section', marginTop: 1 }, [
+            React.createElement(Box, { key: 'keys-section', marginTop: 1, flexDirection: 'column' }, [
               React.createElement(Text, { key: 'keys-label', color: 'cyan', bold: true }, '🔧 API Keys:'),
-              React.createElement(Text, { key: 'staging-key', color: 'gray', marginLeft: 2 }, `   Staging: ${setupInstructions.stagingApiToken}`),
-              React.createElement(Text, { key: 'production-key', color: 'gray', marginLeft: 2 }, `   Production: ${setupInstructions.productionApiToken}`)
+              React.createElement(Box, { key: 'staging-key-box', marginTop: 1 }, [
+                React.createElement(Text, { key: 'staging-key', color: 'gray', marginLeft: 2 }, `   Staging: ${setupInstructions.stagingApiToken}`)
+              ]),
+              React.createElement(Box, { key: 'production-key-box', marginTop: 1 }, [
+                React.createElement(Text, { key: 'production-key', color: 'gray', marginLeft: 2 }, `   Production: ${setupInstructions.productionApiToken}`)
+              ])
             ]),
             
             // Final Message
