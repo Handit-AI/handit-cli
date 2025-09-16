@@ -45,9 +45,7 @@ class SimplifiedCodeGenerator {
       }
 
       // Use AI to generate the complete modified file
-      const aiSpinner = ora('🤖 Setting up your Autonomous Engineer...').start();
       const modifiedContent = await this.addHanditIntegrationToFile(fileContent, entryFile, entryFunction, this.agentName);
-      aiSpinner.succeed('Autonomous Engineer setup complete');
 
       // Show visual diff and get user confirmation
       const shouldApply = await this.showVisualDiffAI(fileContent, modifiedContent, entryFile);

@@ -36,6 +36,9 @@ async function showModularSetupWizard(config) {
       const [selectedFunctionIndex, setSelectedFunctionIndex] = React.useState(0);
       const [selectedFunction, setSelectedFunction] = React.useState(null);
       
+      // Diff viewer state
+      const [selectedDiffOption, setSelectedDiffOption] = React.useState(0); // 0 = Yes, 1 = No
+      
       // AI Code Generation state
       const [aiGenerationStatus, setAiGenerationStatus] = React.useState('');
       const [aiGenerationProgress, setAiGenerationProgress] = React.useState(0);
@@ -173,47 +176,93 @@ async function showModularSetupWizard(config) {
             setSelectedFunctionIndex(selectedFunctionIndex + 1);
           } else if (key.return) {
             setSelectedFunction(fileAnalysis.functions[selectedFunctionIndex]);
-            setCurrentStep(7);
+            setCurrentStep(7); // Go directly to AI code generation
           }
         }
 
         // Handle diff viewer
         if (currentStep === 8 && codeChanges) {
-          if (input === 'y' || input === 'Y') {
+          if (key.leftArrow) {
+            setSelectedDiffOption(0); // Yes
+          } else if (key.rightArrow) {
+            setSelectedDiffOption(1); // No
+          } else if (input === 'y' || input === 'Y' || (key.return && selectedDiffOption === 0)) {
             setShouldApplyCode(true);
-          } else if (input === 'n' || input === 'N') {
+            // Write the file when user confirms
+            if (codeChanges.length > 0 && selectedFile) {
+              setTimeout(async () => {
+                try {
+                  const fs = require('fs-extra');
+                  const path = require('path');
+                  const filePath = path.resolve(selectedFile.file);
+                  
+                  // Re-generate the modified content to write to file
+                  const { SimplifiedCodeGenerator } = require('../generator/simplifiedGenerator');
+                  const generator = new SimplifiedCodeGenerator(
+                    config.language, 
+                    agentName || 'my-agent', 
+                    config.projectRoot
+                  );
+                  
+                  const fileContent = await fs.readFile(filePath, 'utf8');
+                  const modifiedContent = await generator.addHanditIntegrationToFile(
+                    fileContent, 
+                    selectedFile.file, 
+                    selectedFunction.name, 
+                    agentName || 'my-agent'
+                  );
+                  
+                  await fs.writeFile(filePath, modifiedContent);
+                } catch (error) {
+                  setError(`Failed to write file: ${error.message}`);
+                }
+              }, 100);
+            }
+            setCurrentStep(9);
+          } else if (input === 'n' || input === 'N' || (key.return && selectedDiffOption === 1)) {
             setShouldApplyCode(false);
-          } else if (key.return) {
-            setShouldApplyCode(true);
+            setCurrentStep(9);
           }
         }
       });
+
+        // Auto-advance from step 4 to step 5 after a delay
+        React.useEffect(() => {
+          if (currentStep === 4) {
+            const timer = setTimeout(() => {
+              setCurrentStep(5);
+            }, 2000); // 2 second delay to show the completion message
+            
+            return () => clearTimeout(timer);
+          }
+        }, [currentStep]);
 
         // File detection effect
         React.useEffect(() => {
           if (currentStep === 5) {
             // eslint-disable-next-line no-inner-declarations
             async function runFileDetection() {
-            try {
-              setFileDetectionStatus('🔍 Analyzing functions in file...');
-              setFileDetectionProgress(0);
-              
-              const { findPossibleFiles } = require('../../utils/fileDetector');
-              const files = await findPossibleFiles(entryFile, entryFunction, config.projectRoot);
-              
-              setFileDetectionProgress(50);
-              setPossibleFiles(files);
-              setFileDetectionProgress(100);
-              setCurrentStep(5.5);
-              
-            } catch (error) {
-              setError(`File detection failed: ${error.message}`);
+              try {
+                setFileDetectionStatus('🔍 Analyzing files in project...');
+                setFileDetectionProgress(0);
+                
+                const { getAllFiles, findPossibleFiles } = require('../utils/fileDetector');
+                const allFiles = await getAllFiles(config.projectRoot);
+                const files = await findPossibleFiles(entryFile, allFiles);
+                
+                setFileDetectionProgress(50);
+                setPossibleFiles(files);
+                setFileDetectionProgress(100);
+                setCurrentStep(5.5);
+                
+              } catch (error) {
+                setError(`File detection failed: ${error.message}`);
+              }
             }
+            
+            runFileDetection();
           }
-          
-          runFileDetection();
-        }
-      }, [currentStep]);
+        }, [currentStep]);
 
         // Function detection effect
         React.useEffect(() => {
@@ -221,8 +270,8 @@ async function showModularSetupWizard(config) {
             // eslint-disable-next-line no-inner-declarations
             async function runFunctionDetection() {
             try {
-              const { findFunctionInFile } = require('../../utils/fileDetector');
-              const analysis = await findFunctionInFile(selectedFile.file, entryFunction, config.projectRoot);
+                const { findFunctionInFile } = require('../utils/fileDetector');
+              const analysis = await findFunctionInFile(entryFunction, selectedFile.file, config.projectRoot);
               
               setFileAnalysis(analysis);
               setCurrentStep(6.5);
@@ -245,21 +294,40 @@ async function showModularSetupWizard(config) {
               setAiGenerationStatus('🔄 AI-Powered Code Generation');
               setAiGenerationProgress(10);
               
-              // const fs = require('fs-extra');
-              // const path = require('path');
+              // Use the existing SimplifiedCodeGenerator
+              const fs = require('fs-extra');
+              const path = require('path');
+              const { SimplifiedCodeGenerator } = require('../generator/simplifiedGenerator');
               
-              // const filePath = path.resolve(selectedFile.file);
-              // const fileContent = await fs.readFile(filePath, 'utf8'); // Will be used for AI code generation
+              setAiGenerationStatus('📖 Reading file content...');
+              setAiGenerationProgress(30);
+              
+              const generator = new SimplifiedCodeGenerator(
+                config.language, 
+                agentName || 'my-agent', 
+                config.projectRoot
+              );
               
               setAiGenerationStatus('🤖 Setting up your Autonomous Engineer...');
               setAiGenerationProgress(60);
               
-              // Generate AI code (simplified for now)
-              const changes = [{ type: 'add', line: 1, content: '// AI-generated monitoring code' }];
-              setCodeChanges(changes);
+              // Generate the modified content using the existing logic
+              const filePath = path.resolve(selectedFile.file);
+              const fileContent = await fs.readFile(filePath, 'utf8');
+              const modifiedContent = await generator.addHanditIntegrationToFile(
+                fileContent, 
+                selectedFile.file, 
+                selectedFunction.name, 
+                agentName || 'my-agent'
+              );
+              
               setAiGenerationProgress(100);
               setAiGenerationStatus('✅ AI-generated handit integration complete');
-              setCurrentStep(8);
+              
+              // Compute diff using the existing SimplifiedCodeGenerator logic
+              const changes = generator.computeSmartDiff(fileContent.split('\n'), modifiedContent.split('\n'));
+              setCodeChanges(changes);
+              setCurrentStep(8); // Move to diff viewer
               
             } catch (error) {
               setError(`AI code generation failed: ${error.message}`);
@@ -272,7 +340,7 @@ async function showModularSetupWizard(config) {
 
       // Final completion effect
       React.useEffect(() => {
-        if (currentStep === 8 && shouldApplyCode !== null) {
+        if (currentStep === 9 && shouldApplyCode !== null) {
           setTimeout(() => {
             resolve({
               agentName: agentName || 'my-agent',
@@ -284,13 +352,14 @@ async function showModularSetupWizard(config) {
         }
       }, [currentStep, shouldApplyCode]);
 
-      // Get current input value for cursor
-      const getCurrentValue = () => {
-        if (currentStep === 1) return agentName;
-        if (currentStep === 2) return entryFile;
-        if (currentStep === 3) return entryFunction;
-        return '';
-      };
+
+        // Get current input value for cursor
+        const getCurrentValue = () => {
+          if (currentStep === 1) return agentName;
+          if (currentStep === 2) return entryFile;
+          if (currentStep === 3) return entryFunction;
+          return '';
+        };
 
       const displayValue = getCurrentValue() + (Date.now() % 1000 < 500 ? '_' : '');
 
@@ -375,22 +444,9 @@ async function showModularSetupWizard(config) {
           })
         ) : null,
         
-        // Step 7: Function Confirmed
+        // Step 7: AI Code Generation
         currentStep === 7 ? React.createElement(Box, { key: 'step7', flexDirection: 'column', marginTop: 2 }, [
-          React.createElement(Text, { key: 'step7-title', color: 'green', bold: true }, '✅ File and Function Detected'),
-          React.createElement(Text, { key: 'step7-subtitle', color: 'yellow' }, 'Please confirm the detected entry point:'),
-          React.createElement(Box, { key: 'step7-details', flexDirection: 'column', marginTop: 2 }, [
-            React.createElement(Text, { key: 'step7-file', color: 'white' }, `  File: ${selectedFile.file}`),
-            React.createElement(Text, { key: 'step7-type', color: 'white' }, `  Type: ${selectedFunction.type === 'endpoint' ? '🌐' : selectedFunction.type === 'method' ? '🔧' : selectedFunction.type === 'handler' ? '📡' : '⚙️'} ${selectedFunction.type || 'function'}`),
-            React.createElement(Text, { key: 'step7-name', color: 'white' }, `  Name: ${selectedFunction.name}`),
-            React.createElement(Text, { key: 'step7-line', color: 'white' }, `  Line: ${selectedFunction.line}`),
-            React.createElement(Text, { key: 'step7-code', color: 'gray' }, `  Code: ${selectedFunction.lineContent}`),
-          ]),
-        ]) : null,
-        
-        // Step 8: AI Code Generation
-        currentStep >= 8 ? React.createElement(Box, { key: 'step8', flexDirection: 'column', marginTop: 3 }, [
-          React.createElement(Text, { key: 'step8-title', color: 'cyan', bold: true }, aiGenerationStatus || '🔄 AI-Powered Code Generation'),
+          React.createElement(Text, { key: 'step7-title', color: 'cyan', bold: true }, aiGenerationStatus || '🔄 AI-Powered Code Generation'),
           aiGenerationStatus && !aiGenerationStatus.includes('complete') ? React.createElement(Box, { key: 'step8-progress', marginTop: 2, flexDirection: 'column' }, [
             React.createElement(Text, { key: 'step8-status', color: 'yellow' }, aiGenerationStatus),
             React.createElement(Box, { key: 'step8-bar', marginTop: 1, width: 40 }, [
@@ -400,13 +456,14 @@ async function showModularSetupWizard(config) {
           ]) : null,
         ]) : null,
         
-        // Step 8.5: Code Diff Viewer
+        // Step 8: Code Diff Viewer
         currentStep === 8 && codeChanges ? React.createElement(Box, { key: 'code-diff-viewer' },
           CodeDiffViewer(React, Box, Text, {
             filePath: selectedFile?.file,
             changes: codeChanges,
             onConfirm: () => setShouldApplyCode(true),
-            onReject: () => setShouldApplyCode(false)
+            onReject: () => setShouldApplyCode(false),
+            selectedOption: selectedDiffOption
           })
         ) : null,
         

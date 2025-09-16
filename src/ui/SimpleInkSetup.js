@@ -20,16 +20,8 @@ async function runSimpleInkPrompts(config, language) {
     };
   } catch (error) {
     // If user cancelled with Ctrl+C, don't fall back - just exit
-    if (error.message === 'Setup cancelled by user') {
-      throw error; // Re-throw to let the main flow handle cancellation
-    }
-    
-    console.log('Falling back to original setup prompts...');
     console.log('Error:', error.message);
-    
-    // Fallback to original setup prompts
-    const { runPrompts } = require('../setup/prompts');
-    return await runPrompts(config, language);
+    return null;
   }
 }
 
