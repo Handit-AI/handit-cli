@@ -63,19 +63,21 @@ async function runSimpleInkSetup(options = {}) {
     };
     const projectInfo = await runSimpleInkPrompts(configWithTokens, null);
 
-    // Step 3: Detect language from entry file (keep existing logic)
-    const languageSpinner = ora('Detecting file language...').start();
-    const { detectLanguageFromFile } = require('../setup/detectLanguage');
-    const language = detectLanguageFromFile(projectInfo.entryFile);
-    languageSpinner.succeed(`Detected: ${chalk.blue(language)} (from ${projectInfo.entryFile})`);
-
-    // Step 4: Check if code generation was already applied by the Ink wizard
+    // Step 3: Check if code generation was already applied by the Ink wizard
+    console.log('🔍 Debug: projectInfo.applied =', projectInfo.applied);
+    console.log('🔍 Debug: projectInfo =', JSON.stringify(projectInfo, null, 2));
+    
     if (projectInfo.applied) {
       console.log(chalk.green('✅ Setup already completed in Ink wizard'));
       console.log(chalk.gray('All steps including code generation, repository URL update, and setup instructions have been completed.'));
       return;
     } else {
-      // Generate simplified entry point tracing (fallback for non-Ink flows)
+      // Step 4: Detect language from entry file (fallback for non-Ink flows)
+      const languageSpinner = ora('Detecting file language...').start();
+      const { detectLanguageFromFile } = require('../setup/detectLanguage');
+      const language = detectLanguageFromFile(projectInfo.entryFile);
+      languageSpinner.succeed(`Detected: ${chalk.blue(language)} (from ${projectInfo.entryFile})`);
+      // Step 5: Generate simplified entry point tracing (fallback for non-Ink flows)
       const { SimplifiedCodeGenerator } = require('../generator/simplifiedGenerator');
       const simplifiedGenerator = new SimplifiedCodeGenerator(
         language, 
