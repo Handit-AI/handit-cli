@@ -151,7 +151,7 @@ async function findPossibleFilesWithGPT(userInput, allFiles) {
   debugLog('findPossibleFilesWithGPT called', {
     userInput,
     allFilesCount: allFiles.length,
-    allFiles: allFiles.slice(0, 10) // Log first 10 files to avoid huge logs
+    allFiles: allFiles // Log first 10 files to avoid huge logs
   });
 
   try {

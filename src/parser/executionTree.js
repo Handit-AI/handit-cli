@@ -1164,22 +1164,49 @@ async function getAllFiles(projectRoot) {
     const matches = await glob(pattern, {
       cwd: projectRoot,
       ignore: [
-        'node_modules/**',
-        '.git/**',
-        'dist/**',
-        'build/**',
-        'coverage/**',
-        '__pycache__/**',
-        '*.pyc',
-        '.env*',
-        'package-lock.json',
-        'yarn.lock',
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/dist/**',
+        '**/build/**',
+        '**/coverage/**',
+        '**/__pycache__/**',
+        '**/*.pyc',
+        '**/.env*',
+        '**/package-lock.json',
+        '**/yarn.lock',
+        '**/pnpm-lock.yaml',
+        '**/.next/**',
+        '**/.nuxt/**',
+        '**/.vuepress/**',
+        '**/.cache/**',
+        '**/tmp/**',
+        '**/temp/**'
       ],
     });
     files.push(...matches);
   }
 
-  return files.sort();
+  // Additional filtering to ensure no node_modules files slip through
+  const filteredFiles = files.filter(file => {
+    // Check if file path contains node_modules anywhere
+    if (file.includes('node_modules')) {
+      return false;
+    }
+    
+    // Check if file is in common build/cache directories
+    const pathParts = file.split('/');
+    const excludedDirs = ['dist', 'build', 'coverage', '.next', '.nuxt', '.cache', 'tmp', 'temp'];
+    
+    for (const part of pathParts) {
+      if (excludedDirs.includes(part)) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
+
+  return filteredFiles.sort();
 }
 
 /**
