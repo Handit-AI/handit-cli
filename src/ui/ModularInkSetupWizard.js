@@ -436,13 +436,27 @@ async function showModularSetupWizard(config) {
                 setFileDetectionStatus('🔍 Analyzing files in project...');
                 setFileDetectionProgress(0);
                 
+                await new Promise(resolve => setTimeout(resolve, 300));
+                setFileDetectionProgress(20);
+                setFileDetectionStatus('📁 Scanning project directory...');
+                
                 const { getAllFiles, findPossibleFiles } = require('../utils/fileDetector');
+                
+                await new Promise(resolve => setTimeout(resolve, 400));
+                setFileDetectionProgress(50);
+                setFileDetectionStatus('🔍 Finding relevant files...');
+                
                 const allFiles = await getAllFiles(config.projectRoot);
+                
+                await new Promise(resolve => setTimeout(resolve, 300));
+                setFileDetectionProgress(80);
+                setFileDetectionStatus('🎯 Analyzing file relevance...');
+                
                 const files = await findPossibleFiles(entryFile, allFiles);
                 
-                setFileDetectionProgress(50);
-                setPossibleFiles(files);
                 setFileDetectionProgress(100);
+                setFileDetectionStatus('✅ File analysis complete!');
+                setPossibleFiles(files);
                 setCurrentStep(5.5);
                 
               } catch (error) {
@@ -460,8 +474,24 @@ async function showModularSetupWizard(config) {
             // eslint-disable-next-line no-inner-declarations
             async function runFunctionDetection() {
             try {
-                const { findFunctionInFile } = require('../utils/fileDetector');
+              setFileDetectionStatus('🔍 Analyzing functions in file...');
+              setFileDetectionProgress(0);
+              
+              await new Promise(resolve => setTimeout(resolve, 200));
+              setFileDetectionProgress(25);
+              setFileDetectionStatus('📖 Reading file content...');
+              
+              const { findFunctionInFile } = require('../utils/fileDetector');
+              
+              await new Promise(resolve => setTimeout(resolve, 300));
+              setFileDetectionProgress(60);
+              setFileDetectionStatus('🔍 Finding functions...');
+              
               const analysis = await findFunctionInFile(entryFunction, selectedFile.file, config.projectRoot);
+              
+              await new Promise(resolve => setTimeout(resolve, 200));
+              setFileDetectionProgress(100);
+              setFileDetectionStatus('✅ Function analysis complete!');
               
               setFileAnalysis(analysis);
               setCurrentStep(6.5);
@@ -691,10 +721,10 @@ async function showModularSetupWizard(config) {
             `🔍 Function Detection in ${selectedFile?.file || 'selected file'}`
           ),
           React.createElement(Box, { key: 'step6-progress', marginTop: 2, flexDirection: 'column' }, [
-            React.createElement(Text, { key: 'step6-status', color: 'yellow' }, '🔍 Analyzing functions in file...'),
+            React.createElement(Text, { key: 'step6-status', color: 'yellow' }, fileDetectionStatus || '🔍 Analyzing functions in file...'),
             React.createElement(Box, { key: 'step6-bar', marginTop: 1, width: 40 }, [
-              React.createElement(Text, { key: 'step6-bar-fill', backgroundColor: 'blue' }, '█'.repeat(Math.floor(100 / 2.5))),
-              React.createElement(Text, { key: 'step6-bar-empty', color: 'gray' }, '░'.repeat(40 - Math.floor(100 / 2.5))),
+            React.createElement(Text, { key: 'step6-bar-fill', backgroundColor: 'blue' }, '█'.repeat(Math.floor((fileDetectionProgress || 0) / 2.5))),
+            React.createElement(Text, { key: 'step6-bar-empty', color: 'gray' }, '░'.repeat(40 - Math.floor((fileDetectionProgress || 0) / 2.5))),
             ]),
           ]),
         ]) : null,
