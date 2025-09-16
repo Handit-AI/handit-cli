@@ -21,16 +21,20 @@ function CodeDiffViewer(React, Box, Text, { filePath, changes, onConfirm, onReje
       React.createElement(Box, { key: 'diff-inner-box', borderStyle: 'single', borderColor: 'yellow', padding: 1, marginBottom: 2 }, [
         // Changes content
         React.createElement(Box, { key: 'diff-changes', flexDirection: 'column' },
-          changes.slice(0, 10).map((change, index) => 
-            React.createElement(Box, { key: `diff-change-${index}`, flexDirection: 'row' }, [
-              React.createElement(Text, { color: 'gray', width: 5 }, `${index + 1}:`),
+          changes.slice(0, 10).map((change, index) => {
+            const content = change.content || change.modifiedContent || '';
+            const displayContent = content.trim() === '' ? '(empty line)' : content;
+            
+            return React.createElement(Box, { key: `diff-change-${index}`, flexDirection: 'row', marginBottom: 1 }, [
+              React.createElement(Text, { color: 'gray', width: 5 }, `${change.line}:`),
               React.createElement(Text, { 
                 backgroundColor: change.type === 'add' ? 'green' : change.type === 'remove' ? 'red' : 'blue',
                 color: 'white', 
-                marginLeft: 1 
-              }, `${change.type === 'add' ? '+' : change.type === 'remove' ? '-' : '~'} ${change.content || change.modifiedContent}`)
-            ])
-          )
+                marginLeft: 1,
+                paddingX: 1
+              }, `${change.type === 'add' ? '+' : change.type === 'remove' ? '-' : '~'} ${displayContent}`)
+            ]);
+          })
         )
       ]),
       

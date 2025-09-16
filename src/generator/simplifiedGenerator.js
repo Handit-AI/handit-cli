@@ -7,6 +7,41 @@ const { callLLMAPI } = require('../utils/openai');
 const { showInkDiffViewer } = require('../ui/InkDiffViewer');
 
 /**
+ * Debug logger for code generation
+ */
+function debugLog(message, data = null) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] ${message}`;
+  
+  // Try console.log first (might work in some contexts)
+  try {
+    console.log(logMessage);
+    if (data) {
+      console.log(JSON.stringify(data, null, 2));
+    }
+  } catch (e) {
+    // Console might not be available in Ink context
+  }
+  
+  // Always write to debug file
+  try {
+    const debugFile = path.join(__dirname, '../../debug-code-generation.log');
+    const logEntry = data 
+      ? `${logMessage}\n${JSON.stringify(data, null, 2)}\n---\n`
+      : `${logMessage}\n---\n`;
+    
+    fs.appendFileSync(debugFile, logEntry);
+  } catch (e) {
+    // If we can't write to file, at least try to write to stderr
+    try {
+      process.stderr.write(logMessage + '\n');
+    } catch (e2) {
+      // Last resort - do nothing
+    }
+  }
+}
+
+/**
  * Simplified code generator that only instruments the entry point using AI
  */
 class SimplifiedCodeGenerator {
@@ -254,8 +289,11 @@ Please add Handit.ai monitoring to the "${functionName}" function following the 
         temperature: 0.1
       });
 
+      if (!response || !response.choices || !response.choices[0] || !response.choices[0].message) {
+        throw new Error('Invalid response structure from LLM API');
+      }
+
       let result = response.choices[0].message.content;
-      
       
       // Remove markdown code block markers if present
       if (result.startsWith('```')) {
@@ -270,7 +308,6 @@ Please add Handit.ai monitoring to the "${functionName}" function following the 
         }
         result = lines.join('\n');
       }
-      
       
       console.log(chalk.gray(`✅ AI-generated handit integration for ${filePath}`));
       

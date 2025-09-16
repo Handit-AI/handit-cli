@@ -72,21 +72,8 @@ async function getAuthHeaders() {
  * @returns {Promise<Object>} - API response
  */
 async function callLLMAPI({ messages, model, response_format, temperature, max_tokens }) {
-  debugLog('callLLMAPI called', {
-    model,
-    messageCount: messages.length,
-    response_format,
-    temperature,
-    max_tokens,
-    apiUrl
-  });
-
   try {
     const headers = await getAuthHeaders();
-    debugLog('Auth headers obtained', { 
-      hasAuth: !!headers.Authorization,
-      headerKeys: Object.keys(headers)
-    });
     
     const requestBody = {
       messages,
@@ -96,24 +83,9 @@ async function callLLMAPI({ messages, model, response_format, temperature, max_t
       ...(max_tokens && { max_tokens })
     };
 
-    debugLog('Making HTTP request', {
-      url: `${apiUrl}/cli/auth/llm`,
-      bodySize: JSON.stringify(requestBody).length,
-      hasMessages: !!requestBody.messages,
-      messageCount: requestBody.messages.length
-    });
-
     const response = await axios.post(`${apiUrl}/cli/auth/llm`, requestBody, {
       headers,
       timeout: 30000 // 30 second timeout
-    });
-
-    debugLog('HTTP response received', {
-      status: response.status,
-      statusText: response.statusText,
-      hasData: !!response.data,
-      hasResult: !!response.data.result,
-      resultType: typeof response.data.result
     });
 
     if (!response.data || !response.data.result) {
@@ -122,14 +94,6 @@ async function callLLMAPI({ messages, model, response_format, temperature, max_t
 
     return response.data.result;
   } catch (error) {
-    debugLog('LLM API error', {
-      error: error.message,
-      code: error.code,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      responseData: error.response?.data
-    });
-    
     // Try console.error as well
     try {
       console.error('LLM API error:', error.message);
@@ -148,15 +112,9 @@ async function callLLMAPI({ messages, model, response_format, temperature, max_t
  * @returns {Promise<Array>} - Possible file paths with confidence scores
  */
 async function findPossibleFilesWithGPT(userInput, allFiles) {
-  debugLog('findPossibleFilesWithGPT called', {
-    userInput,
-    allFilesCount: allFiles.length,
-    allFiles: allFiles // Log first 10 files to avoid huge logs
-  });
-
   try {
     const requestPayload = {
-      model: "gpt-4o",
+      model: "gpt-3.5-turbo",
       messages: [
         {
           role: "system",
@@ -194,73 +152,29 @@ Return the most likely matches as a JSON array.`
       temperature: 0.1
     };
 
-    debugLog('Making LLM API call', {
-      model: requestPayload.model,
-      messageCount: requestPayload.messages.length,
-      userContentLength: requestPayload.messages[1].content.length,
-      allFilesCount: allFiles.length
-    });
-
     const response = await callLLMAPI(requestPayload);
-    
-    debugLog('LLM API response received', {
-      responseType: typeof response,
-      hasChoices: response && response.choices,
-      choicesLength: response && response.choices ? response.choices.length : 0,
-      firstChoiceContent: response && response.choices && response.choices[0] ? 
-        response.choices[0].message.content.substring(0, 200) + '...' : 'No content'
-    });
 
     if (!response || !response.choices || !response.choices[0] || !response.choices[0].message) {
       throw new Error('Invalid response structure from LLM API');
     }
 
     const content = response.choices[0].message.content;
-    debugLog('Parsing JSON response', { contentLength: content.length });
 
     let result;
     try {
       result = JSON.parse(content);
-      debugLog('JSON parsed successfully', { 
-        hasResults: !!result.results,
-        resultsLength: result.results ? result.results.length : 0,
-        results: result.results
-      });
     } catch (parseError) {
-      debugLog('JSON parse error', { 
-        error: parseError.message,
-        content: content.substring(0, 500)
-      });
       throw new Error(`Failed to parse JSON response: ${parseError.message}`);
     }
 
     if (!result.results || !Array.isArray(result.results)) {
-      debugLog('Invalid result structure', { result });
       throw new Error('Response does not contain valid results array');
     }
 
-    debugLog('Returning results', { 
-      resultCount: result.results.length,
-      results: result.results
-    });
-
     return result.results;
   } catch (error) {
-    debugLog('Error in findPossibleFilesWithGPT', {
-      error: error.message,
-      stack: error.stack,
-      userInput,
-      allFilesCount: allFiles.length
-    });
-    
-    debugLog('Falling back to pattern matching');
-    const fallbackResult = findPossibleFilesFallback(userInput, allFiles);
-    debugLog('Fallback result', { 
-      resultCount: fallbackResult.length,
-      results: fallbackResult
-    });
-    
-    return fallbackResult;
+    // Fallback to simple pattern matching
+    return findPossibleFilesFallback(userInput, allFiles);
   }
 }
 
