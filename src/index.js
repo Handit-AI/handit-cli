@@ -966,5 +966,6 @@ module.exports = {
   runTraceMonitor,
   runEvaluation,
   runGitHubConnection,
-  runEvaluatorsSetup
+  runEvaluatorsSetup,
+  updateRepositoryUrlForAgent
 }; 
