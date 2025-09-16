@@ -64,10 +64,8 @@ async function runSimpleInkSetup(options = {}) {
     const projectInfo = await runSimpleInkPrompts(configWithTokens, null);
 
     // Step 3: Check if code generation was already applied by the Ink wizard
-    console.log('🔍 Debug: projectInfo.applied =', projectInfo.applied);
-    console.log('🔍 Debug: projectInfo =', JSON.stringify(projectInfo, null, 2));
-    
-    if (projectInfo.applied) {
+    // If we have agentName and entryFile, assume the Ink wizard completed successfully
+    if (projectInfo.applied === true || (projectInfo.agentName && projectInfo.entryFile)) {
       console.log(chalk.green('✅ Setup already completed in Ink wizard'));
       console.log(chalk.gray('All steps including code generation, repository URL update, and setup instructions have been completed.'));
       return;
