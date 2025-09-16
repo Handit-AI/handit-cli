@@ -99,7 +99,7 @@ function CodeDiffViewer(React, Box, Text, { filePath, changes, originalFileConte
       });
       
       // Show context after changes
-      for (let i = group.endLine + 1; i <= endLine; i++) {
+      for (let i = group.endLine; i <= endLine; i++) {
         const lineContent = originalFileContent[i - 1] || '';
         diffLines.push({
           type: 'context',
@@ -140,7 +140,7 @@ function CodeDiffViewer(React, Box, Text, { filePath, changes, originalFileConte
             
             const lineNum = diffLine.line ? `${diffLine.line.toString().padStart(3)}:` : '    ';
             const symbol = diffLine.type === 'add' ? '+' : diffLine.type === 'remove' ? '-' : ' ';
-            const bgColor = diffLine.type === 'add' ? 'green' : diffLine.type === 'remove' ? 'red' : 'transparent';
+            const bgColor = diffLine.type === 'add' ? '#1d4429' : diffLine.type === 'remove' ? '#542527' : 'transparent';
             const textColor = diffLine.type === 'context' ? 'gray' : 'white';
             
             return React.createElement(Box, { key: `diff-line-${index}`, flexDirection: 'row' }, [

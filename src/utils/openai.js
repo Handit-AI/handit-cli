@@ -71,7 +71,7 @@ async function getAuthHeaders() {
  * @param {number} params.max_tokens - Max tokens (optional)
  * @returns {Promise<Object>} - API response
  */
-async function callLLMAPI({ messages, model, response_format, temperature, max_tokens }) {
+async function callLLMAPI({ messages, model, response_format, temperature, max_tokens, provider = 'OpenAI' }) {
   try {
     const headers = await getAuthHeaders();
     
@@ -80,7 +80,8 @@ async function callLLMAPI({ messages, model, response_format, temperature, max_t
       model,
       ...(response_format && { responseFormat: response_format }),
       ...(temperature !== undefined && { temperature }),
-      ...(max_tokens && { max_tokens })
+      ...(max_tokens && { max_tokens }),
+      ...(provider && { provider })
     };
 
     const response = await axios.post(`${apiUrl}/cli/auth/llm`, requestBody, {
@@ -229,7 +230,7 @@ File: ${filePath}
 
 File content:
 \`\`\`
-${fileContent}
+${fileContent.split('\n').map((line, index) => `${index + 1}: ${line}`).join('\n')}
 \`\`\`
 
 Return all relevant functions and endpoints as a JSON array, sorted by relevance.`

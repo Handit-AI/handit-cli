@@ -64,52 +64,143 @@ async function showInkDiffViewer(filePath, changes) {
         return lines;
       };
 
+      // Group changes with context lines
+      const groupChangesWithContext = (changes) => {
+        if (!changes || changes.length === 0) return [];
+        
+        // Sort changes by line number
+        const sortedChanges = [...changes].sort((a, b) => a.line - b.line);
+        
+        const groups = [];
+        let currentGroup = {
+          changes: [],
+          startLine: null,
+          endLine: null,
+          contextBefore: [],
+          contextAfter: []
+        };
+        
+        sortedChanges.forEach((change, index) => {
+          if (currentGroup.changes.length === 0) {
+            // Start new group
+            currentGroup.changes = [change];
+            currentGroup.startLine = change.line;
+            currentGroup.endLine = change.line;
+          } else {
+            // Check if this change is close to the current group (within 5 lines)
+            if (change.line - currentGroup.endLine <= 5) {
+              currentGroup.changes.push(change);
+              currentGroup.endLine = change.line;
+            } else {
+              // Start a new group
+              groups.push(currentGroup);
+              currentGroup = {
+                changes: [change],
+                startLine: change.line,
+                endLine: change.line,
+                contextBefore: [],
+                contextAfter: []
+              };
+            }
+          }
+        });
+        
+        // Add the last group
+        if (currentGroup.changes.length > 0) {
+          groups.push(currentGroup);
+        }
+        
+        // For now, we'll add empty context since we don't have access to original file content
+        // In a real implementation, you'd want to pass the original file content to show context
+        groups.forEach(group => {
+          group.contextBefore = [];
+          group.contextAfter = [];
+        });
+        
+        return groups;
+      };
+
       const renderChanges = () => {
         const changeElements = [];
         
-        changes.forEach((change, index) => {
-          const content = change.content || change.modifiedContent || '';
-          const wrapped = wrapText(content, maxWidth);
-          
-          wrapped.forEach((line, lineIndex) => {
-            const isFirstLine = lineIndex === 0;
-            const lineNum = isFirstLine ? (index + 1).toString().padStart(3) : '   ';
-            const symbol = change.type === 'add' ? '+' : change.type === 'remove' ? '-' : '~';
-            
-            let bgColor = 'black';
-            let textColor = 'white';
-            
-            if (change.type === 'add') {
-              bgColor = 'green';
-            } else if (change.type === 'remove') {
-              bgColor = 'red';
-            } else if (change.type === 'modify') {
-              bgColor = isFirstLine ? 'red' : 'green';
-            }
-
+        // Group changes and add context
+        const changeGroups = groupChangesWithContext(changes);
+        
+        changeGroups.forEach((group, groupIndex) => {
+          // Add separator between groups
+          if (groupIndex > 0) {
             changeElements.push(
-              React.createElement(Box, { key: `${index}-${lineIndex}`, flexDirection: 'row' }, [
-                React.createElement(Text, { color: 'gray', width: 5 }, `${lineNum}:`),
-                React.createElement(Text, { backgroundColor: bgColor, color: textColor, marginLeft: 1 }, `${symbol} ${line}`)
+              React.createElement(Box, { key: `sep-${groupIndex}`, marginY: 1 },
+                React.createElement(Text, { color: 'gray' }, '   ...')
+              )
+            );
+          }
+          
+          // Add context before changes
+          group.contextBefore.forEach((line, index) => {
+            changeElements.push(
+              React.createElement(Box, { key: `ctx-before-${groupIndex}-${index}`, flexDirection: 'row' }, [
+                React.createElement(Text, { color: 'gray', width: 5 }, `${line.lineNumber}:`),
+                React.createElement(Text, { color: 'white', marginLeft: 1 }, `  ${line.content}`)
               ])
             );
           });
-
-          // For modifications, also show the new content
-          if (change.type === 'modify') {
-            const newWrapped = wrapText(change.modifiedContent, maxWidth);
-            newWrapped.forEach((line, lineIndex) => {
+          
+          // Add changes
+          group.changes.forEach((change, changeIndex) => {
+            const content = change.content || change.modifiedContent || '';
+            const wrapped = wrapText(content, maxWidth);
+            
+            wrapped.forEach((line, lineIndex) => {
               const isFirstLine = lineIndex === 0;
-              const lineNum = isFirstLine ? (index + 1).toString().padStart(3) : '   ';
+              const lineNum = isFirstLine ? change.line.toString().padStart(3) : '   ';
+              const symbol = change.type === 'add' ? '+' : change.type === 'remove' ? '-' : '~';
               
+              let bgColor = 'black';
+              let textColor = 'white';
+              
+              if (change.type === 'add') {
+                bgColor = 'green';
+              } else if (change.type === 'remove') {
+                bgColor = 'red';
+              } else if (change.type === 'modify') {
+                bgColor = isFirstLine ? 'red' : 'green';
+              }
+
               changeElements.push(
-                React.createElement(Box, { key: `modify-${index}-${lineIndex}`, flexDirection: 'row' }, [
+                React.createElement(Box, { key: `change-${groupIndex}-${changeIndex}-${lineIndex}`, flexDirection: 'row' }, [
                   React.createElement(Text, { color: 'gray', width: 5 }, `${lineNum}:`),
-                  React.createElement(Text, { backgroundColor: 'green', color: 'white', marginLeft: 1 }, `+ ${line}`)
+                  React.createElement(Text, { backgroundColor: bgColor, color: textColor, marginLeft: 1 }, `${symbol} ${line}`)
                 ])
               );
             });
-          }
+
+            // For modifications, also show the new content
+            if (change.type === 'modify') {
+              const newWrapped = wrapText(change.modifiedContent, maxWidth);
+              newWrapped.forEach((line, lineIndex) => {
+                const isFirstLine = lineIndex === 0;
+                const lineNum = isFirstLine ? change.line.toString().padStart(3) : '   ';
+                
+                changeElements.push(
+                  React.createElement(Box, { key: `modify-${groupIndex}-${changeIndex}-${lineIndex}`, flexDirection: 'row' }, [
+                    React.createElement(Text, { color: 'gray', width: 5 }, `${lineNum}:`),
+                    React.createElement(Text, { backgroundColor: 'green', color: 'white', marginLeft: 1 }, `+ ${line}`)
+                  ])
+                );
+              });
+            }
+          });
+          
+          // Add context after changes
+          group.contextAfter.forEach((line, index) => {
+            changeElements.push(
+              React.createElement(Box, { key: `ctx-after-${groupIndex}-${index}`, flexDirection: 'row' }, [
+                React.createElement(Text, { color: 'gray', width: 5 }, `${line.lineNumber}:`),
+                React.createElement(Text, { color: 'white', marginLeft: 1 }, `  ${line.content}`)
+              ])
+            );
+          });
         });
         
         return changeElements;

@@ -11,7 +11,8 @@ function FunctionSelectionStep(React, Box, Text, { functions, selectedIndex, onS
         React.createElement(Text, { key: 'step-bar-empty', color: '#0c272e' }, '░'.repeat(40 - Math.floor(100 / 2.5))),
       ]),
     ]),
-    React.createElement(Text, { key: 'step-description', color: '#c8c8c84d', marginTop: 2 }, 'Choose the correct function:'),
+    React.createElement(Text, { key: 'step-description', color: 'white', marginTop: 2 }, `Found ${functions.length} functions. Choose the correct one:`),
+    React.createElement(Text, { key: 'step-file-path', color: '#c8c8c84d', marginTop: 1 }, `📄 File: ${selectedFile}`),
     React.createElement(Box, { key: 'step-options', marginTop: 2, flexDirection: 'column' },
       functions.map((func, index) => 
         React.createElement(Box, { 
@@ -22,34 +23,34 @@ function FunctionSelectionStep(React, Box, Text, { functions, selectedIndex, onS
           borderColor: selectedIndex === index ? '#71f2af' : undefined,
           backgroundColor: selectedIndex === index ? '#0c272e' : undefined,
           paddingX: selectedIndex === index ? 1 : 0,
-          paddingY: selectedIndex === index ? 0.5 : 0
+          paddingY: selectedIndex === index ? 1 : 0
         }, [
           React.createElement(Box, { key: `func-header-${index}`, flexDirection: 'row' }, [
             React.createElement(Text, { 
               key: `func-indicator-${index}`, 
-              color: selectedIndex === index ? '#71f2af' : '#c8c8c84d',
-              marginRight: 1,
-              bold: selectedIndex === index
+              color: '#c8c8c84d',
+              marginRight: 2
             }, selectedIndex === index ? '►' : ' '),
             React.createElement(Text, { 
               key: `func-type-${index}`, 
-              color: 'white' 
+              color: 'white',
+              marginRight: 1
             }, func.type === 'endpoint' ? '🌐' : func.type === 'method' ? '🔧' : func.type === 'handler' ? '📡' : '⚙️'),
             React.createElement(Text, { 
               key: `func-name-${index}`, 
-              color: selectedIndex === index ? 'white' : 'gray',
-              bold: selectedIndex === index
-            }, ` ${func.name} (line ${func.line})`),
+              color: 'gray'
+            }, `${func.name} (line ${func.line})`),
           ]),
+          // Show function preview for all items
           React.createElement(Text, { 
             key: `func-code-${index}`, 
-            color: selectedIndex === index ? '#71f2af' : '#c8c8c84d',
-            marginLeft: 2
+            color: '#c8c8c84d',
+            marginLeft: selectedIndex === index ? 4 : 2
           }, `  - ${func.lineContent}`),
         ])
       )
     ),
-    React.createElement(Text, { key: 'step-help', color: '#71f2af', marginTop: 1 }, '💡 Use ↑↓ arrows to navigate, Enter to select'),
+    React.createElement(Text, { key: 'step-help', color: '#71f2af', marginTop: 1 }, '💡 Use ↑↓ arrows to browse options, Enter to select'),
   ]);
 }
 

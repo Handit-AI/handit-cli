@@ -1,12 +1,16 @@
 /**
  * Entry File Step Component
  */
-function EntryFileStep(React, Box, Text, { entryFile, onInput, currentValue }) {
+function EntryFileStep(React, Box, Text, { entryFile, onInput, currentValue, isCompleted = false }) {
   return React.createElement(Box, { key: 'step2', flexDirection: 'column', marginTop: 2 }, [
-    React.createElement(Text, { key: 'step-title', color: '#71f2af', bold: true }, '🎯 Step 2: Entry Point File'),
+    React.createElement(Text, { key: 'step-title', color: '#71f2af', bold: true }, '🎯 Step 2: Entry Point'),
     React.createElement(Text, { key: 'step-description', color: 'white', marginTop: 1 }, 'This is the main file where your agent starts running.'),
-    React.createElement(Text, { key: 'step-examples', color: '#c8c8c84d', marginTop: 1 }, 'For example: "main.py", "app.js", "index.ts", "server.py"'),
-    React.createElement(Box, { key: 'step-input', flexDirection: 'row', marginTop: 1 }, [
+    React.createElement(Text, { key: 'step-examples', color: '#c8c8c84d', marginTop: 1 }, 'For example: "main.py", "app/server.js", "api/index.ts", "worker/worker.py"'),
+    
+    // Show input field if not completed, otherwise show final value
+    isCompleted ? React.createElement(Box, { key: 'step-value', marginTop: 1 }, [
+      React.createElement(Text, { key: 'final-value', color: '#71f2af' }, entryFile)
+    ]) : React.createElement(Box, { key: 'step-input', flexDirection: 'row', marginTop: 1 }, [
       React.createElement(Box, { 
         key: 'input-field', 
         borderStyle: 'single', 

@@ -2,6 +2,8 @@
  * Modular Ink Setup Wizard using component architecture
  */
 const React = require('react');
+const path = require('path');
+const fs = require('fs-extra');
 
 /**
  * Reconstruct a full file path from potentially chunked inputs
@@ -446,6 +448,8 @@ async function showModularSetupWizard(config) {
                 
                 const files = await findPossibleFiles(entryFile, allFiles);
                 
+
+                
                 setFileDetectionProgress(100);
                 setFileDetectionStatus('✅ File analysis complete!');
                 setPossibleFiles(files);
@@ -489,6 +493,8 @@ async function showModularSetupWizard(config) {
               
               const analysis = await findFunctionInFile(entryFunction, selectedFile.file, config.projectRoot);
               
+
+              
               await new Promise(resolve => setTimeout(resolve, 200));
               setFileDetectionProgress(100);
               setFileDetectionStatus('✅ Function analysis complete!');
@@ -523,8 +529,6 @@ async function showModularSetupWizard(config) {
               setAiGenerationProgress(10);
               
               // Use the existing SimplifiedCodeGenerator
-              const fs = require('fs-extra');
-              const path = require('path');
               const { SimplifiedCodeGenerator } = require('../generator/simplifiedGenerator');
               
               await new Promise(resolve => setTimeout(resolve, 300));
@@ -558,8 +562,11 @@ async function showModularSetupWizard(config) {
                 fileContent, 
                 selectedFile.file, 
                 selectedFunction.name, 
-                agentName || 'my-agent'
+                agentName || 'my-agent',
+                selectedFunction.line
               );
+              
+
               
               await new Promise(resolve => setTimeout(resolve, 300));
               setAiGenerationProgress(100);
@@ -673,47 +680,35 @@ async function showModularSetupWizard(config) {
           WelcomeHeader(React, Text)
         ),
         
-        // Step 1: Agent Name (only show when on step 1)
-        currentStep === 1 ? React.createElement(Box, { key: 'agent-name-step' },
+        // Step 1: Agent Name (show when on step 1 or when completed)
+        (currentStep === 1 || (currentStep > 1 && agentName)) ? React.createElement(Box, { key: 'agent-name-step' },
           AgentNameStep(React, Box, Text, {
             agentName: agentName || 'my-agent',
             onInput: setAgentName,
-            currentValue: displayValue
+            currentValue: displayValue,
+            isCompleted: currentStep > 1 && agentName
           })
         ) : null,
         
-        // Show completed agent name when not on step 1
-        currentStep > 1 && agentName ? React.createElement(Box, { key: 'agent-name-complete', marginTop: 1 }, [
-          React.createElement(Text, { key: 'agent-complete', color: '#71f2af' }, 'Agent Name: ' + agentName)
-        ]) : null,
-        
-        // Step 2: Entry File (only show when on step 2)
-        currentStep === 2 ? React.createElement(Box, { key: 'entry-file-step' },
+        // Step 2: Entry File (show when on step 2 or when completed)
+        (currentStep === 2 || (currentStep > 2 && entryFile)) ? React.createElement(Box, { key: 'entry-file-step' },
           EntryFileStep(React, Box, Text, {
             entryFile: entryFile,
             onInput: setEntryFile,
-            currentValue: displayValue
+            currentValue: displayValue,
+            isCompleted: currentStep > 2 && entryFile
           })
         ) : null,
         
-        // Show completed file when not on step 2
-        currentStep > 2 && entryFile ? React.createElement(Box, { key: 'entry-file-complete', marginTop: 1 }, [
-          React.createElement(Text, { key: 'file-complete', color: '#71f2af' }, 'Entry Point File: ' + entryFile)
-        ]) : null,
-        
-        // Step 3: Entry Function (only show when on step 3)
-        currentStep === 3 ? React.createElement(Box, { key: 'entry-function-step' },
+        // Step 3: Entry Function (show when on step 3 or when completed)
+        (currentStep === 3 || (currentStep > 3 && entryFunction)) ? React.createElement(Box, { key: 'entry-function-step' },
           EntryFunctionStep(React, Box, Text, {
             entryFunction: entryFunction,
             onInput: setEntryFunction,
-            currentValue: displayValue
+            currentValue: displayValue,
+            isCompleted: currentStep > 3 && entryFunction
           })
         ) : null,
-        
-        // Show completed function when not on step 3
-        currentStep > 3 && entryFunction ? React.createElement(Box, { key: 'entry-function-complete', marginTop: 1 }, [
-          React.createElement(Text, { key: 'function-complete', color: '#71f2af' }, 'Entry Function: ' + entryFunction)
-        ]) : null,
         
         
         // Step 5: File Detection

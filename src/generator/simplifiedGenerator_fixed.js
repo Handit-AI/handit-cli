@@ -279,8 +279,7 @@ Return ONLY a JSON object with the exact positions and content:
     let lastShownLine = -1;
     
     sortedChanges.forEach((change, index) => {
-      const lineNumber = change.line; // This is 1-based from AI
-      const arrayIndex = lineNumber - 1; // Convert to 0-based for array access
+      const lineNumber = change.line; 
       
       // Show context before change
       const contextStart = Math.max(1, lineNumber - contextLines); // Keep 1-based for display
@@ -294,7 +293,7 @@ Return ONLY a JSON object with the exact positions and content:
       // Show context before
       const showContextStart = Math.max(lastShownLine + 1, contextStart);
       for (let displayLine = showContextStart; displayLine < contextEnd; displayLine++) {
-        const arrayIdx = displayLine - 1; // Convert to 0-based for array access
+        const arrayIdx = displayLine; // Convert to 0-based for array access
         if (arrayIdx >= 0 && arrayIdx < originalLines.length) {
           console.log(chalk.bgBlack.white(`${displayLine.toString().padStart(3)}: ${originalLines[arrayIdx]}`));
         }
