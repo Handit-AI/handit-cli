@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..config import Config
-from ..agent import get_agent
+from ..agent import LangGraphAgent
 
 
 class UseCaseExecutor:
@@ -37,7 +37,7 @@ class UseCaseExecutor:
         Load the agent instance for execution.
         """
         if self.agent is None:
-            self.agent = get_agent(self.config)
+            self.agent = LangGraphAgent(self.config)
     
     async def execute_use_case(self, use_case: Dict[str, Any]) -> Dict[str, Any]:
         """
