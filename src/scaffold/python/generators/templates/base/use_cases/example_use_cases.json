@@ -1,0 +1,134 @@
+{
+  "metadata": {
+    "name": "Example Use Cases",
+    "description": "Sample use cases to demonstrate the agent's capabilities",
+    "version": "1.0.0",
+    "author": "Agent Developer",
+    "created_at": "2024-01-01T00:00:00Z"
+  },
+  "use_cases": [
+    {
+      "name": "Basic Information Request",
+      "description": "Test basic information retrieval capabilities",
+      "input": {
+        "query": "What is the capital of France?",
+        "context": "geography"
+      },
+      "expected_behavior": {
+        "checks": [
+          {
+            "type": "contains",
+            "value": "Paris",
+            "description": "Should mention Paris as the capital"
+          },
+          {
+            "type": "length_greater_than",
+            "value": 10,
+            "description": "Should provide a substantial response"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Mathematical Calculation",
+      "description": "Test mathematical computation abilities",
+      "input": {
+        "query": "Calculate 15 * 8 + 42",
+        "context": "mathematics"
+      },
+      "expected_output": {
+        "result": 162
+      },
+      "expected_behavior": {
+        "checks": [
+          {
+            "type": "contains",
+            "value": "162",
+            "description": "Should contain the correct answer"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Code Generation",
+      "description": "Test code generation capabilities",
+      "input": {
+        "query": "Write a Python function to calculate factorial",
+        "context": "programming"
+      },
+      "expected_behavior": {
+        "checks": [
+          {
+            "type": "contains",
+            "value": "def",
+            "description": "Should contain a function definition"
+          },
+          {
+            "type": "contains",
+            "value": "factorial",
+            "description": "Should mention factorial"
+          },
+          {
+            "type": "contains",
+            "value": "return",
+            "description": "Should have a return statement"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Error Handling Test",
+      "description": "Test how the agent handles invalid or unclear requests",
+      "input": {
+        "query": "asdfghjkl qwertyuiop",
+        "context": "test"
+      },
+      "expected_behavior": {
+        "checks": [
+          {
+            "type": "not_contains",
+            "value": "error",
+            "description": "Should not just say 'error'"
+          },
+          {
+            "type": "length_greater_than",
+            "value": 5,
+            "description": "Should provide some response"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Complex Multi-step Task",
+      "description": "Test ability to handle complex, multi-step requests",
+      "input": {
+        "query": "Analyze the pros and cons of renewable energy, then suggest implementation strategies",
+        "context": "analysis"
+      },
+      "expected_behavior": {
+        "checks": [
+          {
+            "type": "contains",
+            "value": "pros",
+            "description": "Should mention advantages"
+          },
+          {
+            "type": "contains",
+            "value": "cons",
+            "description": "Should mention disadvantages"
+          },
+          {
+            "type": "contains",
+            "value": "strategy",
+            "description": "Should include implementation strategies"
+          },
+          {
+            "type": "length_greater_than",
+            "value": 100,
+            "description": "Should provide detailed analysis"
+          }
+        ]
+      }
+    }
+  ]
+}

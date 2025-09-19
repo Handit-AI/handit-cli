@@ -1,0 +1,38 @@
+# Core dependencies
+handit_ai>=1.0.0
+python-dotenv>=1.0.0
+asyncio
+
+# Data handling
+pydantic>=2.0.0
+typing-extensions
+
+# Logging and monitoring
+structlog>=23.0.0
+
+# Testing
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+
+# Development
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.0.0
+
+# FastAPI runtime
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+pydantic-settings>=2.0.0
+# LangGraph dependencies
+langgraph>=0.0.20
+langchain>=0.1.0
+langchain-core>=0.1.0
+langchain-community>=0.0.10
+
+# LLM providers
+openai>=1.0.0
+ollama>=0.1.0
+
+# Additional dependencies
+networkx>=3.0
+pydantic>=2.0.0

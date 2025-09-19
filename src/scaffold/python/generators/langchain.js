@@ -303,7 +303,6 @@ class CustomTool(BaseTool):
         self.description = description
         self.agent_name = agent_name
     
-    @tracing(agent=lambda self: f"{self.agent_name}_{self.name}")
     def _run(self, query: str) -> str:
         """
         Execute the tool with the given query.

@@ -71,7 +71,7 @@ Main LangGraph for ${config.project.name}
 """
 
 from typing import Dict, Any, List, TypedDict, Annotated
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from handit_ai import tracing
@@ -108,21 +108,12 @@ class ${config.project.name.replace(/\s+/g, '').replace(/-/g, '')}Graph:
             if stage in nodes:
                 graph.add_node(stage, nodes[stage])
         
-        # Define the flow based on orchestration style
-        if self.config.orchestration_style == "state-graph":
-            self._add_state_graph_edges(graph)
-        elif self.config.orchestration_style == "pipeline":
-            self._add_pipeline_edges(graph)
-        elif self.config.orchestration_style == "router":
-            self._add_router_edges(graph)
-        else:
-            # Default to pipeline
-            self._add_pipeline_edges(graph)
+        # Define the flow - using state-graph orchestration
+        self._add_state_graph_edges(graph)
         
         # Compile the graph with checkpointer
         return graph.compile(
-            checkpointer=self._get_checkpointer(),
-            interrupt_before=["tool_execution", "external_api_call"]
+            checkpointer=self._get_checkpointer()
         )
     
     def _add_pipeline_edges(self, graph: StateGraph):
@@ -168,6 +159,12 @@ class ${config.project.name.replace(/\s+/g, '').replace(/-/g, '')}Graph:
             graph: StateGraph instance
         """
         stages = self.config.agent_stages
+        
+        if not stages:
+            return
+            
+        # Add entrypoint from START to first stage
+        graph.add_edge(START, stages[0])
         
         # Add edges with conditional logic
         for i, stage in enumerate(stages):
@@ -317,7 +314,7 @@ class ${config.project.name.replace(/\s+/g, '').replace(/-/g, '')}Graph:
         return {
             "nodes": list(self.graph.nodes.keys()),
             "edges": list(self.graph.edges.keys()),
-            "orchestration_style": self.config.orchestration_style,
+            "orchestration_style": "state-graph",
             "stages": self.config.agent_stages
         }
 
@@ -618,7 +615,6 @@ __all__ = [
     const nodeNameCapitalized = nodeName.charAt(0).toUpperCase() + nodeName.slice(1);
     
     return `
-@tracing(agent="${config.project.name}_${nodeName}")
 async def ${nodeName}_node(state: AgentState) -> AgentState:
     """
     ${nodeNameCapitalized} LLM node with error recovery.
@@ -696,7 +692,6 @@ async def ${nodeName}_node(state: AgentState) -> AgentState:
     const nodeNameCapitalized = nodeName.charAt(0).toUpperCase() + nodeName.slice(1);
     
     return `
-@tracing(agent="${config.project.name}_${nodeName}_tool")
 async def ${nodeName}_tool_node(state: AgentState) -> AgentState:
     """
     ${nodeNameCapitalized} tool node with error recovery.
@@ -867,7 +862,6 @@ async def ${nodeName}_tool_node(state: AgentState) -> AgentState:
     const nodeNameCapitalized = nodeName.charAt(0).toUpperCase() + nodeName.slice(1);
     
     return `
-@tracing(agent="${config.project.name}_${nodeName}")
 async def ${nodeName}_node(state: AgentState) -> AgentState:
     """
     LangGraph wrapper for ${nodeNameCapitalized} LLM node.
@@ -928,7 +922,6 @@ async def ${nodeName}_node(state: AgentState) -> AgentState:
     const nodeNameCapitalized = nodeName.charAt(0).toUpperCase() + nodeName.slice(1);
     
     return `
-@tracing(agent="${config.project.name}_${nodeName}_tool")
 async def ${nodeName}_tool_node(state: AgentState) -> AgentState:
     """
     LangGraph wrapper for ${nodeNameCapitalized} tool node.
@@ -990,7 +983,7 @@ async def ${nodeName}_tool_node(state: AgentState) -> AgentState:
     
     for (const nodeName of nodeNames) {
       const functionName = nodeType === 'llm' ? `${nodeName}_node` : `${nodeName}_tool_node`;
-      mappingCode += `    node_functions["${nodeName}"] = ${functionName}\\n`;
+      mappingCode += `    node_functions["${nodeName}"] = ${functionName}\n`;
     }
     
     return mappingCode;
@@ -1074,10 +1067,10 @@ def get_graph_nodes(config: Config) -> Dict[str, Callable]:
     node_functions = {}
     
     # Add LLM nodes
-    ${this.generateNodeFunctionMapping(config, 'llm')}
+${this.generateNodeFunctionMapping(config, 'llm')}
     
     # Add Tool nodes  
-    ${this.generateNodeFunctionMapping(config, 'tool')}
+${this.generateNodeFunctionMapping(config, 'tool')}
     
     # Return only the nodes that are in the agent stages
     return {
@@ -1097,7 +1090,6 @@ def create_custom_node(stage_name: str, logic_func: Callable) -> Callable:
     Returns:
         Node function
     """
-    @tracing(agent=f"${config.project.name}_{stage_name}")
     async def custom_node(state: AgentState) -> AgentState:
         try:
             clear_error(state)
@@ -1143,11 +1135,11 @@ This module contains LangGraph wrapper functions that call node classes from /sr
 """
 
 from .nodes import (
-    ${nodeImports.join(',\\n    ')}
+    ${nodeImports.join(',\n    ')}
 )
 
 __all__ = [
-    ${nodeExports.join(',\\n    ')}
+    ${nodeExports.join(',\n    ')}
 ]
 `;
 
@@ -1166,7 +1158,7 @@ Base classes for ${config.project.name} nodes
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
-from ..config import Config
+from .config import Config
 
 class BaseNode(ABC):
     """

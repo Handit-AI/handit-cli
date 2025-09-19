@@ -1,0 +1,66 @@
+{
+  "metadata": {
+    "name": "Example Use Cases",
+    "description": "Sample use cases to demonstrate the agent's capabilities",
+    "version": "1.0.0",
+    "author": "Agent Developer",
+    "created_at": "2025-09-19T23:38:01.879Z"
+  },
+  "use_cases": [
+    {
+      "name": "Basic Information Request",
+      "description": "Test basic information retrieval capabilities",
+      "input": {
+        "query": "What is the capital of France?",
+        "context": "geography"
+      }
+    },
+    {
+      "name": "Mathematical Calculation",
+      "description": "Test mathematical computation abilities",
+      "input": {
+        "query": "Calculate 15 * 8 + 42",
+        "context": "mathematics"
+      }
+    },
+    {
+      "name": "Code Generation",
+      "description": "Test code generation capabilities",
+      "input": {
+        "query": "Write a Python function to calculate factorial",
+        "context": "programming"
+      }
+    },
+    {
+      "name": "Data Analysis",
+      "description": "Test data analysis capabilities",
+      "input": {
+        "query": "Analyze the following data and provide insights",
+        "data": {
+          "sales": [
+            100,
+            150,
+            200,
+            175,
+            225
+          ],
+          "months": [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Text Processing",
+      "description": "Test text processing and summarization",
+      "input": {
+        "query": "Summarize the following text",
+        "text": "Artificial intelligence is transforming the way we work and live. From healthcare to transportation, AI is making significant impacts across various industries."
+      }
+    }
+  ]
+}

@@ -153,6 +153,9 @@ class BasePythonGenerator {
     // Generate utils
     await this.generateUtils(config, targetPath);
 
+    // Generate use cases and runner script
+    await this.generateUseCases(config, targetPath);
+
     console.log('✅ Base Python project generated');
   }
 
@@ -361,6 +364,35 @@ class Config:
    * @param {string} targetPath - Target directory path
    */
   static async generateNodes(config, targetPath) {
+    // Create nodes directory and __init__.py
+    const nodesPath = path.join(targetPath, 'src/nodes');
+    await fs.ensureDir(nodesPath);
+    
+    const nodesInitContent = `"""
+Node modules for ${config.project.name}
+"""
+`;
+    await fs.writeFile(path.join(nodesPath, '__init__.py'), nodesInitContent);
+
+    // Create llm and tools subdirectories with __init__.py files
+    const llmPath = path.join(nodesPath, 'llm');
+    const toolsPath = path.join(nodesPath, 'tools');
+    
+    await fs.ensureDir(llmPath);
+    await fs.ensureDir(toolsPath);
+    
+    const llmInitContent = `"""
+LLM nodes for ${config.project.name}
+"""
+`;
+    const toolsInitContent = `"""
+Tool nodes for ${config.project.name}
+"""
+`;
+    
+    await fs.writeFile(path.join(llmPath, '__init__.py'), llmInitContent);
+    await fs.writeFile(path.join(toolsPath, '__init__.py'), toolsInitContent);
+
     // Generate tool nodes
     await this.generateToolNodes(config, targetPath);
     
@@ -792,7 +824,7 @@ ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)} tool node
 
 import asyncio
 from typing import Any, Dict, List
-from ...base import BaseToolNode
+from src.base import BaseToolNode
 
 class ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)}ToolNode(BaseToolNode):
     """
@@ -949,7 +981,7 @@ ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)} LLM node
 
 import asyncio
 from typing import Any, Dict
-from ...base import BaseLLMNode
+from src.base import BaseLLMNode
 from .prompts import get_prompts
 
 class ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)}LLMNode(BaseLLMNode):
@@ -1597,17 +1629,603 @@ def get_logger(name: str) -> logging.Logger:
 
     await fs.writeFile(path.join(utilsPath, 'logger.py'), loggerContent);
 
+    // Generate use case executor
+    await this.generateUseCaseExecutor(config, utilsPath);
+
     // Generate __init__.py for utils
     const utilsInitContent = `"""
 Utility functions for ${config.project.name}
 """
 
 from .logger import setup_logging, get_logger
+from .use_case_executor import UseCaseExecutor, run_use_cases_from_file
 
-__all__ = ["setup_logging", "get_logger"]
+__all__ = ["setup_logging", "get_logger", "UseCaseExecutor", "run_use_cases_from_file"]
 `;
 
     await fs.writeFile(path.join(utilsPath, '__init__.py'), utilsInitContent);
+  }
+
+  /**
+   * Generate use case executor
+   * @param {Object} config - Configuration object
+   * @param {string} utilsPath - Utils directory path
+   */
+  static async generateUseCaseExecutor(config, utilsPath) {
+    const useCaseExecutorContent = `"""
+Use Case Executor for Agent Testing
+
+This module provides functionality to execute predefined use cases against the agent.
+Use cases are defined in JSON format and can test various scenarios and inputs.
+"""
+
+import json
+import asyncio
+import os
+from typing import Dict, List, Any, Optional
+from datetime import datetime
+from pathlib import Path
+
+from ..config import Config
+from ..agent import LangGraphAgent
+
+
+class UseCaseExecutor:
+    """
+    Executes use cases defined in JSON format against the agent.
+    """
+    
+    def __init__(self, config: Optional[Config] = None):
+        """
+        Initialize the use case executor.
+        
+        Args:
+            config: Optional configuration object. If None, will create default config.
+        """
+        self.config = config or Config()
+        self.agent = None
+        self.results = []
+    
+    async def load_agent(self):
+        """
+        Load the agent instance for execution.
+        """
+        if self.agent is None:
+            self.agent = LangGraphAgent(self.config)
+    
+    async def execute_use_case(self, use_case: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute a single use case against the agent.
+        
+        Args:
+            use_case: Dictionary containing use case definition
+            
+        Returns:
+            Dictionary with execution results
+        """
+        await self.load_agent()
+        
+        start_time = datetime.now()
+        
+        try:
+            # Extract use case details
+            name = use_case.get('name', 'Unnamed Use Case')
+            description = use_case.get('description', '')
+            input_data = use_case.get('input', {})
+            
+            print(f"🧪 Executing use case: {name}")
+            if description:
+                print(f"   Description: {description}")
+            
+            # Execute the agent
+            result = await self.agent.execute(input_data)
+            
+            end_time = datetime.now()
+            execution_time = (end_time - start_time).total_seconds()
+            
+            # Prepare result
+            execution_result = {
+                'name': name,
+                'description': description,
+                'input': input_data,
+                'output': result,
+                'execution_time_seconds': execution_time,
+                'timestamp': end_time.isoformat(),
+                'status': 'success'
+            }
+            
+            print(f"✅ Use case executed successfully")
+            print(f"⏱️  Execution time: {execution_time:.2f} seconds")
+            print("-" * 50)
+            
+            return execution_result
+            
+        except Exception as e:
+            end_time = datetime.now()
+            execution_time = (end_time - start_time).total_seconds()
+            
+            error_result = {
+                'name': use_case.get('name', 'Unnamed Use Case'),
+                'description': use_case.get('description', ''),
+                'input': use_case.get('input', {}),
+                'output': None,
+                'execution_time_seconds': execution_time,
+                'timestamp': end_time.isoformat(),
+                'status': 'error',
+                'error': str(e),
+                'error_type': type(e).__name__
+            }
+            
+            print(f"❌ Error executing use case: {error_result['name']}")
+            print(f"   Error: {str(e)}")
+            print(f"⏱️  Execution time: {execution_time:.2f} seconds")
+            print("-" * 50)
+            
+            return error_result
+    
+    
+    async def execute_use_cases_from_file(self, file_path: str) -> List[Dict[str, Any]]:
+        """
+        Execute use cases from a JSON file.
+        
+        Args:
+            file_path: Path to the JSON file containing use cases
+            
+        Returns:
+            List of execution results
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                use_cases_data = json.load(f)
+            
+            use_cases = use_cases_data.get('use_cases', [])
+            if not use_cases:
+                print(f"⚠️  No use cases found in {file_path}")
+                return []
+            
+            print(f"📁 Loading {len(use_cases)} use cases from {file_path}")
+            print("=" * 60)
+            
+            results = []
+            for i, use_case in enumerate(use_cases, 1):
+                print(f"\\n[{i}/{len(use_cases)}]")
+                result = await self.execute_use_case(use_case)
+                results.append(result)
+            
+            self.results.extend(results)
+            return results
+            
+        except FileNotFoundError:
+            print(f"❌ Use cases file not found: {file_path}")
+            return []
+        except json.JSONDecodeError as e:
+            print(f"❌ Invalid JSON in use cases file: {e}")
+            return []
+        except Exception as e:
+            print(f"❌ Error loading use cases: {e}")
+            return []
+    
+    def generate_report(self, results: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """
+        Generate a summary report of use case execution results.
+        
+        Args:
+            results: Optional list of results. If None, uses self.results.
+            
+        Returns:
+            Summary report dictionary
+        """
+        if results is None:
+            results = self.results
+        
+        if not results:
+            return {'message': 'No results to report'}
+        
+        total_cases = len(results)
+        successful_cases = len([r for r in results if r['status'] == 'success'])
+        error_cases = len([r for r in results if r['status'] == 'error'])
+        
+        avg_execution_time = sum(r['execution_time_seconds'] for r in results) / total_cases
+        
+        report = {
+            'summary': {
+                'total_cases': total_cases,
+                'successful': successful_cases,
+                'errors': error_cases,
+                'success_rate': (successful_cases / total_cases) * 100,
+                'average_execution_time_seconds': round(avg_execution_time, 2)
+            },
+            'results': results,
+            'generated_at': datetime.now().isoformat()
+        }
+        
+        return report
+    
+    def print_report(self, results: Optional[List[Dict[str, Any]]] = None):
+        """
+        Print a formatted summary report.
+        
+        Args:
+            results: Optional list of results. If None, uses self.results.
+        """
+        report = self.generate_report(results)
+        
+        if 'message' in report:
+            print(report['message'])
+            return
+        
+        summary = report['summary']
+        
+        print("\\n" + "=" * 60)
+        print("📊 USE CASE EXECUTION REPORT")
+        print("=" * 60)
+        print(f"Total Use Cases: {summary['total_cases']}")
+        print(f"✅ Successful: {summary['successful']}")
+        print(f"🚨 Errors: {summary['errors']}")
+        print(f"📈 Success Rate: {summary['success_rate']:.1f}%")
+        print(f"⏱️  Average Execution Time: {summary['average_execution_time_seconds']}s")
+        print("=" * 60)
+        
+        # Show failed cases
+        failed_cases = [r for r in report['results'] if r['status'] != 'success']
+        if failed_cases:
+            print("\\n❌ FAILED CASES:")
+            for case in failed_cases:
+                print(f"  • {case['name']}: {case['status']}")
+                if 'error' in case:
+                    print(f"    Error: {case['error']}")
+        
+        # Show successful cases summary
+        successful_cases = [r for r in report['results'] if r['status'] == 'success']
+        if successful_cases:
+            print(f"\\n✅ SUCCESSFUL CASES ({len(successful_cases)}):")
+            for case in successful_cases[:5]:  # Show first 5
+                print(f"  • {case['name']} ({case['execution_time_seconds']:.2f}s)")
+            if len(successful_cases) > 5:
+                print(f"  ... and {len(successful_cases) - 5} more")
+
+
+async def run_use_cases_from_file(file_path: str, config: Optional[Config] = None):
+    """
+    Convenience function to run use cases from a file and print results.
+    
+    Args:
+        file_path: Path to the JSON file containing use cases
+        config: Optional configuration object
+    """
+    executor = UseCaseExecutor(config)
+    results = await executor.execute_use_cases_from_file(file_path)
+    executor.print_report(results)
+    return results
+`;
+
+    await fs.writeFile(path.join(utilsPath, 'use_case_executor.py'), useCaseExecutorContent);
+  }
+
+  /**
+   * Generate use cases directory and runner script
+   * @param {Object} config - Configuration object
+   * @param {string} targetPath - Target directory path
+   */
+  static async generateUseCases(config, targetPath) {
+    // Create use cases directory
+    const useCasesPath = path.join(targetPath, 'use_cases');
+    await fs.ensureDir(useCasesPath);
+
+    // Generate example use cases
+    await this.generateExampleUseCases(config, useCasesPath);
+
+    // Generate runner script
+    await this.generateUseCaseRunner(config, targetPath);
+  }
+
+  /**
+   * Generate example use cases JSON file
+   * @param {Object} config - Configuration object
+   * @param {string} useCasesPath - Use cases directory path
+   */
+  static async generateExampleUseCases(config, useCasesPath) {
+    const exampleUseCases = {
+      "metadata": {
+        "name": "Example Use Cases",
+        "description": "Sample use cases to demonstrate the agent's capabilities",
+        "version": "1.0.0",
+        "author": "Agent Developer",
+        "created_at": new Date().toISOString()
+      },
+      "use_cases": [
+        {
+          "name": "Basic Information Request",
+          "description": "Test basic information retrieval capabilities",
+          "input": {
+            "query": "What is the capital of France?",
+            "context": "geography"
+          }
+        },
+        {
+          "name": "Mathematical Calculation",
+          "description": "Test mathematical computation abilities",
+          "input": {
+            "query": "Calculate 15 * 8 + 42",
+            "context": "mathematics"
+          }
+        },
+        {
+          "name": "Code Generation",
+          "description": "Test code generation capabilities",
+          "input": {
+            "query": "Write a Python function to calculate factorial",
+            "context": "programming"
+          }
+        },
+        {
+          "name": "Data Analysis",
+          "description": "Test data analysis capabilities",
+          "input": {
+            "query": "Analyze the following data and provide insights",
+            "data": {
+              "sales": [100, 150, 200, 175, 225],
+              "months": ["Jan", "Feb", "Mar", "Apr", "May"]
+            }
+          }
+        },
+        {
+          "name": "Text Processing",
+          "description": "Test text processing and summarization",
+          "input": {
+            "query": "Summarize the following text",
+            "text": "Artificial intelligence is transforming the way we work and live. From healthcare to transportation, AI is making significant impacts across various industries."
+          }
+        }
+      ]
+    };
+
+    await fs.writeFile(
+      path.join(useCasesPath, 'example_use_cases.json'),
+      JSON.stringify(exampleUseCases, null, 2)
+    );
+  }
+
+  /**
+   * Generate use case runner script
+   * @param {Object} config - Configuration object
+   * @param {string} targetPath - Target directory path
+   */
+  static async generateUseCaseRunner(config, targetPath) {
+    const runnerContent = `#!/usr/bin/env python3
+"""
+Use Case Runner Script
+
+This script executes use cases defined in JSON format against the agent.
+It provides a command-line interface for running and managing test cases.
+
+Usage:
+    python run_use_cases.py                    # Run all use cases in use_cases/ directory
+    python run_use_cases.py --file path/to/file.json  # Run specific use case file
+    python run_use_cases.py --list             # List available use case files
+    python run_use_cases.py --report           # Generate detailed report
+"""
+
+import argparse
+import asyncio
+import json
+import os
+import sys
+from pathlib import Path
+from typing import List, Optional
+
+# Add the src directory to the Python path
+sys.path.insert(0, str(Path(__file__).parent / 'src'))
+
+from src.config import Config
+from src.utils.use_case_executor import UseCaseExecutor
+
+
+def find_use_case_files(use_cases_dir: str = "use_cases") -> List[str]:
+    """
+    Find all JSON files in the use cases directory.
+    
+    Args:
+        use_cases_dir: Directory to search for use case files
+        
+    Returns:
+        List of JSON file paths
+    """
+    use_cases_path = Path(use_cases_dir)
+    
+    if not use_cases_path.exists():
+        print(f"⚠️  Use cases directory not found: {use_cases_dir}")
+        return []
+    
+    json_files = list(use_cases_path.glob("*.json"))
+    return [str(f) for f in json_files]
+
+
+def list_use_case_files(use_cases_dir: str = "use_cases"):
+    """
+    List all available use case files.
+    
+    Args:
+        use_cases_dir: Directory containing use case files
+    """
+    files = find_use_case_files(use_cases_dir)
+    
+    if not files:
+        print(f"📁 No use case files found in {use_cases_dir}/")
+        return
+    
+    print(f"📁 Available use case files in {use_cases_dir}/:")
+    for i, file_path in enumerate(files, 1):
+        file_name = Path(file_path).name
+        file_size = os.path.getsize(file_path)
+        print(f"  {i}. {file_name} ({file_size} bytes)")
+    
+    # Show preview of each file
+    print("\\n📋 Preview of use cases:")
+    for file_path in files:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            metadata = data.get('metadata', {})
+            use_cases = data.get('use_cases', [])
+            
+            print(f"\\n  📄 {Path(file_path).name}:")
+            print(f"     Name: {metadata.get('name', 'Unnamed')}")
+            print(f"     Description: {metadata.get('description', 'No description')}")
+            print(f"     Use Cases: {len(use_cases)}")
+            
+            if use_cases:
+                print("     Sample cases:")
+                for case in use_cases[:3]:  # Show first 3 cases
+                    print(f"       • {case.get('name', 'Unnamed')}")
+                if len(use_cases) > 3:
+                    print(f"       ... and {len(use_cases) - 3} more")
+                    
+        except Exception as e:
+            print(f"     ❌ Error reading file: {e}")
+
+
+async def run_use_cases(use_cases_dir: str = "use_cases", specific_file: Optional[str] = None):
+    """
+    Run use cases from files.
+    
+    Args:
+        use_cases_dir: Directory containing use case files
+        specific_file: Optional specific file to run
+    """
+    config = Config()
+    executor = UseCaseExecutor(config)
+    
+    if specific_file:
+        # Run specific file
+        if not os.path.exists(specific_file):
+            print(f"❌ File not found: {specific_file}")
+            return
+        
+        print(f"🚀 Running use cases from: {specific_file}")
+        results = await executor.execute_use_cases_from_file(specific_file)
+    else:
+        # Run all files in directory
+        files = find_use_case_files(use_cases_dir)
+        
+        if not files:
+            print(f"📁 No use case files found in {use_cases_dir}/")
+            return
+        
+        print(f"🚀 Running use cases from {len(files)} file(s) in {use_cases_dir}/")
+        all_results = []
+        
+        for file_path in files:
+            print(f"\\n📄 Processing: {Path(file_path).name}")
+            results = await executor.execute_use_cases_from_file(file_path)
+            all_results.extend(results)
+        
+        results = all_results
+    
+    # Print summary report
+    executor.print_report(results)
+    
+    # Save detailed report
+    report = executor.generate_report(results)
+    report_file = "use_case_report.json"
+    
+    try:
+        with open(report_file, 'w', encoding='utf-8') as f:
+            json.dump(report, f, indent=2, ensure_ascii=False)
+        print(f"\\n📊 Detailed report saved to: {report_file}")
+    except Exception as e:
+        print(f"⚠️  Could not save report: {e}")
+
+
+async def generate_report_only(use_cases_dir: str = "use_cases"):
+    """
+    Generate a report without running use cases (if previous results exist).
+    
+    Args:
+        use_cases_dir: Directory containing use case files
+    """
+    report_file = "use_case_report.json"
+    
+    if not os.path.exists(report_file):
+        print(f"❌ No previous report found: {report_file}")
+        print("Run use cases first to generate a report.")
+        return
+    
+    try:
+        with open(report_file, 'r', encoding='utf-8') as f:
+            report = json.load(f)
+        
+        config = Config()
+        executor = UseCaseExecutor(config)
+        executor.results = report.get('results', [])
+        
+        executor.print_report()
+        
+    except Exception as e:
+        print(f"❌ Error reading report: {e}")
+
+
+def main():
+    """Main entry point for the use case runner."""
+    parser = argparse.ArgumentParser(
+        description="Run use cases against the agent",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python run_use_cases.py                           # Run all use cases
+  python run_use_cases.py --file my_cases.json     # Run specific file
+  python run_use_cases.py --list                   # List available files
+  python run_use_cases.py --report                 # Show previous report
+  python run_use_cases.py --dir custom_cases/      # Use custom directory
+        """
+    )
+    
+    parser.add_argument(
+        '--file', '-f',
+        help='Run use cases from a specific JSON file'
+    )
+    
+    parser.add_argument(
+        '--dir', '-d',
+        default='use_cases',
+        help='Directory containing use case files (default: use_cases)'
+    )
+    
+    parser.add_argument(
+        '--list', '-l',
+        action='store_true',
+        help='List available use case files'
+    )
+    
+    parser.add_argument(
+        '--report', '-r',
+        action='store_true',
+        help='Show previous execution report'
+    )
+    
+    args = parser.parse_args()
+    
+    try:
+        if args.list:
+            list_use_case_files(args.dir)
+        elif args.report:
+            asyncio.run(generate_report_only(args.dir))
+        else:
+            asyncio.run(run_use_cases(args.dir, args.file))
+            
+    except KeyboardInterrupt:
+        print("\\n⏹️  Execution interrupted by user")
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+`;
+
+    await fs.writeFile(path.join(targetPath, 'run_use_cases.py'), runnerContent);
   }
 }
 
