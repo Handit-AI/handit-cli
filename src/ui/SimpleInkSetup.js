@@ -117,4 +117,53 @@ async function runSimpleInkSetup(options = {}) {
   }
 }
 
-module.exports = { runSimpleInkSetup };
+/**
+ * Simple Ink setup flow for agentic create command
+ * Creates project scaffolding using the agentic create wizard
+ */
+async function runAgenticCreateSetup(options = {}) {
+  const chalk = require('chalk');
+  
+  const config = {
+    dev: options.dev || false,
+    projectRoot: process.cwd(),
+    ...options
+  };
+
+  try {
+    console.log('\n'); // Add some space
+    
+    // Use the agentic create wizard
+    const { showModularAgenticCreateWizard } = require('./ModularInkAgenticCreateWizard.js');
+    const projectInfo = await showModularAgenticCreateWizard(config);
+    
+    // Handle the result
+    if (projectInfo && projectInfo.scaffoldingCreated) {
+      console.log(chalk.green.bold('✅ Agentic project scaffolding created successfully!'));
+      console.log(`Project name: ${chalk.blue(projectInfo.projectName)}`);
+      console.log(`Language: ${chalk.blue(projectInfo.codeLanguage)}`);
+      console.log(`Framework: ${chalk.blue(projectInfo.framework)}`);
+      console.log(`Runtime: ${chalk.blue(projectInfo.runtime)}`);
+      console.log(`Orchestration: ${chalk.blue(projectInfo.orchestrationStyle)}`);
+      console.log(`Stages: ${chalk.blue(projectInfo.stages ? projectInfo.stages.join(', ') : 'retrieve, reason, act')}`);
+      console.log(`SubAgents: ${chalk.blue(projectInfo.subAgents || 0)}`);
+      console.log(`Tools: ${chalk.blue(projectInfo.tools && projectInfo.tools.length > 0 ? projectInfo.tools.join(', ') : 'none')}`);
+      console.log(`Model: ${chalk.blue(projectInfo.provider || 'mock')}/${chalk.blue(projectInfo.modelName || 'mock-llm')}`);
+      if (projectInfo.storage) {
+        console.log(`Storage: ${chalk.blue('🧠')} ${chalk.blue(projectInfo.storage.memory || 'none')} | ${chalk.blue('⚡')} ${chalk.blue(projectInfo.storage.cache || 'in-memory')} | ${chalk.blue('🗄️')} ${chalk.blue(projectInfo.storage.sql || 'none')}`);
+      }
+      console.log(chalk.gray('Your agentic project is ready to use.'));
+    } else {
+      console.log(chalk.yellow('Scaffolding creation cancelled'));
+    }
+
+  } catch (error) {
+    if (error.message === 'Agentic create cancelled by user') {
+      console.log(chalk.yellow('\nAgentic create cancelled by user'));
+      process.exit(0); // Clean exit
+    }
+    throw new Error(`Agentic create failed: ${error.message}`);
+  }
+}
+
+module.exports = { runSimpleInkSetup, runAgenticCreateSetup };

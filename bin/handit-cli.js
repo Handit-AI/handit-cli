@@ -3,7 +3,7 @@
 const { Command } = require('commander');
 const chalk = require('chalk');
 const { runSetup, runTraceMonitor, runEvaluation, runGitHubConnection, runEvaluatorsSetup } = require('../src/index.js');
-const { runSimpleInkSetup } = require('../src/ui/SimpleInkSetup.js');
+const { runSimpleInkSetup, runAgenticCreateSetup } = require('../src/ui/SimpleInkSetup.js');
 
 const program = new Command();
 
@@ -111,6 +111,25 @@ program
       process.exit(1);
     }
   });
+
+// Agentic create command
+program
+  .command('agentic create')
+  .description('Create the scaffolding for your agentic project')
+  .option('-d, --dev', 'Enable development mode with verbose logging')
+  .action(async (options) => {
+    try {
+      await runAgenticCreateSetup(options);
+    } catch (error) {
+      console.error(chalk.red.bold('❌ Error:'), error.message);
+      if (options.dev) {
+        console.error(chalk.gray('Stack trace:'), error.stack);
+      }
+      process.exit(1);
+    }
+  });
+
+  
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {

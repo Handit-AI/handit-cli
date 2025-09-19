@@ -1,0 +1,40 @@
+{
+  "project": {
+    "name": "FAQ",
+    "language": "python",
+    "framework": "base"
+  },
+  "runtime": {
+    "type": "express",
+    "port": 3000
+  },
+  "orchestration": {
+    "style": "pipeline"
+  },
+  "agent": {
+    "stages": [
+      "reason",
+      "retrieve",
+      "act"
+    ],
+    "subAgents": 4
+  },
+  "tools": {
+    "selected": [
+      "http_fetch",
+      "web_search",
+      "calculator",
+      "file_io",
+      "code_run"
+    ]
+  },
+  "model": {
+    "provider": "mock",
+    "name": "GPT"
+  },
+  "storage": {
+    "memory": "faiss-local",
+    "cache": "redis",
+    "sql": "sqlite"
+  }
+}
