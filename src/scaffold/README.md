@@ -79,18 +79,21 @@ project-name/
 ### Project Configuration
 - `name`: Human-readable project name
 - `language`: `python` or `typescript`
-- `framework`: `base`, `langchain`, or `langgraph`
+- `framework`: `base`, `langchain`, or `langgraph` (optional, defaults to `langgraph`)
+- `default_llm_provider`: Default LLM provider for the project (optional, defaults to `mock`)
 
-### Runtime Configuration
-- `type`: `fastapi` (Python), `express` (JS/TS), `cli`, or `worker`
+### Runtime Configuration (Optional)
+- `type`: `fastapi` (Python), `express` (JS/TS), `cli`, or `worker` (defaults: `fastapi` for Python, `express` for TypeScript)
 - `port`: Optional port number (defaults: 8000 for FastAPI, 3000 for Express)
 
-### Orchestration Configuration
+### Orchestration Configuration (Optional)
 - `style`: `pipeline` (sequential), `router` (branching), or `state-graph` (LangGraph)
+- **Defaults**: `state-graph` for LangGraph, `pipeline` for base/LangChain
 
-### Agent Configuration
-- `stages`: Array of pipeline stages (default: `['retrieve','reason','act']`)
-- `subAgents`: Number of helper agents (default: 0)
+### Agent Configuration (Auto-Derived)
+- **Stages**: Automatically derived from `tools` and `llm_nodes` arrays
+- **Default stages**: `['retrieve','reason','act']` if no nodes specified
+- **Sub-agents**: Not supported (always 0)
 
 ### Tools Configuration
 - `selected`: Array of tool names from: `['http_fetch','web_search','calculator','file_io','code_run']`
@@ -108,10 +111,14 @@ project-name/
     - `provider`: Model provider (e.g., "openai", "ollama", "mock")
     - `name`: Model identifier (e.g., "gpt-4", "llama3.1", "mock-llm")
 
-### Storage Configuration
+### Storage Configuration (Optional)
 - `memory`: Vector storage (`faiss-local` or `none`)
 - `cache`: Cache layer (`in-memory` or `redis`)
 - `sql`: SQL database (`sqlite` or `none`)
+- **Defaults**: 
+  - **Base**: `none/in-memory/none` (minimal storage)
+  - **LangChain**: `faiss-local/in-memory/none` (vector storage for chains)
+  - **LangGraph**: `none/in-memory/none` (uses built-in state management)
 
 ## Language Support
 
@@ -164,13 +171,41 @@ To extend the scaffolding service:
 
 ## Examples
 
+### Minimal Configuration (Uses Maximum Defaults)
+```json
+{
+  "project": {
+    "name": "Simple Agent",
+    "language": "python"
+    // framework defaults to "langgraph"
+    // default_llm_provider defaults to "mock"
+    // runtime defaults to "fastapi" for Python (port 8000)
+    // orchestration defaults to "state-graph" for LangGraph
+    // storage defaults to LangGraph optimized (none/in-memory/none)
+    // agent.stages defaults to ["retrieve", "reason", "act"]
+  }
+}
+```
+
+**Applied Defaults:**
+- `framework`: `"langgraph"`
+- `default_llm_provider`: `"mock"`
+- `runtime.type`: `"fastapi"`
+- `runtime.port`: `8000`
+- `orchestration.style`: `"state-graph"`
+- `storage.memory`: `"none"` (LangGraph uses built-in state)
+- `storage.cache`: `"in-memory"`
+- `storage.sql`: `"none"`
+- `agent.stages`: `["retrieve", "reason", "act"]`
+
 ### Single Model Configuration (Legacy)
 ```json
 {
   "project": {
     "name": "FAQ Bot",
     "language": "python",
-    "framework": "langgraph"
+    "framework": "langgraph",
+    "default_llm_provider": "mock"
   },
   "runtime": {
     "type": "fastapi",
@@ -204,7 +239,8 @@ To extend the scaffolding service:
   "project": {
     "name": "Multi-Model Agent",
     "language": "python",
-    "framework": "langgraph"
+    "framework": "langgraph",
+    "default_llm_provider": "ollama"
   },
   "runtime": {
     "type": "fastapi",

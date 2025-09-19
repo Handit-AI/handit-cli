@@ -63,7 +63,7 @@ class ScaffoldingService {
    * @param {Object} config - Configuration to validate
    */
   validateConfig(config) {
-    const required = ['project', 'runtime', 'orchestration', 'agent', 'tools', 'storage'];
+    const required = ['project'];
     
     for (const section of required) {
       if (!config[section]) {
@@ -72,9 +72,53 @@ class ScaffoldingService {
     }
 
     // Validate project section
-    if (!config.project.name || !config.project.language || !config.project.framework) {
-      throw new Error('Project section must include: name, language, framework');
+    if (!config.project.name || !config.project.language) {
+      throw new Error('Project section must include: name, language');
     }
+    
+    // Set default framework if not provided
+    if (!config.project.framework) {
+      config.project.framework = 'langgraph';
+      console.log(chalk.yellow('ℹ️  No framework specified, defaulting to langgraph'));
+    }
+    
+    // Set default runtime if not provided
+    if (!config.runtime) {
+      const defaultRuntime = config.project.language === 'python' ? 'fastapi' : 'express';
+      const defaultPort = config.project.language === 'python' ? 8000 : 3000;
+      
+      config.runtime = {
+        type: defaultRuntime,
+        port: defaultPort
+      };
+      
+      console.log(chalk.yellow(`ℹ️  No runtime specified, defaulting to ${defaultRuntime} (port ${defaultPort})`));
+    }
+    
+    // Set default orchestration if not provided
+    if (!config.orchestration) {
+      const defaultOrchestration = this.getDefaultOrchestration(config.project.framework);
+      
+      config.orchestration = {
+        style: defaultOrchestration
+      };
+      
+      console.log(chalk.yellow(`ℹ️  No orchestration specified, defaulting to ${defaultOrchestration} for ${config.project.framework}`));
+    }
+    
+    // Set default storage if not provided
+    if (!config.storage) {
+      const defaultStorage = this.getDefaultStorage(config.project.framework);
+      
+      config.storage = defaultStorage;
+      
+      console.log(chalk.yellow(`ℹ️  No storage specified, defaulting to ${config.project.framework} optimized storage`));
+    }
+    
+    // Derive stages from node configurations or set defaults
+    config.agent = this.deriveAgentConfig(config);
+    
+    console.log(chalk.blue(`📋 Detected stages: ${config.agent.stages.join(', ')}`));
 
     // Validate supported values
     const supportedLanguages = ['python', 'typescript'];
@@ -87,16 +131,47 @@ class ScaffoldingService {
       throw new Error(`Unsupported framework: ${config.project.framework}. Supported: ${supportedFrameworks.join(', ')}`);
     }
 
+    // Validate tools structure (new node-based structure)
+    if (config.tools) {
+      if (Array.isArray(config.tools)) {
+        // New structure: array of objects with node_name
+        for (const tool of config.tools) {
+          if (!tool.node_name) {
+            throw new Error('Each tool object must have node_name property');
+          }
+          if (tool.selected && !Array.isArray(tool.selected)) {
+            throw new Error('tool.selected must be an array');
+          }
+        }
+      } else if (typeof config.tools === 'object' && config.tools.selected) {
+        // Legacy structure: object with selected array - still supported
+        if (!Array.isArray(config.tools.selected)) {
+          throw new Error('tools.selected must be an array');
+        }
+      } else {
+        throw new Error('tools must be an array of node objects or legacy object with selected array');
+      }
+    }
+
+    // Set default model if neither llm_nodes nor model is provided
+    if (!config.llm_nodes && !config.model) {
+      config.model = {
+        provider: config.project.default_llm_provider || 'mock',
+        name: 'mock-llm'
+      };
+      console.log(chalk.yellow(`ℹ️  No model configuration specified, defaulting to ${config.model.provider}/${config.model.name}`));
+    }
+
     // Validate LLM nodes (new structure) or model (legacy structure)
     if (config.llm_nodes) {
       if (!Array.isArray(config.llm_nodes)) {
         throw new Error('llm_nodes must be an array');
       }
       for (const node of config.llm_nodes) {
-        if (!node.node_name || !node.model) {
-          throw new Error('Each llm_node must have node_name and model properties');
+        if (!node.node_name) {
+          throw new Error('Each llm_node must have node_name property');
         }
-        if (!node.model.provider || !node.model.name) {
+        if (node.model && (!node.model.provider || !node.model.name)) {
           throw new Error('Each llm_node.model must have provider and name properties');
         }
       }
@@ -105,11 +180,90 @@ class ScaffoldingService {
       if (!config.model.provider || !config.model.name) {
         throw new Error('Model section must include: provider, name');
       }
-    } else {
-      throw new Error('Must include either llm_nodes or model section');
     }
 
     console.log(chalk.green('✅ Configuration validated successfully'));
+  }
+
+  /**
+   * Get default orchestration style based on framework
+   * @param {string} framework - Framework name
+   * @returns {string} Default orchestration style
+   */
+  getDefaultOrchestration(framework) {
+    const defaults = {
+      'base': 'pipeline',
+      'langchain': 'pipeline',
+      'langgraph': 'state-graph'
+    };
+    
+    return defaults[framework] || 'pipeline';
+  }
+
+  /**
+   * Get default storage configuration based on framework
+   * @param {string} framework - Framework name
+   * @returns {Object} Default storage configuration
+   */
+  getDefaultStorage(framework) {
+    const defaults = {
+      'base': {
+        memory: 'none',
+        cache: 'in-memory',
+        sql: 'none'
+      },
+      'langchain': {
+        memory: 'faiss-local',
+        cache: 'in-memory',
+        sql: 'none'
+      },
+      'langgraph': {
+        memory: 'none', // LangGraph uses built-in state management
+        cache: 'in-memory',
+        sql: 'none'
+      }
+    };
+    
+    return defaults[framework] || defaults['base'];
+  }
+
+  /**
+   * Derive agent configuration from node configurations
+   * @param {Object} config - Configuration object
+   * @returns {Object} Agent configuration
+   */
+  deriveAgentConfig(config) {
+    const stages = new Set();
+    
+    // Extract stages from tools nodes
+    if (Array.isArray(config.tools)) {
+      config.tools.forEach(tool => {
+        if (tool.node_name) {
+          stages.add(tool.node_name);
+        }
+      });
+    }
+    
+    // Extract stages from llm_nodes
+    if (Array.isArray(config.llm_nodes)) {
+      config.llm_nodes.forEach(node => {
+        if (node.node_name) {
+          stages.add(node.node_name);
+        }
+      });
+    }
+    
+    // If no stages found, use defaults
+    if (stages.size === 0) {
+      stages.add('retrieve');
+      stages.add('reason');
+      stages.add('act');
+    }
+    
+    return {
+      stages: Array.from(stages).sort(), // Sort for consistency
+      subAgents: 0 // Always 0 as we don't use sub-agents
+    };
   }
 
   /**
@@ -195,10 +349,8 @@ class ScaffoldingService {
       await fs.ensureDir(path.join(targetPath, dir));
     }
 
-    // Create node directories for each agent stage
-    for (const stage of config.agent.stages) {
-      await fs.ensureDir(path.join(targetPath, 'src/nodes', stage));
-    }
+    // Note: Node directories are now created by the generator based on llm_nodes and tools configuration
+    // No need to create directories for each agent stage anymore
   }
 
   /**
@@ -275,7 +427,7 @@ src/
 - **Runtime**: ${config.runtime.type}
 - **Framework**: ${config.project.framework}
 - **Orchestration**: ${config.orchestration.style}
-- **Tools**: ${config.tools.selected.join(', ')}
+- **Tools**: ${Array.isArray(config.tools) ? 'Node-specific tools' : (config.tools && config.tools.selected ? config.tools.selected.join(', ') : 'No tools specified')}
 - **Model**: ${config.model ? `${config.model.provider}/${config.model.name}` : 'Multiple models per node'}
 - **Storage**: ${config.storage.memory}/${config.storage.cache}/${config.storage.sql}
 
@@ -327,8 +479,11 @@ This project is pre-configured with Handit.ai monitoring. Set your \`HANDIT_API_
     const envContent = `# Handit.ai Configuration
 HANDIT_API_KEY=your_handit_api_key_here
 
+# Default LLM Provider
+DEFAULT_LLM_PROVIDER=${config.project.default_llm_provider || 'mock'}
+
 # Model Configuration
-MODEL_PROVIDER=${config.model ? config.model.provider : 'mock'}
+MODEL_PROVIDER=${config.model ? config.model.provider : config.project.default_llm_provider || 'mock'}
 MODEL_NAME=${config.model ? config.model.name : 'mock-llm'}
 
 # LLM Nodes Configuration (if using new structure)

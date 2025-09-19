@@ -629,8 +629,48 @@ async def main():
     # Initialize agent
     agent = LangChainAgent()
     
-    # Example usage
-    if "${config.runtime.type}" == 'cli':
+    # Runtime-specific initialization
+    if "${config.runtime.type}" == 'fastapi':
+        # FastAPI mode - start web server
+        from fastapi import FastAPI, HTTPException
+        from pydantic import BaseModel
+        import uvicorn
+        
+        app = FastAPI(title="${config.project.name}", version="1.0.0")
+        
+        class ProcessRequest(BaseModel):
+            input_data: str
+            metadata: dict = {}
+        
+        class ProcessResponse(BaseModel):
+            result: str
+            success: bool
+            metadata: dict = {}
+        
+        @app.post("/process", response_model=ProcessResponse)
+        async def process_endpoint(request: ProcessRequest):
+            """Main processing endpoint"""
+            try:
+                result = await agent.process(request.input_data)
+                return ProcessResponse(
+                    result=str(result),
+                    success=True,
+                    metadata={"agent": "${config.project.name}", "framework": "langchain"}
+                )
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @app.get("/health")
+        async def health_check():
+            """Health check endpoint"""
+            return {"status": "healthy", "agent": "${config.project.name}", "framework": "langchain"}
+        
+        # Start the server
+        port = ${config.runtime.port || 8000}
+        print(f"Starting FastAPI server on port {port}")
+        uvicorn.run(app, host="0.0.0.0", port=port)
+    
+    elif "${config.runtime.type}" == 'cli':
         # CLI mode
         import sys
         if len(sys.argv) > 1:
@@ -645,9 +685,10 @@ async def main():
         # Worker mode - implement queue processing
         print("Worker mode - implement your queue processing logic here")
         # TODO: Add queue processing logic
+        # Example: Redis queue, Celery, or other message queue
     
     else:
-        # Default mode
+        # Default mode (fallback)
         print("Running in default mode")
         result = await agent.process("Hello, world!")
         print(f"Result: {result}")

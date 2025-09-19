@@ -1,10 +1,135 @@
 const fs = require('fs-extra');
 const path = require('path');
 
+
 /**
  * Base Python generator for creating Python agent projects
  */
 class BasePythonGenerator {
+  /**
+   * Generate dynamic imports for nodes
+   * @param {Object} config - Configuration object
+   * @returns {string} Generated import statements
+   */
+  static generateDynamicImports(config) {
+    const llmNodes = this.getLLMNodeNames(config);
+    const toolNodes = this.getToolNodeNames(config);
+    
+    let imports = '';
+    
+    // Add LLM node imports
+    for (const nodeName of llmNodes) {
+      const className = nodeName.charAt(0).toUpperCase() + nodeName.slice(1) + 'Logic';
+      imports += `from src.nodes.llm.${nodeName}.processor import ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)}LLMNode\\n`;
+    }
+    
+    // Add Tool node imports
+    for (const nodeName of toolNodes) {
+      imports += `from src.nodes.tools.${nodeName}.processor import ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)}ToolNode\\n`;
+    }
+    
+    return imports;
+  }
+
+  /**
+   * Generate dynamic node initialization
+   * @param {Object} config - Configuration object
+   * @returns {string} Generated node initialization code
+   */
+  static generateDynamicNodeInitialization(config) {
+    const llmNodes = this.getLLMNodeNames(config);
+    const toolNodes = this.getToolNodeNames(config);
+    
+    let initCode = '';
+    
+    // Add LLM node initialization
+    for (const nodeName of llmNodes) {
+      const className = nodeName.charAt(0).toUpperCase() + nodeName.slice(1) + 'LLMNode';
+      initCode += `        self.nodes['${nodeName}'] = ${className}(self.config)\\n`;
+    }
+    
+    // Add Tool node initialization
+    for (const nodeName of toolNodes) {
+      const className = nodeName.charAt(0).toUpperCase() + nodeName.slice(1) + 'ToolNode';
+      initCode += `        self.nodes['${nodeName}'] = ${className}(self.config)\\n`;
+    }
+    
+    return initCode;
+  }
+
+  /**
+   * Get LLM node names from configuration
+   * @param {Object} config - Configuration object
+   * @returns {Array} Array of LLM node names
+   */
+  static getLLMNodeNames(config) {
+    const llmNodes = new Set();
+    
+    if (Array.isArray(config.llm_nodes)) {
+      config.llm_nodes.forEach(node => {
+        if (node.node_name) {
+          llmNodes.add(node.node_name);
+        }
+      });
+    }
+    
+    // If no LLM nodes specified, use agent stages or create minimal default
+    if (llmNodes.size === 0) {
+      if (Array.isArray(config.agent && config.agent.stages) && config.agent.stages.length > 0) {
+        config.agent.stages.forEach(stage => llmNodes.add(stage));
+      } else {
+        llmNodes.add('process');
+      }
+    }
+    
+    return Array.from(llmNodes);
+  }
+
+  /**
+   * Get Tool node names from configuration
+   * @param {Object} config - Configuration object
+   * @returns {Array} Array of tool node names
+   */
+  static getToolNodeNames(config) {
+    const toolNodes = new Set();
+    
+    if (Array.isArray(config.tools)) {
+      config.tools.forEach(tool => {
+        if (tool.node_name) {
+          toolNodes.add(tool.node_name);
+        }
+      });
+    }
+    
+    return Array.from(toolNodes);
+  }
+
+  /**
+   * Get tools array from config (handles both new and legacy structure)
+   * @param {Object} config - Configuration object
+   * @returns {Array} Array of tool names
+   */
+  static getToolsArray(config) {
+    if (!config.tools) {
+      return []; // No tools specified
+    }
+    
+    if (Array.isArray(config.tools)) {
+      // New structure: extract all tools from all nodes
+      const allTools = new Set();
+      for (const toolNode of config.tools) {
+        if (toolNode.selected && Array.isArray(toolNode.selected)) {
+          toolNode.selected.forEach(tool => allTools.add(tool));
+        }
+      }
+      return Array.from(allTools);
+    } else if (config.tools && config.tools.selected) {
+      // Legacy structure
+      return config.tools.selected;
+    }
+    return [];
+  }
+
   /**
    * Generate a base Python project
    * @param {Object} config - Configuration object
@@ -54,18 +179,13 @@ load_dotenv()
 configure(HANDIT_API_KEY=os.getenv("HANDIT_API_KEY"))
 
 from src.config import Config
-from src.nodes.retrieve.logic import RetrieveLogic
-from src.nodes.reason.logic import ReasonLogic
-from src.nodes.act.logic import ActLogic
+${this.generateDynamicImports(config)}
 
 class AgentPipeline:
     def __init__(self):
         self.config = Config()
-        self.nodes = {
-            'retrieve': RetrieveLogic(self.config),
-            'reason': ReasonLogic(self.config),
-            'act': ActLogic(self.config)
-        }
+        self.nodes = {}
+        ${this.generateDynamicNodeInitialization(config)}
     
     async def process(self, input_data):
         """
@@ -91,8 +211,48 @@ async def main():
         # Initialize agent
         agent = AgentPipeline()
         
-        # Example usage
-        if "${config.runtime.type}" == 'cli':
+        # Runtime-specific initialization
+        if "${(config.runtime && config.runtime.type) || 'cli'}" == 'fastapi':
+            # FastAPI mode - start web server
+            from fastapi import FastAPI, HTTPException
+            from pydantic import BaseModel
+            import uvicorn
+            
+            app = FastAPI(title="${config.project.name}", version="1.0.0")
+            
+            class ProcessRequest(BaseModel):
+                input_data: str
+                metadata: dict = {}
+            
+            class ProcessResponse(BaseModel):
+                result: str
+                success: bool
+                metadata: dict = {}
+            
+            @app.post("/process", response_model=ProcessResponse)
+            async def process_endpoint(request: ProcessRequest):
+                """Main processing endpoint"""
+                try:
+                    result = await agent.process(request.input_data)
+                    return ProcessResponse(
+                        result=str(result),
+                        success=True,
+                        metadata={"agent": "${config.project.name}"}
+                    )
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=str(e))
+            
+            @app.get("/health")
+            async def health_check():
+                """Health check endpoint"""
+                return {"status": "healthy", "agent": "${config.project.name}"}
+            
+            # Start the server
+            port = ${(config.runtime && config.runtime.port) || 8000}
+            print(f"Starting FastAPI server on port {port}")
+            uvicorn.run(app, host="0.0.0.0", port=port)
+        
+        elif "${(config.runtime && config.runtime.type) || 'cli'}" == 'cli':
             # CLI mode
             import sys
             if len(sys.argv) > 1:
@@ -103,13 +263,14 @@ async def main():
             result = await agent.process(input_data)
             print(f"Result: {result}")
         
-        elif "${config.runtime.type}" == 'worker':
+        elif "${(config.runtime && config.runtime.type) || 'cli'}" == 'worker':
             # Worker mode - implement queue processing
             print("Worker mode - implement your queue processing logic here")
             # TODO: Add queue processing logic
+            # Example: Redis queue, Celery, or other message queue
         
         else:
-            # Default mode
+            # Default mode (fallback)
             print("Running in default mode")
             result = await agent.process("Hello, world!")
             print(f"Result: {result}")
@@ -132,116 +293,63 @@ if __name__ == "__main__":
    */
   static async generateConfigFile(config, targetPath) {
     const configContent = `"""
-Configuration management for ${config.project.name}
+Simple configuration for ${config.project.name}
+Only includes what's actually needed for the agent to run.
 """
 
 import os
-from dataclasses import dataclass
-from typing import List, Dict, Any
-
-@dataclass
-class ModelConfig:
-    provider: str
-    name: str
-
-@dataclass
-class StorageConfig:
-    memory: str
-    cache: str
-    sql: str
-
-@dataclass
-class AgentConfig:
-    stages: List[str]
-    sub_agents: int
-
-@dataclass
-class ToolsConfig:
-    selected: List[str]
+from typing import Dict, Any, List
 
 class Config:
+    """
+    Simple configuration class - only essential properties.
+    The generator handles folder/file structure based on JSON config.
+    """
+    
     def __init__(self) -> None:
+        # Basic project info
         self.project_name: str = "${config.project.name}"
-        self.language: str = "${config.project.language}"
         self.framework: str = "${config.project.framework}"
         
-        self.runtime_type: str = "${config.runtime.type}"
-        self.runtime_port: int = ${config.runtime.port || 'None'}
+        # Runtime info
+        self.runtime_type: str = "${(config.runtime && config.runtime.type) || 'cli'}"
+        self.port: int = ${(config.runtime && config.runtime.port) || 8000}
         
-        self.orchestration_style: str = "${config.orchestration.style}"
+        # Agent stages (the actual workflow)
+        self.agent_stages: List[str] = ${JSON.stringify((config.agent && config.agent.stages) || ['process'])}
         
-        self.agent_stages: List[str] = ${JSON.stringify(config.agent.stages)}
-        self.agent_sub_agents: int = ${config.agent.subAgents}
-        
-        self.tools_selected: List[str] = ${JSON.stringify(config.tools.selected)}
-        
-        self.model: ModelConfig = ModelConfig(
-            provider="${config.model ? config.model.provider : 'mock'}",
-            name="${config.model ? config.model.name : 'mock-llm'}"
-        )
-        
-        # LLM nodes configuration (new structure)
-        self.llm_nodes: List[Dict[str, Any]] = ${JSON.stringify(config.llm_nodes || [])};
-        
-        self.storage: StorageConfig = StorageConfig(
-            memory="${config.storage.memory}",
-            cache="${config.storage.cache}",
-            sql="${config.storage.sql}"
-        )
-        
-        # Environment variables
+        # Environment variables (for actual runtime configuration)
         self.handit_api_key = os.getenv("HANDIT_API_KEY")
-        self.model_provider = os.getenv("MODEL_PROVIDER", self.model.provider)
-        self.model_name = os.getenv("MODEL_NAME", self.model.name)
-        
-        # Runtime configuration
-        if self.runtime_type in ['fastapi']:
-            self.port = int(os.getenv("PORT", self.runtime_port or 8000))
-        
-        # Storage configuration
-        self.memory_storage = os.getenv("MEMORY_STORAGE", self.storage.memory)
-        self.cache_storage = os.getenv("CACHE_STORAGE", self.storage.cache)
-        self.sql_storage = os.getenv("SQL_STORAGE", self.storage.sql)
+        self.model_provider = os.getenv("MODEL_PROVIDER", "mock")
+        self.model_name = os.getenv("MODEL_NAME", "mock-llm")
     
-    def get_model_config(self) -> Dict[str, Any]:
-        """Get model configuration"""
+    def get_model_config(self, node_name: str = None) -> Dict[str, Any]:
+        """
+        Get model configuration for a node.
+        
+        Args:
+            node_name: Optional node name for node-specific config
+            
+        Returns:
+            Model configuration
+        """
         return {
             "provider": self.model_provider,
             "name": self.model_name
         }
     
-    def get_storage_config(self) -> Dict[str, Any]:
-        """Get storage configuration"""
-        return {
-            "memory": self.memory_storage,
-            "cache": self.cache_storage,
-            "sql": self.sql_storage
-        }
-    
-    def get_tools_config(self) -> Dict[str, Any]:
-        """Get tools configuration"""
-        return {
-            "selected": self.tools_selected
-        }
-    
-    def get_node_model_config(self, node_name: str) -> Dict[str, Any]:
+    def get_node_tools_config(self, node_name: str) -> List[str]:
         """
-        Get model configuration for a specific node.
+        Get tools for a specific node.
         
         Args:
             node_name: Name of the node
             
         Returns:
-            Model configuration for the node
+            List of available tools (empty for now - implement as needed)
         """
-        # Check if we have llm_nodes configuration
-        if self.llm_nodes:
-            for llm_node in self.llm_nodes:
-                if llm_node.get('node_name') == node_name:
-                    return llm_node.get('model', {})
-        
-        # Fallback to default model configuration
-        return self.get_model_config()
+        # Return empty list by default - tools can be added per node as needed
+        return []
 `;
 
     await fs.writeFile(path.join(targetPath, 'src/config.py'), configContent);
@@ -253,18 +361,81 @@ class Config:
    * @param {string} targetPath - Target directory path
    */
   static async generateNodes(config, targetPath) {
-    for (const stage of config.agent.stages) {
-      await this.generateNodeFiles(config, targetPath, stage);
+    // Generate tool nodes
+    await this.generateToolNodes(config, targetPath);
+    
+    // Generate LLM nodes
+    await this.generateLLMNodes(config, targetPath);
+  }
+
+  /**
+   * Generate tool nodes (no prompts, only logic)
+   * @param {Object} config - Configuration object
+   * @param {string} targetPath - Target directory path
+   */
+  static async generateToolNodes(config, targetPath) {
+    const toolNodesPath = path.join(targetPath, 'src/nodes/tools');
+    await fs.ensureDir(toolNodesPath);
+    
+    // Extract tool node names
+    const toolNodes = new Set();
+    if (Array.isArray(config.tools)) {
+      config.tools.forEach(tool => {
+        if (tool.node_name) {
+          toolNodes.add(tool.node_name);
+        }
+      });
+    }
+    
+    // Generate tool node files
+    for (const nodeName of toolNodes) {
+      await this.generateToolNodeFiles(config, targetPath, nodeName);
     }
   }
 
   /**
-   * Generate files for a specific node
+   * Generate LLM nodes (with prompts and model setup)
+   * @param {Object} config - Configuration object
+   * @param {string} targetPath - Target directory path
+   */
+  static async generateLLMNodes(config, targetPath) {
+    const llmNodesPath = path.join(targetPath, 'src/nodes/llm');
+    await fs.ensureDir(llmNodesPath);
+    
+    // Extract LLM node names
+    const llmNodes = new Set();
+    if (Array.isArray(config.llm_nodes)) {
+      config.llm_nodes.forEach(node => {
+        if (node.node_name) {
+          llmNodes.add(node.node_name);
+        }
+      });
+    }
+    
+    // If no LLM nodes specified, use agent stages or create minimal default
+    if (llmNodes.size === 0) {
+      if (Array.isArray(config.agent && config.agent.stages) && config.agent.stages.length > 0) {
+        // Use the agent stages as LLM nodes
+        config.agent.stages.forEach(stage => llmNodes.add(stage));
+      } else {
+        // Minimal fallback - just one generic node
+        llmNodes.add('process');
+      }
+    }
+    
+    // Generate LLM node files
+    for (const nodeName of llmNodes) {
+      await this.generateLLMNodeFiles(config, targetPath, nodeName);
+    }
+  }
+
+  /**
+   * Generate files for a specific node (LEGACY - NOT USED)
    * @param {Object} config - Configuration object
    * @param {string} targetPath - Target directory path
    * @param {string} stage - Stage name
    */
-  static async generateNodeFiles(config, targetPath, stage) {
+  static async generateNodeFiles_LEGACY_NOT_USED(config, targetPath, stage) {
     const nodePath = path.join(targetPath, 'src/nodes', stage);
     
     // Generate README.md
@@ -280,6 +451,14 @@ from typing import Any, Dict
 from handit_ai import tracing
 from .prompts import get_prompts
 
+class NodeExecutionError(Exception):
+    """Custom exception for node execution errors"""
+    pass
+
+class NodeTimeoutError(Exception):
+    """Custom exception for node timeout errors"""
+    pass
+
 class ${stage.charAt(0).toUpperCase() + stage.slice(1)}Logic:
     def __init__(self, config: Any) -> None:
         self.config = config
@@ -288,21 +467,60 @@ class ${stage.charAt(0).toUpperCase() + stage.slice(1)}Logic:
     
     async def execute(self, input_data: Any) -> Any:
         """
-        Main execution logic for the ${stage} node.
+        Main execution logic for the ${stage} node with comprehensive error recovery.
         
         Args:
             input_data: Input data from previous stage or initial input
             
         Returns:
             Processed data for next stage
+            
+        Raises:
+            NodeExecutionError: If all recovery attempts fail
         """
-        try:
-            # TODO: Implement your ${stage} logic here
-            result = await self.process_input(input_data)
-            return result
-        except Exception as e:
-            print(f"Error in {self.stage} node: {e}")
-            raise
+        max_retries = 3
+        retry_delay = 1.0
+        
+        for attempt in range(max_retries):
+            try:
+                # Validate input before processing
+                if not self.validate_input(input_data):
+                    raise ValueError(f"Invalid input data for {self.stage} node")
+                
+                # Process with timeout
+                result = await self.process_input_with_timeout(input_data)
+                
+                # Validate output
+                if not self.validate_output(result):
+                    raise ValueError(f"Invalid output from {self.stage} node")
+                
+                return result
+                
+            except (ValueError, TypeError) as e:
+                # Input/output validation errors - don't retry
+                print(f"❌ Validation error in {self.stage} node: {e}")
+                raise NodeExecutionError(f"Validation failed in {self.stage} node: {e}")
+                
+            except TimeoutError as e:
+                print(f"⏰ Timeout in {self.stage} node (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt == max_retries - 1:
+                    raise NodeExecutionError(f"Timeout in {self.stage} node after {max_retries} attempts")
+                await asyncio.sleep(retry_delay * (attempt + 1))
+                
+            except Exception as e:
+                print(f"⚠️ Error in {self.stage} node (attempt {attempt + 1}/{max_retries}): {e}")
+                
+                if attempt == max_retries - 1:
+                    # Last attempt failed
+                    error_msg = f"Failed to execute {self.stage} node after {max_retries} attempts: {e}"
+                    print(f"❌ {error_msg}")
+                    raise NodeExecutionError(error_msg)
+                
+                # Wait before retry with exponential backoff
+                await asyncio.sleep(retry_delay * (2 ** attempt))
+        
+        # This should never be reached, but just in case
+        raise NodeExecutionError(f"Unexpected error in {self.stage} node execution")
     
     async def process_input(self, data: Any) -> Any:
         """
@@ -329,15 +547,84 @@ class ${stage.charAt(0).toUpperCase() + stage.slice(1)}Logic:
         
         return result
     
+    async def process_input_with_timeout(self, data: Any, timeout: float = 30.0) -> Any:
+        """
+        Process input data with timeout protection.
+        
+        Args:
+            data: Input data to process
+            timeout: Timeout in seconds
+            
+        Returns:
+            Processed result
+            
+        Raises:
+            TimeoutError: If processing takes too long
+        """
+        try:
+            return await asyncio.wait_for(
+                self.process_input(data), 
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            raise TimeoutError(f"Processing timeout after {timeout} seconds")
+    
     def validate_input(self, data: Any) -> bool:
         """
-        Validate input data for this stage.
+        Validate input data for this stage with comprehensive checks.
         
+        Args:
+            data: Input data to validate
+            
         Returns:
             True if input is valid, False otherwise
         """
-        # TODO: Implement input validation
-        return data is not None
+        if data is None:
+            return False
+        
+        # Add type-specific validation
+        if isinstance(data, str):
+            # String validation
+            if len(data.strip()) == 0:
+                return False
+            if len(data) > 10000:  # Prevent extremely long inputs
+                return False
+        elif isinstance(data, dict):
+            # Dictionary validation
+            if not data:
+                return False
+            # Check for required fields if needed
+        elif isinstance(data, list):
+            # List validation
+            if len(data) == 0:
+                return False
+            if len(data) > 1000:  # Prevent extremely large lists
+                return False
+        
+        return True
+    
+    def validate_output(self, data: Any) -> bool:
+        """
+        Validate output data from this stage.
+        
+        Args:
+            data: Output data to validate
+            
+        Returns:
+            True if output is valid, False otherwise
+        """
+        if data is None:
+            return False
+        
+        # Add output-specific validation
+        if isinstance(data, str):
+            return len(data.strip()) > 0
+        elif isinstance(data, dict):
+            return bool(data)
+        elif isinstance(data, list):
+            return len(data) > 0
+        
+        return True
     
     def get_metadata(self) -> Dict[str, Any]:
         """
@@ -348,12 +635,11 @@ class ${stage.charAt(0).toUpperCase() + stage.slice(1)}Logic:
         """
         return {
             "stage": self.stage,
-            "config": self.config.get_model_config(),
-            "tools": self.config.get_tools_config()
+            "config": self.config.get_model_config()
         }
 `;
 
-    await fs.writeFile(path.join(nodePath, 'logic.py'), logicContent);
+    await fs.writeFile(path.join(nodePath, 'processor.py'), logicContent);
 
     // Generate prompts.py
     const promptsContent = `"""
@@ -487,6 +773,447 @@ __all__ = [
   }
 
   /**
+   * Generate files for a tool node (no prompts)
+   * @param {Object} config - Configuration object
+   * @param {string} targetPath - Target directory path
+   * @param {string} nodeName - Node name
+   */
+  static async generateToolNodeFiles(config, targetPath, nodeName) {
+    const nodePath = path.join(targetPath, 'src/nodes/tools', nodeName);
+    await fs.ensureDir(nodePath);
+    
+    // Generate README.md
+    await this.generateToolNodeReadme(config, nodeName, nodePath);
+    
+    // Generate processor.py (tool-specific)
+    const logicContent = `"""
+${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)} tool node
+"""
+
+import asyncio
+from typing import Any, Dict, List
+from ...base import BaseToolNode
+
+class ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)}ToolNode(BaseToolNode):
+    """
+    ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)} tool node implementation
+    
+    This node executes specific tool actions for the ${nodeName} functionality.
+    Customize the run() method to implement your specific tool logic.
+    """
+    
+    def __init__(self, config):
+        super().__init__(config, "${nodeName}")
+    
+    async def run(self, input_data: Any) -> Any:
+        """
+        Main execution logic for the ${nodeName} tool node with error recovery.
+        
+        Args:
+            input_data: Input data from previous stage or initial input
+            
+        Returns:
+            Processed data for next stage
+            
+        Raises:
+            NodeExecutionError: If all recovery attempts fail
+        """
+        max_retries = 3
+        retry_delay = 1.0
+        
+        for attempt in range(max_retries):
+            try:
+                # Validate input
+                if not self.validate_input(input_data):
+                    raise ValueError(f"Invalid input data for {self.node_name}")
+                
+                # Execute tool logic (no timeout for tools)
+                result = await self._execute_${nodeName.replace('-', '_').replace(' ', '_')}_logic(input_data)
+                
+                # Validate output
+                if not self.validate_output(result):
+                    raise ValueError(f"Invalid output from {self.node_name}")
+                
+                return result
+                
+            except (ValueError, TypeError) as e:
+                # Validation errors - don't retry
+                print(f"❌ Validation error in {self.node_name}: {e}")
+                raise NodeExecutionError(f"Validation failed in {self.node_name}: {e}")
+                
+            except Exception as e:
+                print(f"⚠️ Error in {self.node_name} (attempt {attempt + 1}/{max_retries}): {e}")
+                
+                if attempt == max_retries - 1:
+                    error_msg = f"Failed to execute {self.node_name} after {max_retries} attempts: {e}"
+                    print(f"❌ {error_msg}")
+                    raise NodeExecutionError(error_msg)
+                
+                # Exponential backoff
+                await asyncio.sleep(retry_delay * (2 ** attempt))
+        
+        raise NodeExecutionError(f"Unexpected error in {self.node_name} execution")
+    
+    async def _execute_${nodeName.replace('-', '_').replace(' ', '_')}_logic(self, data: Any) -> Any:
+        """
+        Execute the specific ${nodeName} tool logic
+        
+        Customize this method with your specific tool implementation:
+        - HTTP requests for API calls
+        - File operations for data processing  
+        - Web scraping for information gathering
+        - Calculator operations for computations
+        - Database queries for data retrieval
+        
+        Available tools: {self.available_tools}
+        """
+        # TODO: Replace this placeholder with your actual tool logic
+        
+        # Example implementations based on common tool types:
+        
+        if "http_fetch" in self.available_tools:
+            # Example: HTTP request tool
+            # result = await self.execute_tool("http_fetch", {
+            #     "url": "https://api.example.com/data",
+            #     "method": "GET",
+            #     "headers": {"Content-Type": "application/json"}
+            # })
+            pass
+        
+        if "web_search" in self.available_tools:
+            # Example: Web search tool
+            # result = await self.execute_tool("web_search", {
+            #     "query": str(data),
+            #     "num_results": 5
+            # })
+            pass
+        
+        if "calculator" in self.available_tools:
+            # Example: Calculator tool
+            # result = await self.execute_tool("calculator", {
+            #     "expression": str(data)
+            # })
+            pass
+        
+        if "file_io" in self.available_tools:
+            # Example: File operations tool
+            # result = await self.execute_tool("file_io", {
+            #     "operation": "read",
+            #     "path": "/path/to/file"
+            # })
+            pass
+        
+        # Placeholder response - replace with actual implementation
+        return {
+            "node": self.node_name,
+            "processed_data": data,
+            "tools_available": self.available_tools,
+            "message": f"${nodeName} tool executed successfully"
+        }
+`;
+
+    await fs.writeFile(path.join(nodePath, 'processor.py'), logicContent);
+
+    // Generate __init__.py
+    const initContent = `"""
+${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)} tool node package
+"""
+
+from .processor import ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)}ToolNode
+
+__all__ = [
+    "${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)}ToolNode"
+]
+`;
+
+    await fs.writeFile(path.join(nodePath, '__init__.py'), initContent);
+  }
+
+  /**
+   * Generate files for an LLM node (with prompts and model setup)
+   * @param {Object} config - Configuration object
+   * @param {string} targetPath - Target directory path
+   * @param {string} nodeName - Node name
+   */
+  static async generateLLMNodeFiles(config, targetPath, nodeName) {
+    const nodePath = path.join(targetPath, 'src/nodes/llm', nodeName);
+    await fs.ensureDir(nodePath);
+    
+    // Generate README.md
+    await this.generateLLMNodeReadme(config, nodeName, nodePath);
+    
+    // Generate processor.py (LLM-specific with model setup)
+    const logicContent = `"""
+${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)} LLM node
+"""
+
+import asyncio
+from typing import Any, Dict
+from ...base import BaseLLMNode
+from .prompts import get_prompts
+
+class ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)}LLMNode(BaseLLMNode):
+    """
+    ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)} LLM node implementation
+    
+    This node processes input using LLM capabilities for the ${nodeName} functionality.
+    Customize the run() method to implement your specific LLM logic and AI system calls.
+    """
+    
+    def __init__(self, config):
+        super().__init__(config, "${nodeName}")
+        # Load node-specific prompts
+        self.node_prompts = get_prompts()
+    
+    async def run(self, input_data: Any) -> Any:
+        """
+        Execute the ${nodeName} LLM logic with comprehensive error recovery.
+        
+        Args:
+            input_data: Input data to process with LLM
+            
+        Returns:
+            LLM-processed result
+            
+        Raises:
+            NodeExecutionError: If all recovery attempts fail
+        """
+        max_retries = 3
+        retry_delay = 2.0  # Longer delay for LLM calls
+        
+        for attempt in range(max_retries):
+            try:
+                # Validate input
+                if not self.validate_input(input_data):
+                    raise ValueError(f"Invalid input data for {self.node_name}")
+                
+                # Execute with timeout (longer for LLM calls)
+                result = await asyncio.wait_for(
+                    self._execute_${nodeName.replace('-', '_').replace(' ', '_')}_llm_logic(input_data),
+                    timeout=60.0
+                )
+                
+                # Validate output
+                if not self.validate_output(result):
+                    raise ValueError(f"Invalid output from {self.node_name}")
+                
+                return result
+                
+            except (ValueError, TypeError) as e:
+                # Validation errors - don't retry
+                print(f"❌ Validation error in {self.node_name}: {e}")
+                raise NodeExecutionError(f"Validation failed in {self.node_name}: {e}")
+                
+            except asyncio.TimeoutError:
+                print(f"⏰ LLM timeout in {self.node_name} (attempt {attempt + 1}/{max_retries})")
+                if attempt == max_retries - 1:
+                    raise NodeExecutionError(f"LLM timeout in {self.node_name} after {max_retries} attempts")
+                await asyncio.sleep(retry_delay * (attempt + 1))
+                
+            except Exception as e:
+                print(f"⚠️ LLM error in {self.node_name} (attempt {attempt + 1}/{max_retries}): {e}")
+                
+                if attempt == max_retries - 1:
+                    error_msg = f"Failed to execute {self.node_name} after {max_retries} attempts: {e}"
+                    print(f"❌ {error_msg}")
+                    raise NodeExecutionError(error_msg)
+                
+                # Exponential backoff with longer delays for LLM
+                await asyncio.sleep(retry_delay * (2 ** attempt))
+        
+        raise NodeExecutionError(f"Unexpected error in {self.node_name} execution")
+    
+    async def _execute_${nodeName.replace('-', '_').replace(' ', '_')}_llm_logic(self, data: Any) -> Any:
+        """
+        Execute the specific ${nodeName} LLM logic
+        
+        This method should call your AI system with the appropriate prompts.
+        Customize this method to implement your specific LLM integration:
+        
+        - OpenAI API calls
+        - Ollama local model calls  
+        - Anthropic Claude API calls
+        - Custom model endpoints
+        - Prompt engineering and response processing
+        
+        Available prompts: {list(self.node_prompts.keys())}
+        Model configuration: {self.model_config}
+        """
+        # TODO: Replace this placeholder with your actual LLM integration
+        
+        # Get the appropriate prompt for this node
+        system_prompt = self.node_prompts.get("system", "You are a helpful AI assistant.")
+        user_prompt = self.node_prompts.get("user", "Process the following input: {input}")
+        
+        # Example LLM integration patterns:
+        
+        # 1. OpenAI API Example:
+        # if self.model_config.get("provider") == "openai":
+        #     import openai
+        #     response = await openai.ChatCompletion.acreate(
+        #         model=self.model_config.get("name", "gpt-3.5-turbo"),
+        #         messages=[
+        #             {"role": "system", "content": system_prompt},
+        #             {"role": "user", "content": user_prompt.format(input=str(data))}
+        #         ]
+        #     )
+        #     return response.choices[0].message.content
+        
+        # 2. Ollama Example:
+        # if self.model_config.get("provider") == "ollama":
+        #     import ollama
+        #     response = await ollama.chat(
+        #         model=self.model_config.get("name", "llama2"),
+        #         messages=[
+        #             {"role": "system", "content": system_prompt},
+        #             {"role": "user", "content": user_prompt.format(input=str(data))}
+        #         ]
+        #     )
+        #     return response['message']['content']
+        
+        # 3. Custom API Example:
+        # result = await self.call_llm(
+        #     prompt=f"{system_prompt}\\n\\n{user_prompt.format(input=str(data))}",
+        #     input_data=data
+        # )
+        
+        # Placeholder response - replace with actual LLM integration
+        formatted_prompt = user_prompt.format(input=str(data))
+        
+        return {
+            "node": self.node_name,
+            "llm_response": f"LLM response for {self.node_name}: processed '{data}'",
+            "model_used": f"{self.model_config.get('provider', 'unknown')}/{self.model_config.get('name', 'unknown')}",
+            "prompt_used": system_prompt[:50] + "...",
+            "input_processed": data
+        }
+`;
+
+    await fs.writeFile(path.join(nodePath, 'processor.py'), logicContent);
+
+    // Generate prompts.py (only for LLM nodes)
+    const promptsContent = `"""
+Prompt definitions for the ${nodeName} LLM node
+"""
+
+from typing import Dict, List, Any
+
+def get_prompts() -> Dict[str, Any]:
+    """
+    Define prompts for the ${nodeName} LLM node.
+    
+    Customize these prompts for your specific use case.
+    
+    Returns:
+        Dictionary containing prompt templates and examples
+    """
+    return {
+        "system": f"""You are a helpful AI assistant specialized in ${nodeName} tasks.
+
+Your role is to:
+- Process input data for the ${nodeName} stage
+- Apply appropriate ${nodeName} logic using LLM capabilities
+- Return structured results for the next stage
+
+Guidelines:
+- Be precise and focused on ${nodeName} functionality
+- Maintain consistency with the overall agent workflow
+- Handle errors gracefully
+- Provide clear, actionable outputs""",
+
+        "user_template": """Process the following input for the ${nodeName} LLM stage:
+
+Input: {input}
+
+Context: {context}
+
+Please provide a structured response that can be used by the next stage in the pipeline.""",
+
+        "examples": [
+            {
+                "input": f"Sample input for ${nodeName}",
+                "output": f"Sample LLM output from ${nodeName}",
+                "context": "Example context"
+            }
+        ],
+        
+        "error_handling": {
+            "invalid_input": f"The input provided is not valid for ${nodeName} LLM processing.",
+            "processing_error": f"An error occurred while processing the input in ${nodeName} LLM.",
+            "timeout": f"The ${nodeName} LLM processing timed out."
+        },
+        
+        "validation_rules": {
+            "required_fields": ["input"],
+            "optional_fields": ["context", "metadata"],
+            "input_types": ["string", "dict", "list"]
+        }
+    }
+
+def get_node_specific_prompts(node_type: str) -> Dict[str, Any]:
+    """
+    Get node-specific prompts based on the node type.
+    
+    Args:
+        node_type: Type of LLM node
+        
+    Returns:
+        Node-specific prompt configuration
+    """
+    # Node-specific prompts - customize these for each specific node
+    node_prompts = {
+        "${nodeName}": {
+            "description": "Customize this description for the ${nodeName} node functionality",
+            "focus": "Define the specific focus and purpose of the ${nodeName} node",
+            "output_format": "Specify the expected output format for this node"
+        }
+    }
+    
+    return node_prompts.get(node_type, {
+        "description": f"Process data using LLM capabilities for {node_type}",
+        "focus": "LLM-powered data processing and transformation",
+        "output_format": "Processed data for next stage"
+    })
+
+def format_prompt(template: str, **kwargs) -> str:
+    """
+    Format a prompt template with provided variables.
+    
+    Args:
+        template: Prompt template string
+        **kwargs: Variables to substitute in the template
+        
+    Returns:
+        Formatted prompt string
+    """
+    try:
+        return template.format(**kwargs)
+    except KeyError as e:
+        raise ValueError(f"Missing required variable: {e}")
+`;
+
+    await fs.writeFile(path.join(nodePath, 'prompts.py'), promptsContent);
+
+    // Generate __init__.py
+    const initContent = `"""
+${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)} LLM node package
+"""
+
+from .processor import ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)}LLMNode
+from .prompts import get_prompts, get_node_specific_prompts, format_prompt
+
+__all__ = [
+    "${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)}LLMNode",
+    "get_prompts",
+    "get_node_specific_prompts", 
+    "format_prompt"
+]
+`;
+
+    await fs.writeFile(path.join(nodePath, '__init__.py'), initContent);
+  }
+
+  /**
    * Generate README.md for a specific node
    * @param {Object} config - Configuration object
    * @param {string} stage - Stage name
@@ -525,9 +1252,9 @@ result = await node.execute(input_data)
 ## Configuration
 
 This node uses the following configuration:
-- **Model**: ${config.model ? `${config.model.provider}/${config.model.name}` : 'Multiple models per node'}
-- **Tools**: ${config.tools.selected.join(', ')}
-- **Storage**: ${config.storage.memory}/${config.storage.cache}/${config.storage.sql}
+- **Model**: ${(config.model && config.model.provider && config.model.name) ? `${config.model.provider}/${config.model.name}` : 'Multiple models per node'}
+- **Tools**: ${Array.isArray(config.tools) ? 'Node-specific tools' : (config.tools && config.tools.selected ? config.tools.selected.join(', ') : 'No tools specified')}
+- **Storage**: ${(config.storage && config.storage.memory) || 'memory'}/${(config.storage && config.storage.cache) || 'cache'}/${(config.storage && config.storage.sql) || 'sqlite'}
 
 ## Customization
 
@@ -560,6 +1287,177 @@ This node is automatically traced by Handit.ai for monitoring and observability.
     };
     
     return descriptions[stage] || '- Processing data and executing logic\n- Implementing the core functionality\n- Handling input/output operations';
+  }
+
+  /**
+   * Generate README.md for a tool node
+   * @param {Object} config - Configuration object
+   * @param {string} nodeName - Node name
+   * @param {string} nodePath - Node directory path
+   */
+  static async generateToolNodeReadme(config, nodeName, nodePath) {
+    const nodeCapitalized = nodeName.charAt(0).toUpperCase() + nodeName.slice(1);
+    const readmeContent = `# ${nodeCapitalized} Tool Node
+
+This folder contains the implementation for the **${nodeName}** tool node of the ${config.project.name} agent.
+
+## Files
+
+- **\`processor.py\`** - Contains the main processing logic for this tool node
+- **\`__init__.py\`** - Makes this directory a Python package
+
+## Purpose
+
+The ${nodeName} tool node is responsible for:
+- Executing tool-based operations
+- Processing data using available tools
+- Providing tool-specific functionality
+
+## Available Tools
+
+This node has access to the following tools:
+${this.getNodeToolsList(config, nodeName)}
+
+## Usage
+
+\`\`\`python
+from src.nodes.tools.${nodeName}.processor import ${nodeCapitalized}ToolNode
+
+# Initialize the tool node
+node = ${nodeCapitalized}ToolNode(config)
+
+# Run the tool node
+result = await node.run(input_data)
+
+# Get available tools
+tools = node.get_available_tools()
+\`\`\`
+
+## Configuration
+
+This tool node uses the following configuration:
+- **Type**: Tool Node
+- **Available Tools**: Node-specific tools
+- **Storage**: ${(config.storage && config.storage.memory) || 'memory'}/${(config.storage && config.storage.cache) || 'cache'}/${(config.storage && config.storage.sql) || 'sqlite'}
+
+## Customization
+
+To customize this tool node:
+
+1. **Modify Processor**: Edit \`processor.py\` to change the tool processing behavior
+2. **Add Tools**: Update the tools configuration for this specific node
+3. **Tool Integration**: Implement specific tool integrations in the logic
+
+## Note
+
+Tool nodes do not have prompts - they focus on tool execution and data processing.
+`;
+
+    await fs.writeFile(path.join(nodePath, 'README.md'), readmeContent);
+  }
+
+  /**
+   * Generate README.md for an LLM node
+   * @param {Object} config - Configuration object
+   * @param {string} nodeName - Node name
+   * @param {string} nodePath - Node directory path
+   */
+  static async generateLLMNodeReadme(config, nodeName, nodePath) {
+    const nodeCapitalized = nodeName.charAt(0).toUpperCase() + nodeName.slice(1);
+    const readmeContent = `# ${nodeCapitalized} LLM Node
+
+This folder contains the implementation for the **${nodeName}** LLM node of the ${config.project.name} agent.
+
+## Files
+
+- **\`processor.py\`** - Contains the main processing logic for this LLM node
+- **\`prompts.py\`** - Contains prompt definitions and templates
+- **\`__init__.py\`** - Makes this directory a Python package
+
+## Purpose
+
+The ${nodeName} LLM node is responsible for:
+- Processing data using Large Language Model capabilities
+- Applying prompts and generating intelligent responses
+- Providing AI-powered reasoning and analysis
+
+## Model Configuration
+
+This LLM node uses:
+${this.getNodeModelInfo(config, nodeName)}
+
+## Usage
+
+\`\`\`python
+from src.nodes.llm.${nodeName}.processor import ${nodeCapitalized}LLMNode
+
+# Initialize the LLM node
+node = ${nodeCapitalized}LLMNode(config)
+
+# Run the LLM node
+result = await node.run(input_data)
+
+# Get model information
+model_info = node.get_model_info()
+\`\`\`
+
+## Configuration
+
+This LLM node uses the following configuration:
+- **Type**: LLM Node
+- **Model**: Node-specific model configuration
+- **Prompts**: Custom prompt templates
+- **Storage**: ${(config.storage && config.storage.memory) || 'memory'}/${(config.storage && config.storage.cache) || 'cache'}/${(config.storage && config.storage.sql) || 'sqlite'}
+
+## Customization
+
+To customize this LLM node:
+
+1. **Modify Processor**: Edit \`processor.py\` to change the LLM processing behavior
+2. **Update Prompts**: Edit \`prompts.py\` to modify prompt templates
+3. **Change Model**: Update the model configuration for this specific node
+4. **Add Context**: Enhance prompts with additional context
+
+## Handit Integration
+
+This LLM node is automatically traced by Handit.ai for monitoring and observability.
+`;
+
+    await fs.writeFile(path.join(nodePath, 'README.md'), readmeContent);
+  }
+
+  /**
+   * Get tools list for a specific node
+   * @param {Object} config - Configuration object
+   * @param {string} nodeName - Node name
+   * @returns {string} Formatted tools list
+   */
+  static getNodeToolsList(config, nodeName) {
+    if (Array.isArray(config.tools)) {
+      for (const toolNode of config.tools) {
+        if (toolNode.node_name === nodeName && toolNode.selected) {
+          return toolNode.selected.map(tool => `- ${tool}`).join('\n');
+        }
+      }
+    }
+    return '- No tools specified';
+  }
+
+  /**
+   * Get model info for a specific node
+   * @param {Object} config - Configuration object
+   * @param {string} nodeName - Node name
+   * @returns {string} Formatted model info
+   */
+  static getNodeModelInfo(config, nodeName) {
+    if (Array.isArray(config.llm_nodes)) {
+      for (const llmNode of config.llm_nodes) {
+        if (llmNode.node_name === nodeName && llmNode.model) {
+          return `- **Provider**: ${llmNode.model.provider}\n- **Model**: ${llmNode.model.name}`;
+        }
+      }
+    }
+    return `- **Provider**: ${config.project.default_llm_provider || 'mock'}\n- **Model**: Default model`;
   }
 
   /**

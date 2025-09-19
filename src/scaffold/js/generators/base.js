@@ -6,6 +6,32 @@ const path = require('path');
  */
 class BaseJSGenerator {
   /**
+   * Get tools array from config (handles both new and legacy structure)
+   * @param {Object} config - Configuration object
+   * @returns {Array} Array of tool names
+   */
+  static getToolsArray(config) {
+    if (!config.tools) {
+      return []; // No tools specified
+    }
+    
+    if (Array.isArray(config.tools)) {
+      // New structure: extract all tools from all nodes
+      const allTools = new Set();
+      for (const toolNode of config.tools) {
+        if (toolNode.selected && Array.isArray(toolNode.selected)) {
+          toolNode.selected.forEach(tool => allTools.add(tool));
+        }
+      }
+      return Array.from(allTools);
+    } else if (config.tools && config.tools.selected) {
+      // Legacy structure
+      return config.tools.selected;
+    }
+    return [];
+  }
+
+  /**
    * Generate a base JavaScript project
    * @param {Object} config - Configuration object
    * @param {string} targetPath - Target directory path
@@ -174,6 +200,9 @@ class Config {
         /** @type {string} Framework used */
         this.framework = '${config.project.framework}';
         
+        /** @type {string} Default LLM provider */
+        this.defaultLlmProvider = '${config.project.default_llm_provider || 'mock'}';
+        
         /** @type {string} Runtime type (fastapi, express, cli, worker) */
         this.runtimeType = '${config.runtime.type}';
         
@@ -190,7 +219,10 @@ class Config {
         this.agentSubAgents = ${config.agent.subAgents};
         
         /** @type {string[]} Selected tools */
-        this.toolsSelected = ${JSON.stringify(config.tools.selected)};
+        this.toolsSelected = ${JSON.stringify(BaseJSGenerator.getToolsArray(config))};
+        
+        /** @type {Array<Object>} Tools nodes configuration (new structure) */
+        this.toolsNodes = ${JSON.stringify(config.tools || [])};
         
         /** @type {Object} Default model configuration */
         this.model = {
@@ -272,6 +304,26 @@ class Config {
         
         // Fallback to default model configuration
         return this.getModelConfig();
+    }
+    
+    getNodeToolsConfig(nodeName) {
+        /**
+         * Get tools configuration for a specific node.
+         * 
+         * @param {string} nodeName - Name of the node
+         * @returns {string[]} List of tools for the node
+         */
+        // Check if we have toolsNodes configuration (new structure)
+        if (Array.isArray(this.toolsNodes) && this.toolsNodes.length > 0) {
+            for (const toolNode of this.toolsNodes) {
+                if (toolNode.node_name === nodeName) {
+                    return toolNode.selected || [];
+                }
+            }
+        }
+        
+        // Fallback to all tools (legacy structure)
+        return this.toolsSelected;
     }
 }
 
@@ -567,7 +619,7 @@ const result = await node.execute(inputData);
 
 This node uses the following configuration:
 - **Model**: ${config.model ? `${config.model.provider}/${config.model.name}` : 'Multiple models per node'}
-- **Tools**: ${config.tools.selected.join(', ')}
+- **Tools**: ${Array.isArray(config.tools) ? 'Node-specific tools' : (config.tools && config.tools.selected ? config.tools.selected.join(', ') : 'No tools specified')}
 - **Storage**: ${config.storage.memory}/${config.storage.cache}/${config.storage.sql}
 
 ## Customization

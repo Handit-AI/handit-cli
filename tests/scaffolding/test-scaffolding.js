@@ -3,7 +3,7 @@
  * Test script for the scaffolding service
  */
 
-const { ScaffoldingService } = require('./src/scaffold');
+const { ScaffoldingService } = require('../../src/scaffold');
 const path = require('path');
 
 async function testScaffolding() {
@@ -17,7 +17,8 @@ async function testScaffolding() {
                 "project": {
                     "name": "FAQ Bot",
                     "language": "python",
-                    "framework": "langgraph"
+                    "framework": "langgraph",
+                    "default_llm_provider": "mock"
                 },
                 "runtime": {
                     "type": "fastapi",
@@ -50,7 +51,8 @@ async function testScaffolding() {
                 "project": {
                     "name": "Document Processor",
                     "language": "typescript",
-                    "framework": "langchain"
+                    "framework": "langchain",
+                    "default_llm_provider": "ollama"
                 },
                 "runtime": {
                     "type": "express",
@@ -83,7 +85,8 @@ async function testScaffolding() {
                 "project": {
                     "name": "Simple CLI Tool",
                     "language": "python",
-                    "framework": "base"
+                    "framework": "base",
+                    "default_llm_provider": "mock"
                 },
                 "runtime": {
                     "type": "cli"
@@ -115,7 +118,8 @@ async function testScaffolding() {
                 "project": {
                     "name": "Multi-Model Agent",
                     "language": "python",
-                    "framework": "langgraph"
+                    "framework": "langgraph",
+                    "default_llm_provider": "ollama"
                 },
                 "runtime": {
                     "type": "fastapi",
