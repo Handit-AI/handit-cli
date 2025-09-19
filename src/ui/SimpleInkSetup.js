@@ -138,23 +138,24 @@ async function runAgenticCreateSetup(options = {}) {
     const projectInfo = await showModularAgenticCreateWizard(config);
     
     // Handle the result
-    if (projectInfo && projectInfo.scaffoldingCreated) {
-      console.log(chalk.green.bold('✅ Agentic project scaffolding created successfully!'));
-      console.log(`Project name: ${chalk.blue(projectInfo.projectName)}`);
-      console.log(`Language: ${chalk.blue(projectInfo.codeLanguage)}`);
-      console.log(`Framework: ${chalk.blue(projectInfo.framework)}`);
-      console.log(`Runtime: ${chalk.blue(projectInfo.runtime)}`);
-      console.log(`Orchestration: ${chalk.blue(projectInfo.orchestrationStyle)}`);
-      console.log(`Stages: ${chalk.blue(projectInfo.stages ? projectInfo.stages.join(', ') : 'retrieve, reason, act')}`);
-      console.log(`SubAgents: ${chalk.blue(projectInfo.subAgents || 0)}`);
-      console.log(`Tools: ${chalk.blue(projectInfo.tools && projectInfo.tools.length > 0 ? projectInfo.tools.join(', ') : 'none')}`);
-      console.log(`Model: ${chalk.blue(projectInfo.provider || 'mock')}/${chalk.blue(projectInfo.modelName || 'mock-llm')}`);
-      if (projectInfo.storage) {
-        console.log(`Storage: ${chalk.blue('🧠')} ${chalk.blue(projectInfo.storage.memory || 'none')} | ${chalk.blue('⚡')} ${chalk.blue(projectInfo.storage.cache || 'in-memory')} | ${chalk.blue('🗄️')} ${chalk.blue(projectInfo.storage.sql || 'none')}`);
+    if (projectInfo && (projectInfo.projectName || projectInfo.codeLanguage || projectInfo.llmNodes || projectInfo.tools || projectInfo.llmProvider)) {
+      console.log(chalk.green.bold('✅ Agentic project configuration completed!'));
+      console.log(`Project name: ${chalk.blue(projectInfo.projectName || 'my-agentic-project')}`);
+      console.log(`Language: ${chalk.blue(projectInfo.codeLanguage || 'python')}`);
+      console.log(`LLM Nodes: ${chalk.blue(projectInfo.llmNodes || 'reason, act, assistant_composer')}`);
+      console.log(`Tools: ${chalk.blue(projectInfo.tools || 'http_fetch, web_search, calculator')}`);
+      console.log(`LLM Provider: ${chalk.blue(projectInfo.llmProvider || 'ChatGPT')}`);
+      
+      // Show configuration file information
+      if (projectInfo.configGenerated && projectInfo.configPath) {
+        console.log(chalk.green(`📄 Configuration file saved: ${chalk.blue(projectInfo.configPath)}`));
+      } else if (projectInfo.configGenerated === false && projectInfo.error) {
+        console.log(chalk.yellow(`⚠️  Configuration file could not be saved: ${projectInfo.error}`));
       }
-      console.log(chalk.gray('Your agentic project is ready to use.'));
+      
+      console.log(chalk.gray('Project configuration is ready.'));
     } else {
-      console.log(chalk.yellow('Scaffolding creation cancelled'));
+      console.log(chalk.yellow('Agentic create cancelled'));
     }
 
   } catch (error) {
