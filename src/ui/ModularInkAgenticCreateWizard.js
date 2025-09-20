@@ -207,13 +207,7 @@ async function showModularAgenticCreateWizard(config) {
                     }))
                   };
                   
-                  // Save JSON file to project root
-                  const fileName = `${projectNameSafe.toLowerCase().replace(/\s+/g, '-')}-config.json`;
-                  const configPath = path.join(process.cwd(), fileName);
-                  await fs.writeJson(configPath, configData, { spaces: 2 });
-                  
-                  
-                  // Execute scaffolding after config generation
+                  // Execute scaffolding after config generation (no file saving)
                   try {
                     const { ScaffoldingService } = require('../scaffold/index.js');
                     const scaffoldingService = new ScaffoldingService();
@@ -235,7 +229,6 @@ async function showModularAgenticCreateWizard(config) {
                       llmNodes: llmNodesSafe,
                       tools: toolsSafe,
                       llmProvider: llmProviderSafe,
-                      configPath: configPath,
                       configGenerated: true,
                       scaffoldingCompleted: false,
                       scaffoldingError: scaffoldingError.message
