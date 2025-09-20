@@ -31,7 +31,7 @@ async function showModularAICreateWizard(config) {
       const [projectCreated, setProjectCreated] = React.useState(false);
       const [projectPath, setProjectPath] = React.useState('');
       
-      const languages = ['Python', 'Typescript/JavaScript'];
+      const languages = ['Python', 'JavaScript'];
       
       // Input handling - for steps 1, 2, 3, 4, and 5
       useInput((input, key) => {

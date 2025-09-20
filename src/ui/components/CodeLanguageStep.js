@@ -2,7 +2,7 @@
  * Code Language Step Component
  */
 function CodeLanguageStep(React, Box, Text, { codeLanguage, selectedIndex = 0, isCompleted = false }) {
-    const languages = ['Python', 'Typescript/JavaScript'];
+    const languages = ['Python', 'JavaScript'];
     
     return React.createElement(Box, { key: 'step2', flexDirection: 'column', marginTop: 2 }, [
       React.createElement(Text, { key: 'step-title', color: '#71f2af', bold: true }, '⚙️ Step 2: Code Language'),

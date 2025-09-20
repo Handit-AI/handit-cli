@@ -1077,29 +1077,37 @@ class ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)}LLMNode(BaseLLMNode
         
         # Example LLM integration patterns:
         
-        # 1. OpenAI API Example:
-        # if self.model_config.get("provider") == "openai":
-        #     import openai
-        #     response = await openai.ChatCompletion.acreate(
-        #         model=self.model_config.get("name", "gpt-3.5-turbo"),
-        #         messages=[
-        #             {"role": "system", "content": system_prompt},
-        #             {"role": "user", "content": user_prompt.format(input=str(data))}
-        #         ]
-        #     )
-        #     return response.choices[0].message.content
+        # 1. ChatGPT (OpenAI) API Example:
+        # if self.model_config.get("provider") == "chatgpt":
+        #     from langchain.chat_models import ChatOpenAI
+        #     from langchain.schema import HumanMessage, SystemMessage
+        #     llm = ChatOpenAI(model=self.model_config.get("name", "gpt-4"), temperature=0.7)
+        #     messages = [
+        #         SystemMessage(content=system_prompt),
+        #         HumanMessage(content=user_prompt.format(input=str(data)))
+        #     ]
+        #     response = await llm.agenerate([messages])
+        #     return response.generations[0][0].text
         
-        # 2. Ollama Example:
-        # if self.model_config.get("provider") == "ollama":
-        #     import ollama
-        #     response = await ollama.chat(
-        #         model=self.model_config.get("name", "llama2"),
-        #         messages=[
-        #             {"role": "system", "content": system_prompt},
-        #             {"role": "user", "content": user_prompt.format(input=str(data))}
-        #         ]
-        #     )
-        #     return response['message']['content']
+        # 2. Gemini API Example:
+        # if self.model_config.get("provider") == "gemini":
+        #     from langchain_google_genai import ChatGoogleGenerativeAI
+        #     from langchain.schema import HumanMessage, SystemMessage
+        #     llm = ChatGoogleGenerativeAI(model=self.model_config.get("name", "gemini-pro"), temperature=0.7)
+        #     messages = [
+        #         SystemMessage(content=system_prompt),
+        #         HumanMessage(content=user_prompt.format(input=str(data)))
+        #     ]
+        #     response = await llm.agenerate([messages])
+        #     return response.generations[0][0].text
+        
+        # 3. Llama (Ollama) Example:
+        # if self.model_config.get("provider") == "llama":
+        #     from langchain.llms import Ollama
+        #     llm = Ollama(model=self.model_config.get("name", "llama3.1"))
+        #     prompt = f"{system_prompt}\\n\\n{user_prompt.format(input=str(data))}"
+        #     response = await llm.agenerate([prompt])
+        #     return response.generations[0][0].text
         
         # 3. Custom API Example:
         # result = await self.call_llm(

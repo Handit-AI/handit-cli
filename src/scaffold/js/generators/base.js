@@ -1023,10 +1023,49 @@ export class ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)}LLMNode exte
   async _execute_${nodeName.replace('-', '_').replace(' ', '_')}_llm_logic(inputData) {
     // Implement your LLM logic here
     const prompts = getPrompts();
+    const modelConfig = this.config.getNodeModelConfig(this.node_name);
     
-    // Example implementation
+    // Example LLM integration patterns:
+    
+    // 1. ChatGPT (OpenAI) Example:
+    // if (modelConfig.provider === 'chatgpt') {
+    //   const { ChatOpenAI } = require('@langchain/openai');
+    //   const { HumanMessage, SystemMessage } = require('@langchain/core/messages');
+    //   const llm = new ChatOpenAI({ modelName: modelConfig.name, temperature: 0.7 });
+    //   const messages = [
+    //     new SystemMessage(prompts.system || 'You are a helpful AI assistant.'),
+    //     new HumanMessage(prompts.user.replace('{input}', JSON.stringify(inputData)))
+    //   ];
+    //   const response = await llm.invoke(messages);
+    //   return response.content;
+    // }
+    
+    // 2. Gemini Example:
+    // if (modelConfig.provider === 'gemini') {
+    //   const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
+    //   const { HumanMessage, SystemMessage } = require('@langchain/core/messages');
+    //   const llm = new ChatGoogleGenerativeAI({ modelName: modelConfig.name, temperature: 0.7 });
+    //   const messages = [
+    //     new SystemMessage(prompts.system || 'You are a helpful AI assistant.'),
+    //     new HumanMessage(prompts.user.replace('{input}', JSON.stringify(inputData)))
+    //   ];
+    //   const response = await llm.invoke(messages);
+    //   return response.content;
+    // }
+    
+    // 3. Llama (Ollama) Example:
+    // if (modelConfig.provider === 'llama') {
+    //   const { Ollama } = require('langchain/llms/ollama');
+    //   const llm = new Ollama({ model: modelConfig.name });
+    //   const prompt = \`\${prompts.system || 'You are a helpful AI assistant.'}\\n\\n\${prompts.user.replace('{input}', JSON.stringify(inputData))}\`;
+    //   const response = await llm.invoke(prompt);
+    //   return response;
+    // }
+    
+    // Placeholder implementation
     return {
       message: \`Processing in \${this.node_name} with input: \${JSON.stringify(inputData)}\`,
+      model_config: modelConfig,
       prompts: prompts
     };
   }

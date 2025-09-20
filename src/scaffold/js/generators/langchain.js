@@ -170,7 +170,13 @@ Please process this information appropriately.\`;
         if (this.config.model.provider === 'mock') {
             const { FakeListLLM } = require('langchain/llms/fake');
             return new FakeListLLM({ responses: ['Mock response'] });
-        } else if (this.config.model.provider === 'ollama') {
+        } else if (this.config.model.provider === 'chatgpt') {
+            const { ChatOpenAI } = require('@langchain/openai');
+            return new ChatOpenAI({ modelName: this.config.model.name, temperature: 0.7 });
+        } else if (this.config.model.provider === 'gemini') {
+            const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
+            return new ChatGoogleGenerativeAI({ modelName: this.config.model.name, temperature: 0.7 });
+        } else if (this.config.model.provider === 'llama') {
             const { Ollama } = require('langchain/llms/ollama');
             return new Ollama({ model: this.config.model.name });
         } else {

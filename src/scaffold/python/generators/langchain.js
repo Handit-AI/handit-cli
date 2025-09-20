@@ -176,7 +176,15 @@ Please process this information appropriately.""")
             from langchain.llms.fake import FakeListLLM
             return FakeListLLM(responses=["Mock response"])
         
-        elif self.config.model.provider == "ollama":
+        elif self.config.model.provider == "chatgpt":
+            from langchain.chat_models import ChatOpenAI
+            return ChatOpenAI(model=self.config.model.name, temperature=0.7)
+        
+        elif self.config.model.provider == "gemini":
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            return ChatGoogleGenerativeAI(model=self.config.model.name, temperature=0.7)
+        
+        elif self.config.model.provider == "llama":
             from langchain.llms import Ollama
             return Ollama(model=self.config.model.name)
         

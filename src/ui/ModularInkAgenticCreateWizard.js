@@ -28,11 +28,13 @@ async function showModularAgenticCreateWizard(config) {
       const [llmNodes, setLlmNodes] = React.useState('');
       const [tools, setTools] = React.useState('');
       const [llmProvider, setLlmProvider] = React.useState('');
+      const [selectedLlmProviderIndex, setSelectedLlmProviderIndex] = React.useState(0);
       const [error, setError] = React.useState(null);
       const [projectCreated, setProjectCreated] = React.useState(false);
       const [projectPath, setProjectPath] = React.useState('');
       
       const languages = ['Python', 'JavaScript'];
+      const llmProviders = ['ChatGPT', 'Gemini', 'Llama'];
       
       // Input handling - for steps 1, 2, 3, 4, and 5
       useInput((input, key) => {
@@ -165,11 +167,16 @@ async function showModularAgenticCreateWizard(config) {
           }
         }
 
-        // Handle LLM provider input (step 5)
+        // Handle LLM provider selection (step 5)
         if (currentStep === 5) {
-          if (key.return) {
-            // Complete wizard with LLM provider
-            if (llmProvider.trim()) {
+          if (key.upArrow && selectedLlmProviderIndex > 0) {
+            setSelectedLlmProviderIndex(selectedLlmProviderIndex - 1);
+          } else if (key.downArrow && selectedLlmProviderIndex < llmProviders.length - 1) {
+            setSelectedLlmProviderIndex(selectedLlmProviderIndex + 1);
+          } else if (key.return) {
+            // Complete wizard with selected LLM provider
+            const selectedProvider = llmProviders[selectedLlmProviderIndex];
+            setLlmProvider(selectedProvider);
               // Generate JSON configuration
               setTimeout(async () => {
                 try {
@@ -177,7 +184,7 @@ async function showModularAgenticCreateWizard(config) {
                   const codeLanguageSafe = (codeLanguage || 'Python').toLowerCase().replace('typescript/javascript', 'javascript');
                   const llmNodesSafe = llmNodes.trim() || 'reason, act, assistant_composer';
                   const toolsSafe = tools.trim() || 'http_fetch, web_search, calculator';
-                  const llmProviderSafe = llmProvider.trim() || 'ChatGPT';
+                  const llmProviderSafe = selectedProvider || 'ChatGPT';
                   
                   // Parse comma-separated values and clean them
                   const parsedLlmNodes = llmNodesSafe.split(',').map(node => node.trim()).filter(node => node.length > 0);
@@ -202,7 +209,9 @@ async function showModularAgenticCreateWizard(config) {
                       "node_name": nodeName.toLowerCase().replace(/\s+/g, '_'),
                       "model": {
                         "provider": llmProviderSafe.toLowerCase(),
-                        "name": "gpt-4"
+                        "name": llmProviderSafe.toLowerCase() === 'chatgpt' ? 'gpt-4' :
+                               llmProviderSafe.toLowerCase() === 'gemini' ? 'gemini-pro' :
+                               llmProviderSafe.toLowerCase() === 'llama' ? 'llama3.1' : 'gpt-4'
                       }
                     }))
                   };
@@ -248,29 +257,6 @@ async function showModularAgenticCreateWizard(config) {
                 }
               }, 100);
             }
-          } else if (key.delete || key.backspace || input === '\u007f' || input === '\b' || input === '\x7f') {
-            // Handle backspace
-            setLlmProvider(llmProvider.slice(0, -1));
-          } else if (input && input.length > 0) {
-            // Handle regular input
-            let processedInput = input;
-            
-            // Clean input - remove newlines and quotes
-            if (input.includes('\n') || input.includes('\r')) {
-              const lines = input.split(/[\n\r]+/).filter(line => line.trim());
-              if (lines.length > 0) {
-                processedInput = lines[0].trim();
-              }
-            }
-            
-            // Remove quotes if present
-            if ((processedInput.startsWith('"') && processedInput.endsWith('"')) ||
-                (processedInput.startsWith("'") && processedInput.endsWith("'"))) {
-              processedInput = processedInput.slice(1, -1);
-            }
-            
-            setLlmProvider(llmProvider + processedInput);
-          }
         }
       });
 
@@ -333,7 +319,7 @@ async function showModularAgenticCreateWizard(config) {
         currentStep === 5 ? React.createElement(Box, { key: 'llm-provider-step' },
           ModelStep(React, Box, Text, {
             llmProvider: llmProvider,
-            currentValue: displayValue,
+            selectedIndex: selectedLlmProviderIndex,
             isCompleted: false
           })
         ) : null,
@@ -355,7 +341,7 @@ async function showModularAgenticCreateWizard(config) {
             currentStep === 2 ? 'Use arrow keys to select language, then press Enter to continue' :
             currentStep === 3 ? 'Enter LLM node names separated by comma, then press Enter to continue' :
             currentStep === 4 ? 'Enter tool names separated by comma, then press Enter to continue' :
-            currentStep === 5 ? 'Enter LLM provider name, then press Enter to complete' :
+            currentStep === 5 ? 'Use arrow keys to select LLM provider, then press Enter to complete' :
             ''
           ),
         ]) : null,
