@@ -1,0 +1,19 @@
+{
+  "metadata": {
+    "name": "Example Use Cases",
+    "description": "Sample use cases to demonstrate the agent's capabilities",
+    "version": "1.0.0",
+    "author": "Agent Developer",
+    "created_at": "2025-09-20T21:09:36.925Z"
+  },
+  "use_cases": [
+    {
+      "name": "Basic Information Request",
+      "description": "Test basic information retrieval capabilities",
+      "input": {
+        "query": "What is the capital of France?",
+        "context": "geography"
+      }
+    }
+  ]
+}

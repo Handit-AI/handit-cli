@@ -34,6 +34,8 @@ class ScaffoldingService {
       if (config.project.language === 'python') {
         await this.generatePythonProject(config, targetPath);
       } else if (config.project.language === 'typescript') {
+        await this.generateTypeScriptProject(config, targetPath);
+      } else if (config.project.language === 'javascript') {
         await this.generateJavaScriptProject(config, targetPath);
       } else {
         throw new Error(`Unsupported language: ${config.project.language}`);
@@ -84,8 +86,14 @@ class ScaffoldingService {
     
     // Set default runtime if not provided
     if (!config.runtime) {
-      const defaultRuntime = config.project.language === 'python' ? 'fastapi' : 'express';
-      const defaultPort = config.project.language === 'python' ? 8000 : 3000;
+      let defaultRuntime, defaultPort;
+      if (config.project.language === 'python') {
+        defaultRuntime = 'fastapi';
+        defaultPort = 8000;
+      } else {
+        defaultRuntime = 'express';
+        defaultPort = 3000;
+      }
       
       config.runtime = {
         type: defaultRuntime,
@@ -121,7 +129,7 @@ class ScaffoldingService {
     console.log(chalk.blue(`📋 Detected stages: ${config.agent.stages.join(', ')}`));
 
     // Validate supported values
-    const supportedLanguages = ['python', 'typescript'];
+    const supportedLanguages = ['python', 'typescript', 'javascript'];
     if (!supportedLanguages.includes(config.project.language)) {
       throw new Error(`Unsupported language: ${config.project.language}. Supported: ${supportedLanguages.join(', ')}`);
     }
@@ -374,10 +382,8 @@ class ScaffoldingService {
       await fs.ensureDir(path.join(targetPath, dir));
     }
 
-    // Create node directories for each agent stage
-    for (const stage of config.agent.stages) {
-      await fs.ensureDir(path.join(targetPath, 'src/nodes', stage));
-    }
+    // Note: Node directories are now created by the generator based on llm_nodes and tools configuration
+    // No need to create directories for each agent stage anymore
   }
 
   /**

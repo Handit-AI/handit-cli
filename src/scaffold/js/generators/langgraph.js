@@ -47,6 +47,132 @@ class LangGraphJSGenerator extends BaseJSGenerator {
 
     // Update main.js for LangGraph
     await this.updateMainFile(config, targetPath);
+
+    // Update agent.js for LangGraph
+    await this.updateAgentFile(config, targetPath);
+  }
+
+  /**
+   * Generate runtime-specific imports based on configuration
+   * @param {Object} config - Configuration object
+   * @returns {string} Runtime-specific imports
+   */
+  static _generateRuntimeImports(config) {
+    const runtimeType = config.runtime?.type || 'express';
+    
+    switch (runtimeType) {
+      case 'express':
+        return `import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';`;
+        
+      default:
+        return '';
+    }
+  }
+
+  /**
+   * Generate runtime-specific code based on configuration
+   * @param {Object} config - Configuration object
+   * @returns {string} Runtime-specific code
+   */
+  static _generateRuntimeCode(config) {
+    const runtimeType = config.runtime?.type || 'express';
+    
+    switch (runtimeType) {
+      case 'cli':
+        return `// CLI mode
+const inputData = process.argv[2] || 'Hello, world!';
+startTracing({ agent: '${config.project.name}' });
+try {
+    const result = await agent.process(inputData);
+    console.log(\`Result: \${JSON.stringify(result, null, 2)}\`);
+} finally {
+    endTracing();
+}`;
+        
+      case 'worker':
+        return `// Worker mode - implement queue processing
+console.log('Worker mode - implement your queue processing logic here');
+// TODO: Add queue processing logic`;
+        
+      case 'express':
+        return `// Express server setup
+const app = express();
+const port = process.env.PORT || ${config.runtime?.port || 3000};
+
+// Middleware
+app.use(helmet());
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: 'healthy', 
+        agent: '${config.project.name}',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
+});
+
+// Main agent endpoint
+app.post('/agent', async (req, res) => {
+    try {
+        startTracing({ agent: '${config.project.name}' });
+        const result = await agent.process(req.body);
+        res.json({ success: true, result });
+    } catch (error) {
+        console.error('Agent processing error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    } finally {
+        endTracing();
+    }
+});
+
+// Error handling middleware
+app.use((error, req, res, next) => {
+    console.error('Unhandled error:', error);
+    res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// 404 handler
+app.use('*', (req, res) => {
+    res.status(404).json({
+        success: false,
+        error: 'Endpoint not found',
+        path: req.originalUrl,
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Start server
+app.listen(port, () => {
+    console.log(\`🚀 ${config.project.name} server running on port \${port}\`);
+    console.log(\`📊 Health check: http://localhost:\${port}/health\`);
+    console.log(\`🤖 Agent endpoint: http://localhost:\${port}/agent\`);
+});`;
+        
+      default:
+        return `// Default mode
+console.log('Running in default mode');
+startTracing({ agent: '${config.project.name}' });
+try {
+    const result = await agent.process('Hello, world!');
+    console.log(\`Result: \${JSON.stringify(result, null, 2)}\`);
+} finally {
+    endTracing();
+}`;
+    }
   }
 
   /**
@@ -60,13 +186,23 @@ class LangGraphJSGenerator extends BaseJSGenerator {
  * Main LangGraph for ${config.project.name}
  */
 
-const { StateGraph, END } = require('langgraph');
-const { HumanMessage, AIMessage } = require('langchain/schema');
-const { startTracing, endTracing } = require('@handit.ai/handit-ai');
+import { StateGraph, START, END, Annotation } from '@langchain/langgraph';
+import { HumanMessage, AIMessage } from '@langchain/core/messages';
+import { startTracing, endTracing } from '@handit.ai/handit-ai';
 
-const Config = require('../config');
-const { AgentState } = require('../state');
-const { getGraphNodes } = require('./nodes');
+import Config from '../config.js';
+import { getGraphNodes } from './nodes/index.js';
+
+// Define the state schema
+const AgentState = Annotation.Root({
+    input: Annotation,
+    messages: Annotation,
+    context: Annotation,
+    results: Annotation,
+    currentStage: Annotation,
+    error: Annotation,
+    metadata: Annotation,
+});
 
 class ${config.project.name.replace(/\s+/g, '').replace(/-/g, '')}Graph {
     constructor(config) {
@@ -86,23 +222,14 @@ class ${config.project.name.replace(/\s+/g, '').replace(/-/g, '')}Graph {
         // Add nodes for each stage
         const nodes = getGraphNodes(this.config);
         
-        for (const stage of this.config.agentStages) {
+        for (const stage of this.config.agent_stages) {
             if (nodes[stage]) {
                 graph.addNode(stage, nodes[stage]);
             }
         }
         
-        // Define the flow based on orchestration style
-        if (this.config.orchestrationStyle === 'state-graph') {
-            this._addStateGraphEdges(graph);
-        } else if (this.config.orchestrationStyle === 'pipeline') {
-            this._addPipelineEdges(graph);
-        } else if (this.config.orchestrationStyle === 'router') {
-            this._addRouterEdges(graph);
-        } else {
-            // Default to pipeline
-            this._addPipelineEdges(graph);
-        }
+        // Define the flow - using state-graph orchestration
+        this._addStateGraphEdges(graph);
         
         // Compile the graph
         return graph.compile();
@@ -114,7 +241,7 @@ class ${config.project.name.replace(/\s+/g, '').replace(/-/g, '')}Graph {
          * 
          * @param {StateGraph} graph - StateGraph instance
          */
-        const stages = this.config.agentStages;
+        const stages = this.config.agent_stages;
         
         // Add edges in sequence
         for (let i = 0; i < stages.length - 1; i++) {
@@ -133,7 +260,7 @@ class ${config.project.name.replace(/\s+/g, '').replace(/-/g, '')}Graph {
          * 
          * @param {StateGraph} graph - StateGraph instance
          */
-        const stages = this.config.agentStages;
+        const stages = this.config.agent_stages;
         
         if (stages.length >= 2) {
             // First stage routes to others
@@ -153,22 +280,25 @@ class ${config.project.name.replace(/\s+/g, '').replace(/-/g, '')}Graph {
          * 
          * @param {StateGraph} graph - StateGraph instance
          */
-        const stages = this.config.agentStages;
+        const stages = this.config.agent_stages;
         
-        // Add edges with conditional logic
+        if (!stages || stages.length === 0) {
+            return;
+        }
+        
+        // Add entrypoint from START to first stage
+        graph.addEdge(START, stages[0]);
+        
+        // Add simple sequential edges
         for (let i = 0; i < stages.length; i++) {
             const stage = stages[i];
-            if (i < stages.length - 1) {
-                // Add conditional edge to next stage or END
-                graph.addConditionalEdges(
-                    stage,
-                    this._getNextStage.bind(this),
-                    {
-                        continue: stages[i + 1],
-                        end: END
-                    }
-                );
+            const nextStage = stages[i + 1];
+            
+            if (nextStage) {
+                // Add edge to next stage
+                graph.addEdge(stage, nextStage);
             } else {
+                // Last stage goes to END
                 graph.addEdge(stage, END);
             }
         }
@@ -201,7 +331,7 @@ class ${config.project.name.replace(/\s+/g, '').replace(/-/g, '')}Graph {
                 messages: [new HumanMessage(String(inputData))],
                 context: {},
                 results: {},
-                currentStage: this.config.agentStages[0] || null,
+                currentStage: this.config.agent_stages[0] || null,
                 error: null,
                 metadata: {}
             };
@@ -224,8 +354,8 @@ class ${config.project.name.replace(/\s+/g, '').replace(/-/g, '')}Graph {
         return {
             nodes: Object.keys(this.graph.nodes || {}),
             edges: Object.keys(this.graph.edges || {}),
-            orchestrationStyle: this.config.orchestrationStyle,
-            stages: this.config.agentStages
+            orchestrationStyle: 'state-graph',
+            stages: this.config.agent_stages
         };
     }
 }
@@ -240,7 +370,7 @@ function createGraph(config) {
     return new ${config.project.name.replace(/\s+/g, '').replace(/-/g, '')}Graph(config);
 }
 
-module.exports = { ${config.project.name.replace(/\s+/g, '').replace(/-/g, '')}Graph, createGraph };
+export { ${config.project.name.replace(/\s+/g, '').replace(/-/g, '')}Graph, createGraph };
 `;
 
     await fs.writeFile(path.join(targetPath, 'src/graph/main.js'), graphContent);
@@ -250,9 +380,9 @@ module.exports = { ${config.project.name.replace(/\s+/g, '').replace(/-/g, '')}G
  * LangGraph for ${config.project.name}
  */
 
-const { ${config.project.name.replace(/\s+/g, '')}Graph, createGraph } = require('./main');
+import { ${config.project.name.replace(/\s+/g, '')}Graph, createGraph } from './main.js';
 
-module.exports = { ${config.project.name.replace(/\s+/g, '').replace(/-/g, '')}Graph, createGraph };
+export { ${config.project.name.replace(/\s+/g, '').replace(/-/g, '')}Graph, createGraph };
 `;
 
     await fs.writeFile(path.join(graphPath, 'index.js'), graphIndexContent);
@@ -271,53 +401,18 @@ module.exports = { ${config.project.name.replace(/\s+/g, '').replace(/-/g, '')}G
  * State definition for ${config.project.name} LangGraph
  */
 
-const { HumanMessage, AIMessage } = require('langchain/schema');
+import { HumanMessage, AIMessage } from '@langchain/core/messages';
+import { Annotation } from '@langchain/langgraph';
 
-class AgentState {
-    /**
-     * State definition for the agent graph.
-     * 
-     * This defines the structure of data that flows through the graph.
-     */
-    constructor() {
-        this.input = null;
-        this.messages = [];
-        this.context = {};
-        this.results = {};
-        this.currentStage = null;
-        this.error = null;
-        this.metadata = {};
-    }
-    
-    static fromObject(obj) {
-        /**
-         * Create AgentState from object.
-         * 
-         * @param {object} obj - Object to convert
-         * @returns {AgentState} AgentState instance
-         */
-        const state = new AgentState();
-        Object.assign(state, obj);
-        return state;
-    }
-    
-    toObject() {
-        /**
-         * Convert AgentState to plain object.
-         * 
-         * @returns {object} Plain object representation
-         */
-        return {
-            input: this.input,
-            messages: this.messages,
-            context: this.context,
-            results: this.results,
-            currentStage: this.currentStage,
-            error: this.error,
-            metadata: this.metadata
-        };
-    }
-}
+const AgentState = Annotation.Root({
+    input: Annotation,
+    messages: Annotation,
+    context: Annotation,
+    results: Annotation,
+    currentStage: Annotation,
+    error: Annotation,
+    metadata: Annotation,
+});
 
 function createInitialState(inputData, options = {}) {
     /**
@@ -325,38 +420,36 @@ function createInitialState(inputData, options = {}) {
      * 
      * @param {any} inputData - Initial input data
      * @param {object} options - Additional state parameters
-     * @returns {AgentState} Initial agent state
+     * @returns {object} Initial agent state
      */
-    const state = new AgentState();
-    state.input = inputData;
-    state.messages = [new HumanMessage(String(inputData))];
-    state.context = options.context || {};
-    state.results = options.results || {};
-    state.currentStage = options.currentStage || null;
-    state.error = options.error || null;
-    state.metadata = options.metadata || {};
-    
-    return state;
+    return {
+        input: inputData,
+        messages: [new HumanMessage(String(inputData))],
+        context: options.context || {},
+        results: options.results || {},
+        currentStage: options.currentStage || null,
+        error: options.error || null,
+        metadata: options.metadata || {},
+    };
 }
 
 function updateState(currentState, updates = {}) {
     /**
      * Update the current state with new values.
      * 
-     * @param {AgentState} currentState - Current state
+     * @param {object} currentState - Current state
      * @param {object} updates - State updates
-     * @returns {AgentState} Updated state
+     * @returns {object} Updated state
      */
-    const newState = new AgentState();
-    newState.input = updates.input !== undefined ? updates.input : currentState.input;
-    newState.messages = updates.messages !== undefined ? updates.messages : currentState.messages;
-    newState.context = updates.context !== undefined ? updates.context : currentState.context;
-    newState.results = updates.results !== undefined ? updates.results : currentState.results;
-    newState.currentStage = updates.currentStage !== undefined ? updates.currentStage : currentState.currentStage;
-    newState.error = updates.error !== undefined ? updates.error : currentState.error;
-    newState.metadata = updates.metadata !== undefined ? updates.metadata : currentState.metadata;
-    
-    return newState;
+    return {
+        input: updates.input !== undefined ? updates.input : currentState.input,
+        messages: updates.messages !== undefined ? updates.messages : currentState.messages,
+        context: updates.context !== undefined ? updates.context : currentState.context,
+        results: updates.results !== undefined ? updates.results : currentState.results,
+        currentStage: updates.currentStage !== undefined ? updates.currentStage : currentState.currentStage,
+        error: updates.error !== undefined ? updates.error : currentState.error,
+        metadata: updates.metadata !== undefined ? updates.metadata : currentState.metadata,
+    };
 }
 
 function getStageResult(state, stage) {
@@ -418,7 +511,7 @@ function clearError(state) {
     return updateState(state, { error: null });
 }
 
-module.exports = {
+export {
     AgentState,
     createInitialState,
     updateState,
@@ -437,7 +530,7 @@ module.exports = {
  * State management for ${config.project.name}
  */
 
-const {
+import {
     AgentState,
     createInitialState,
     updateState,
@@ -446,9 +539,9 @@ const {
     addMessage,
     setError,
     clearError
-} = require('./state');
+} from './state.js';
 
-module.exports = {
+export {
     AgentState,
     createInitialState,
     updateState,
@@ -476,9 +569,9 @@ module.exports = {
  * Graph nodes for ${config.project.name} LangGraph
  */
 
-const { AIMessage } = require('langchain/schema');
-const { startTracing, endTracing } = require('@handit.ai/handit-ai');
-const { setStageResult, addMessage, setError, clearError } = require('../../state');
+import { AIMessage } from '@langchain/core/messages';
+import { startTracing, endTracing } from '@handit.ai/handit-ai';
+import { setStageResult, addMessage, setError, clearError } from '../../state/index.js';
 
 async function retrieveNode(state) {
     /**
@@ -589,18 +682,21 @@ function getGraphNodes(config) {
      * @param {Config} config - Configuration object
      * @returns {object} Dictionary of node functions
      */
-    const nodeFunctions = {
-        retrieve: retrieveNode,
-        reason: reasonNode,
-        act: actNode
-    };
-    
-    // Return only the nodes that are configured
     const result = {};
-    for (const stage of config.agentStages) {
-        if (nodeFunctions[stage]) {
-            result[stage] = nodeFunctions[stage];
-        }
+    
+    // Create node functions for each stage in the config
+    for (const stage of config.agent_stages) {
+        result[stage] = async (state) => {
+            console.log(\`Processing stage: \${stage}\`);
+            return {
+                ...state,
+                currentStage: stage,
+                results: {
+                    ...state.results,
+                    [stage]: \`Processed by \${stage}\`
+                }
+            };
+        };
     }
     
     return result;
@@ -629,7 +725,7 @@ function createCustomNode(stageName, logicFunc) {
     };
 }
 
-module.exports = {
+export {
     retrieveNode,
     reasonNode,
     actNode,
@@ -645,15 +741,15 @@ module.exports = {
  * Graph nodes for ${config.project.name}
  */
 
-const {
+import {
     retrieveNode,
     reasonNode,
     actNode,
     getGraphNodes,
     createCustomNode
-} = require('./nodes');
+} from './nodes.js';
 
-module.exports = {
+export {
     retrieveNode,
     reasonNode,
     actNode,
@@ -676,14 +772,16 @@ module.exports = {
  * Main application entry point for ${config.project.name} (LangGraph)
  */
 
-require('dotenv').config();
-const { configure, startTracing, endTracing } = require('@handit.ai/handit-ai');
+import dotenv from 'dotenv';
+dotenv.config();
+import { configure, startTracing, endTracing } from '@handit.ai/handit-ai';
 
 // Configure Handit
 configure({ HANDIT_API_KEY: process.env.HANDIT_API_KEY });
 
-const Config = require('./src/config');
-const { createGraph } = require('./src/graph');
+import Config from './src/config.js';
+import { createGraph } from './src/graph/index.js';
+${this._generateRuntimeImports(config)}
 
 class LangGraphAgent {
     constructor() {
@@ -707,67 +805,18 @@ class LangGraphAgent {
     }
 }
 
-async function main() {
-    /**
-     * Main application entry point
-     */
-    console.log(\`Starting ${config.project.name} (LangGraph)...\`);
-    
-    // Initialize agent
-    const agent = new LangGraphAgent();
-    
-    // Print graph information
-    const graphInfo = agent.getGraphInfo();
-    console.log(\`Graph structure: \${JSON.stringify(graphInfo, null, 2)}\`);
-    
-    // Example usage
-    if ('${config.runtime.type}' === 'cli') {
-        // CLI mode
-        const inputData = process.argv[2] || await getUserInput();
-        startTracing({ agent: '${config.project.name}' });
-        try {
-            const result = await agent.process(inputData);
-            console.log(\`Result: \${JSON.stringify(result, null, 2)}\`);
-        } finally {
-            endTracing();
-        }
-    } else if ('${config.runtime.type}' === 'worker') {
-        // Worker mode - implement queue processing
-        console.log('Worker mode - implement your queue processing logic here');
-        // TODO: Add queue processing logic
-    } else {
-        // Default mode
-        console.log('Running in default mode');
-        startTracing({ agent: '${config.project.name}' });
-        try {
-            const result = await agent.process('Hello, world!');
-            console.log(\`Result: \${JSON.stringify(result, null, 2)}\`);
-        } finally {
-            endTracing();
-        }
-    }
-}
+console.log(\`Starting ${config.project.name} (LangGraph)...\`);
 
-function getUserInput() {
-    return new Promise((resolve) => {
-        const readline = require('readline');
-        const rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout
-        });
-        
-        rl.question('Enter input: ', (answer) => {
-            rl.close();
-            resolve(answer);
-        });
-    });
-}
+// Initialize agent
+const agent = new LangGraphAgent();
 
-if (require.main === module) {
-    main().catch(console.error);
-}
+// Print graph information
+const graphInfo = agent.getGraphInfo();
+console.log(\`Graph structure: \${JSON.stringify(graphInfo, null, 2)}\`);
 
-module.exports = { LangGraphAgent };
+${this._generateRuntimeCode(config)}
+
+export { LangGraphAgent };
 `;
 
     await fs.writeFile(path.join(targetPath, 'main.js'), mainContent);
@@ -785,17 +834,111 @@ module.exports = { LangGraphAgent };
     // Add LangGraph dependencies
     packageJson.dependencies = {
       ...packageJson.dependencies,
-      'langgraph': '^0.0.20',
+      '@langchain/core': '^0.1.0',
+      '@langchain/langgraph': '^0.1.0',
+      '@langchain/openai': '^0.1.0',
       'langchain': '^0.1.0',
-      'langchain-core': '^0.1.0',
-      'langchain-community': '^0.0.10',
       'openai': '^4.0.0',
-      'ollama': '^0.1.0',
-      'networkx': '^3.0',
-      'pydantic': '^2.0.0'
+      'zod': '^3.0.0'
     };
 
     await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
+  }
+
+  /**
+   * Update agent.js for LangGraph
+   * @param {Object} config - Configuration object
+   * @param {string} targetPath - Target directory path
+   */
+  static async updateAgentFile(config, targetPath) {
+    const agentPath = path.join(targetPath, 'src/agent.js');
+    const agentContent = `/**
+ * Main agent class for ${config.project.name} (LangGraph)
+ */
+
+import Config from './config.js';
+import { StateGraph, START, END } from '@langchain/langgraph';
+import { MemorySaver } from '@langchain/langgraph';
+import { getGraphNodes } from './graph/nodes/nodes.js';
+import { AgentState } from './state/state.js';
+
+/**
+ * Main agent class
+ */
+class LangGraphAgent {
+  constructor(config = null) {
+    this.config = config || new Config();
+    this.graph = null;
+  }
+
+  async buildGraph() {
+    if (this.graph) {
+      return this.graph;
+    }
+
+    // Get node functions
+    const nodeFunctions = getGraphNodes();
+    
+    // Create state graph
+    const workflow = new StateGraph(AgentState);
+    
+    // Add nodes
+    for (const [nodeName, nodeFunction] of Object.entries(nodeFunctions)) {
+      workflow.addNode(nodeName, nodeFunction);
+    }
+    
+    // Add edges based on agent stages
+    const stages = this.config.agent.stages;
+    if (stages && stages.length > 0) {
+      // Add entrypoint from START to first stage
+      workflow.addEdge(START, stages[0]);
+      
+      // Add edges between consecutive stages
+      for (let i = 0; i < stages.length - 1; i++) {
+        workflow.addEdge(stages[i], stages[i + 1]);
+      }
+      
+      // Add edge from last stage to END
+      workflow.addEdge(stages[stages.length - 1], END);
+    }
+    
+    // Compile the graph with memory
+    this.graph = workflow.compile({
+      checkpointer: new MemorySaver()
+    });
+    
+    return this.graph;
+  }
+
+  async process(inputData) {
+    try {
+      const graph = await this.buildGraph();
+      
+      const result = await graph.invoke({
+        input: inputData,
+        messages: []
+      });
+      
+      return result;
+    } catch (error) {
+      console.error('Error processing input:', error);
+      throw error;
+    }
+  }
+
+  getGraphInfo() {
+    return {
+      framework: 'langgraph',
+      orchestration_style: 'state-graph',
+      nodes: this.config.agent.stages || [],
+      tools: this.config.tools || []
+    };
+  }
+}
+
+export { LangGraphAgent };`;
+
+    await fs.writeFile(agentPath, agentContent);
   }
 }
 

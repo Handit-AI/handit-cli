@@ -42,8 +42,14 @@ class BaseJSGenerator {
     // Generate main application file
     await this.generateMainFile(config, targetPath);
 
+    // Generate base classes
+    await this.generateBaseClasses(config, targetPath);
+
     // Generate configuration file
     await this.generateConfigFile(config, targetPath);
+
+    // Generate agent file
+    await this.generateAgentFile(config, targetPath);
 
     // Generate node files
     await this.generateNodes(config, targetPath);
@@ -53,6 +59,12 @@ class BaseJSGenerator {
 
     // Generate utils
     await this.generateUtils(config, targetPath);
+
+    // Generate use cases
+    await this.generateUseCases(config, targetPath);
+
+    // Generate use case runner
+    await this.generateUseCaseRunner(config, targetPath);
 
     console.log('✅ Base JavaScript project generated');
   }
@@ -68,16 +80,17 @@ class BaseJSGenerator {
  * Main application entry point for ${config.project.name}
  */
 
-require('dotenv').config();
-const { configure, startTracing, endTracing } = require('@handit.ai/handit-ai');
+import dotenv from 'dotenv';
+dotenv.config();
+import { configure, startTracing, endTracing } from '@handit.ai/handit-ai';
 
 // Configure Handit
 configure({ HANDIT_API_KEY: process.env.HANDIT_API_KEY });
 
-const Config = require('./src/config');
-const { RetrieveLogic } = require('./src/nodes/retrieve/logic');
-const { ReasonLogic } = require('./src/nodes/reason/logic');
-const { ActLogic } = require('./src/nodes/act/logic');
+import Config from './src/config.js';
+import { RetrieveLogic } from './src/nodes/retrieve/logic.js';
+import { ReasonLogic } from './src/nodes/reason/logic.js';
+import { ActLogic } from './src/nodes/act/logic.js';
 
 class AgentPipeline {
     constructor() {
@@ -179,155 +192,60 @@ module.exports = { AgentPipeline };
    */
   static async generateConfigFile(config, targetPath) {
     const configContent = `/**
- * Configuration management for ${config.project.name}
+ * Simple configuration for ${config.project.name}
+ * Only includes what's actually needed for the agent to run.
  */
 
-/**
- * Configuration management class for ${config.project.name}
- * Handles both legacy single-model and new multi-model-per-node configurations
- */
 class Config {
     /**
-     * Initialize configuration with project settings and environment variables
+     * Simple configuration class - only essential properties.
+     * The generator handles folder/file structure based on JSON config.
      */
+    
     constructor() {
-        /** @type {string} Project name */
-        this.projectName = '${config.project.name}';
+        // Basic project info
+        this.project_name = '${config.project.name}';
+        this.framework = '${config.framework || 'langgraph'}';
         
-        /** @type {string} Programming language */
-        this.language = '${config.project.language}';
+        // Runtime info
+        this.runtime_type = '${config.runtime?.type || 'express'}';
+        this.port = ${config.runtime?.port || 3000};
         
-        /** @type {string} Framework used */
-        this.framework = '${config.project.framework}';
+        // Agent stages (the actual workflow)
+        this.agent_stages = ${JSON.stringify(config.agent?.stages || [])};
         
-        /** @type {string} Default LLM provider */
-        this.defaultLlmProvider = '${config.project.default_llm_provider || 'mock'}';
-        
-        /** @type {string} Runtime type (fastapi, express, cli, worker) */
-        this.runtimeType = '${config.runtime.type}';
-        
-        /** @type {number|null} Runtime port */
-        this.runtimePort = ${config.runtime.port || 'null'};
-        
-        /** @type {string} Orchestration style */
-        this.orchestrationStyle = '${config.orchestration.style}';
-        
-        /** @type {string[]} Agent stages */
-        this.agentStages = ${JSON.stringify(config.agent.stages)};
-        
-        /** @type {number} Number of sub-agents */
-        this.agentSubAgents = ${config.agent.subAgents};
-        
-        /** @type {string[]} Selected tools */
-        this.toolsSelected = ${JSON.stringify(BaseJSGenerator.getToolsArray(config))};
-        
-        /** @type {Array<Object>} Tools nodes configuration (new structure) */
-        this.toolsNodes = ${JSON.stringify(config.tools || [])};
-        
-        /** @type {Object} Default model configuration */
-        this.model = {
-            provider: '${config.model ? config.model.provider : 'mock'}',
-            name: '${config.model ? config.model.name : 'mock-llm'}'
-        };
-        
-        /** @type {Array<Object>} LLM nodes configuration (new structure) */
-        this.llmNodes = ${JSON.stringify(config.llm_nodes || [])};
-        
-        /** @type {Object} Storage configuration */
-        this.storage = {
-            memory: '${config.storage.memory}',
-            cache: '${config.storage.cache}',
-            sql: '${config.storage.sql}'
-        };
-        
-        // Environment variables
-        this.handitApiKey = process.env.HANDIT_API_KEY;
-        this.modelProvider = process.env.MODEL_PROVIDER || this.model.provider;
-        this.modelName = process.env.MODEL_NAME || this.model.name;
-        
-        // Runtime configuration
-        if (this.runtimeType === 'express') {
-            this.port = parseInt(process.env.PORT || this.runtimePort || 3000);
-        }
-        
-        // Storage configuration
-        this.memoryStorage = process.env.MEMORY_STORAGE || this.storage.memory;
-        this.cacheStorage = process.env.CACHE_STORAGE || this.storage.cache;
-        this.sqlStorage = process.env.SQL_STORAGE || this.storage.sql;
+        // Environment variables (for actual runtime configuration)
+        this.handit_api_key = process.env.HANDIT_API_KEY;
+        this.model_provider = process.env.MODEL_PROVIDER || 'mock';
+        this.model_name = process.env.MODEL_NAME || 'mock-llm';
     }
     
-    getModelConfig() {
+    getModelConfig(nodeName = null) {
         /**
-         * Get model configuration
-         */
-        return {
-            provider: this.modelProvider,
-            name: this.modelName
-        };
-    }
-    
-    getStorageConfig() {
-        /**
-         * Get storage configuration
-         */
-        return {
-            memory: this.memoryStorage,
-            cache: this.cacheStorage,
-            sql: this.sqlStorage
-        };
-    }
-    
-    getToolsConfig() {
-        /**
-         * Get tools configuration
-         */
-        return {
-            selected: this.toolsSelected
-        };
-    }
-    
-    getNodeModelConfig(nodeName) {
-        /**
-         * Get model configuration for a specific node.
+         * Get model configuration for a node.
          * 
-         * @param {string} nodeName - Name of the node
-         * @returns {object} Model configuration for the node
+         * @param {string} nodeName - Optional node name for node-specific config
+         * @returns {object} Model configuration
          */
-        // Check if we have llmNodes configuration
-        if (this.llmNodes && this.llmNodes.length > 0) {
-            for (const llmNode of this.llmNodes) {
-                if (llmNode.node_name === nodeName) {
-                    return llmNode.model || {};
-                }
-            }
-        }
-        
-        // Fallback to default model configuration
-        return this.getModelConfig();
+        return {
+            provider: this.model_provider,
+            name: this.model_name
+        };
     }
     
     getNodeToolsConfig(nodeName) {
         /**
-         * Get tools configuration for a specific node.
+         * Get tools for a specific node.
          * 
          * @param {string} nodeName - Name of the node
-         * @returns {string[]} List of tools for the node
+         * @returns {string[]} List of available tools (empty for now - implement as needed)
          */
-        // Check if we have toolsNodes configuration (new structure)
-        if (Array.isArray(this.toolsNodes) && this.toolsNodes.length > 0) {
-            for (const toolNode of this.toolsNodes) {
-                if (toolNode.node_name === nodeName) {
-                    return toolNode.selected || [];
-                }
-            }
-        }
-        
-        // Fallback to all tools (legacy structure)
-        return this.toolsSelected;
+        // Return empty list by default - tools can be added per node as needed
+        return [];
     }
 }
 
-module.exports = Config;
+export default Config;
 `;
 
     await fs.writeFile(path.join(targetPath, 'src/config.js'), configContent);
@@ -339,18 +257,38 @@ module.exports = Config;
    * @param {string} targetPath - Target directory path
    */
   static async generateNodes(config, targetPath) {
-    for (const stage of config.agent.stages) {
-      await this.generateNodeFiles(config, targetPath, stage);
+    // Create node directories structure like Python
+    const nodesPath = path.join(targetPath, 'src/nodes');
+    await fs.ensureDir(path.join(nodesPath, 'llm'));
+    await fs.ensureDir(path.join(nodesPath, 'tools'));
+
+    // Create index.js files (equivalent to __init__.py)
+    await fs.writeFile(path.join(nodesPath, 'index.js'), '// Node exports');
+    await fs.writeFile(path.join(nodesPath, 'llm/index.js'), '// LLM node exports');
+    await fs.writeFile(path.join(nodesPath, 'tools/index.js'), '// Tool node exports');
+
+    // Generate LLM nodes
+    if (config.llm_nodes) {
+      for (const llmNode of config.llm_nodes) {
+        await this.generateLLMNodeFiles(config, targetPath, llmNode.node_name);
+      }
+    }
+
+    // Generate Tool nodes
+    if (config.tools) {
+      for (const toolNode of config.tools) {
+        await this.generateToolNodeFiles(config, targetPath, toolNode.node_name);
+      }
     }
   }
 
   /**
-   * Generate files for a specific node
+   * Generate files for a specific node (LEGACY - NOT USED)
    * @param {Object} config - Configuration object
    * @param {string} targetPath - Target directory path
    * @param {string} stage - Stage name
    */
-  static async generateNodeFiles(config, targetPath, stage) {
+  static async generateNodeFiles_LEGACY_NOT_USED(config, targetPath, stage) {
     const nodePath = path.join(targetPath, 'src/nodes', stage);
     
     // Generate README.md
@@ -665,6 +603,7 @@ This node is automatically traced by Handit.ai for monitoring and observability.
       name: config.project.name.toLowerCase().replace(/\s+/g, '-'),
       version: '1.0.0',
       description: `Handit-powered AI agent: ${config.project.name}`,
+      type: 'module',
       main: 'main.js',
       scripts: {
         start: 'node main.js',
@@ -807,12 +746,533 @@ module.exports = { Logger, setupLogging, getLogger };
  * Utility functions for ${config.project.name}
  */
 
-const { Logger, setupLogging, getLogger } = require('./logger');
-
-module.exports = { Logger, setupLogging, getLogger };
+export { Logger, setupLogging, getLogger } from './logger.js';
+export { UseCaseExecutor } from './use_case_executor.js';
 `;
 
     await fs.writeFile(path.join(utilsPath, 'index.js'), utilsIndexContent);
+
+    // Generate use case executor
+    await this.generateUseCaseExecutor(config, targetPath);
+  }
+
+  /**
+   * Generate use case executor
+   * @param {Object} config - Configuration object
+   * @param {string} targetPath - Target directory path
+   */
+  static async generateUseCaseExecutor(config, targetPath) {
+    const utilsPath = path.join(targetPath, 'src/utils');
+    
+    const executorContent = `/**
+ * Use Case Executor for ${config.project.name}
+ * Executes use cases defined in JSON format against the agent
+ */
+
+import fs from 'fs-extra';
+import path from 'path';
+import Config from '../config.js';
+import { LangGraphAgent } from '../agent.js';
+
+export class UseCaseExecutor {
+  constructor(config = null) {
+    this.config = config || new Config();
+    this.agent = null;
+    this.results = [];
+  }
+
+  async loadAgent() {
+    if (this.agent === null) {
+      this.agent = new LangGraphAgent(this.config);
+    }
+  }
+
+  async executeUseCase(useCase) {
+    try {
+      console.log(\`\\n🧪 Running use case: \${useCase.name}\`);
+      console.log(\`📝 Description: \${useCase.description}\`);
+      
+      const startTime = Date.now();
+      const result = await this.agent.process(useCase.input);
+      const endTime = Date.now();
+      
+      const executionResult = {
+        useCase: useCase.name,
+        description: useCase.description,
+        input: useCase.input,
+        output: result,
+        executionTime: endTime - startTime,
+        timestamp: new Date().toISOString(),
+        status: 'success'
+      };
+      
+      this.results.push(executionResult);
+      
+      console.log(\`✅ Use case completed in \${executionResult.executionTime}ms\`);
+      
+      return executionResult;
+    } catch (error) {
+      console.error(\`❌ Error executing use case \${useCase.name}:\`, error.message);
+      
+      const executionResult = {
+        useCase: useCase.name,
+        description: useCase.description,
+        input: useCase.input,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+        status: 'error'
+      };
+      
+      this.results.push(executionResult);
+      return executionResult;
+    }
+  }
+
+  async executeUseCasesFromFile(filePath) {
+    try {
+      const useCaseData = await fs.readJson(filePath);
+      
+      if (!useCaseData.use_cases || !Array.isArray(useCaseData.use_cases)) {
+        console.error(\`Invalid use case file format: \${filePath}\`);
+        return;
+      }
+      
+      console.log(\`\\n📋 Processing \${useCaseData.use_cases.length} use cases from \${path.basename(filePath)}\`);
+      
+      for (const useCase of useCaseData.use_cases) {
+        await this.executeUseCase(useCase);
+      }
+      
+    } catch (error) {
+      console.error(\`Error reading use case file \${filePath}:\`, error.message);
+    }
+  }
+
+  generateReport() {
+    const totalUseCases = this.results.length;
+    const successfulUseCases = this.results.filter(r => r.status === 'success').length;
+    const failedUseCases = this.results.filter(r => r.status === 'error').length;
+    
+    const totalExecutionTime = this.results
+      .filter(r => r.executionTime)
+      .reduce((sum, r) => sum + r.executionTime, 0);
+    
+    return {
+      summary: {
+        total: totalUseCases,
+        successful: successfulUseCases,
+        failed: failedUseCases,
+        successRate: totalUseCases > 0 ? (successfulUseCases / totalUseCases * 100).toFixed(2) : 0,
+        totalExecutionTime: totalExecutionTime,
+        averageExecutionTime: totalUseCases > 0 ? (totalExecutionTime / totalUseCases).toFixed(2) : 0
+      },
+      results: this.results
+    };
+  }
+
+  printReport() {
+    const report = this.generateReport();
+    
+    console.log(\`\\n📊 Use Case Execution Report\`);
+    console.log(\`═\`.repeat(50));
+    console.log(\`📈 Summary:\`);
+    console.log(\`  Total use cases: \${report.summary.total}\`);
+    console.log(\`  Successful: \${report.summary.successful}\`);
+    console.log(\`  Failed: \${report.summary.failed}\`);
+    console.log(\`  Success rate: \${report.summary.successRate}%\`);
+    console.log(\`  Total execution time: \${report.summary.totalExecutionTime}ms\`);
+    console.log(\`  Average execution time: \${report.summary.averageExecutionTime}ms\`);
+    
+    if (report.summary.failed > 0) {
+      console.log(\`\\n❌ Failed use cases:\`);
+      report.results
+        .filter(r => r.status === 'error')
+        .forEach(result => {
+          console.log(\`  - \${result.useCase}: \${result.error}\`);
+        });
+    }
+  }
+}`;
+
+    await fs.writeFile(path.join(utilsPath, 'use_case_executor.js'), executorContent);
+  }
+
+  /**
+   * Generate base classes (equivalent to base.py)
+   * @param {Object} config - Configuration object
+   * @param {string} targetPath - Target directory path
+   */
+  static async generateBaseClasses(config, targetPath) {
+    const baseContent = `/**
+ * Base classes for LLM and Tool nodes
+ */
+
+import Config from './config.js';
+
+/**
+ * Base class for LLM nodes
+ */
+export class BaseLLMNode {
+  constructor(nodeName, config = null) {
+    this.node_name = nodeName;
+    this.config = config || new Config();
+  }
+
+  async process(inputData) {
+    throw new Error('process method must be implemented by subclass');
+  }
+
+  async _execute_llm_logic(inputData) {
+    throw new Error('_execute_llm_logic method must be implemented by subclass');
+  }
+}
+
+/**
+ * Base class for Tool nodes
+ */
+export class BaseToolNode {
+  constructor(nodeName, config = null) {
+    this.node_name = nodeName;
+    this.config = config || new Config();
+  }
+
+  async process(inputData) {
+    throw new Error('process method must be implemented by subclass');
+  }
+
+  async _execute_tool_logic(inputData) {
+    throw new Error('_execute_tool_logic method must be implemented by subclass');
+  }
+}`;
+
+    await fs.writeFile(path.join(targetPath, 'src/base.js'), baseContent);
+  }
+
+  /**
+   * Generate agent file (equivalent to agent.py)
+   * @param {Object} config - Configuration object
+   * @param {string} targetPath - Target directory path
+   */
+  static async generateAgentFile(config, targetPath) {
+    const agentContent = `/**
+ * Main agent class for ${config.project.name}
+ */
+
+import Config from './config.js';
+
+/**
+ * Main agent class
+ */
+export class LangGraphAgent {
+  constructor(config = null) {
+    this.config = config || new Config();
+  }
+
+  async process(inputData) {
+    // This will be implemented by the framework-specific generator
+    throw new Error('process method must be implemented by framework-specific generator');
+  }
+}`;
+
+    await fs.writeFile(path.join(targetPath, 'src/agent.js'), agentContent);
+  }
+
+  /**
+   * Generate LLM node files
+   * @param {Object} config - Configuration object
+   * @param {string} targetPath - Target directory path
+   * @param {string} nodeName - Node name
+   */
+  static async generateLLMNodeFiles(config, targetPath, nodeName) {
+    const nodePath = path.join(targetPath, 'src/nodes/llm', nodeName);
+    await fs.ensureDir(nodePath);
+
+    // Create index.js
+    await fs.writeFile(path.join(nodePath, 'index.js'), '// LLM node exports');
+
+    // Create processor.js (equivalent to processor.py)
+    const processorContent = `/**
+ * ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)} LLM node processor
+ */
+
+import { BaseLLMNode } from '../../../base.js';
+import { getPrompts } from './prompts.js';
+
+export class ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)}LLMNode extends BaseLLMNode {
+  constructor(config = null) {
+    super('${nodeName}', config);
+  }
+
+  async process(inputData) {
+    try {
+      // Execute with timeout (longer for LLM calls)
+      const result = await Promise.race([
+        this._execute_${nodeName.replace('-', '_').replace(' ', '_')}_llm_logic(inputData),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout in ${nodeName} after 60 seconds')), 60000)
+        )
+      ]);
+
+      return {
+        node: this.node_name,
+        status: 'success',
+        result: result
+      };
+    } catch (error) {
+      console.error(\`Error in \${this.node_name}:\`, error.message);
+      throw error;
+    }
+  }
+
+  async _execute_${nodeName.replace('-', '_').replace(' ', '_')}_llm_logic(inputData) {
+    // Implement your LLM logic here
+    const prompts = getPrompts();
+    
+    // Example implementation
+    return {
+      message: \`Processing in \${this.node_name} with input: \${JSON.stringify(inputData)}\`,
+      prompts: prompts
+    };
+  }
+}`;
+
+    await fs.writeFile(path.join(nodePath, 'processor.js'), processorContent);
+
+    // Create prompts.js
+    const promptsContent = `/**
+ * Prompts for ${nodeName} LLM node
+ */
+
+export function getPrompts() {
+  return {
+    system: "You are a helpful AI assistant in the ${nodeName} node.",
+    user: "Please process the following input:",
+    examples: []
+  };
+}`;
+
+    await fs.writeFile(path.join(nodePath, 'prompts.js'), promptsContent);
+
+    // Create README.md
+    const readmeContent = `# ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)} LLM Node
+
+This node handles LLM processing for ${nodeName}.
+
+## Files
+
+- \`processor.js\`: Main node logic
+- \`prompts.js\`: Prompt definitions
+- \`index.js\`: Module exports
+
+## Customization
+
+Edit \`processor.js\` to implement your specific LLM logic.
+Edit \`prompts.js\` to customize the prompts used by this node.
+`;
+
+    await fs.writeFile(path.join(nodePath, 'README.md'), readmeContent);
+  }
+
+  /**
+   * Generate Tool node files
+   * @param {Object} config - Configuration object
+   * @param {string} targetPath - Target directory path
+   * @param {string} nodeName - Node name
+   */
+  static async generateToolNodeFiles(config, targetPath, nodeName) {
+    const nodePath = path.join(targetPath, 'src/nodes/tools', nodeName);
+    await fs.ensureDir(nodePath);
+
+    // Create index.js
+    await fs.writeFile(path.join(nodePath, 'index.js'), '// LLM node exports');
+
+    // Create processor.js (equivalent to processor.py)
+    const processorContent = `/**
+ * ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)} tool node processor
+ */
+
+import { BaseToolNode } from '../../../base.js';
+
+export class ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)}ToolNode extends BaseToolNode {
+  constructor(config = null) {
+    super('${nodeName}', config);
+  }
+
+  async process(inputData) {
+    try {
+      // Execute tool logic (no timeout for tools)
+      const result = await this._execute_${nodeName.replace('-', '_').replace(' ', '_')}_tool_logic(inputData);
+
+      return {
+        node: this.node_name,
+        status: 'success',
+        result: result
+      };
+    } catch (error) {
+      console.error(\`Error in \${this.node_name}:\`, error.message);
+      throw error;
+    }
+  }
+
+  async _execute_${nodeName.replace('-', '_').replace(' ', '_')}_tool_logic(inputData) {
+    // Implement your tool logic here
+    
+    // Example implementation
+    return {
+      message: \`Tool executed in \${this.node_name} with input: \${JSON.stringify(inputData)}\`,
+      timestamp: new Date().toISOString()
+    };
+  }
+}`;
+
+    await fs.writeFile(path.join(nodePath, 'processor.js'), processorContent);
+
+    // Create README.md
+    const readmeContent = `# ${nodeName.charAt(0).toUpperCase() + nodeName.slice(1)} Tool Node
+
+This node handles tool execution for ${nodeName}.
+
+## Files
+
+- \`processor.js\`: Main tool logic
+- \`index.js\`: Module exports
+
+## Customization
+
+Edit \`processor.js\` to implement your specific tool logic.
+`;
+
+    await fs.writeFile(path.join(nodePath, 'README.md'), readmeContent);
+  }
+
+  /**
+   * Generate use cases
+   * @param {Object} config - Configuration object
+   * @param {string} targetPath - Target directory path
+   */
+  static async generateUseCases(config, targetPath) {
+    const useCasesPath = path.join(targetPath, 'use_cases');
+    await fs.ensureDir(useCasesPath);
+
+    const exampleUseCases = {
+      "metadata": {
+        "name": "Example Use Cases",
+        "description": "Sample use cases to demonstrate the agent's capabilities",
+        "version": "1.0.0",
+        "author": "Agent Developer",
+        "created_at": new Date().toISOString()
+      },
+      "use_cases": [
+        {
+          "name": "Basic Information Request",
+          "description": "Test basic information retrieval capabilities",
+          "input": {
+            "query": "What is the capital of France?",
+            "context": "geography"
+          }
+        }
+      ]
+    };
+
+    await fs.writeFile(
+      path.join(useCasesPath, 'example_use_cases.json'),
+      JSON.stringify(exampleUseCases, null, 2)
+    );
+  }
+
+  /**
+   * Generate use case runner
+   * @param {Object} config - Configuration object
+   * @param {string} targetPath - Target directory path
+   */
+  static async generateUseCaseRunner(config, targetPath) {
+    const runnerContent = `#!/usr/bin/env node
+/**
+ * Use Case Runner for ${config.project.name}
+ * Executes use cases defined in JSON files
+ */
+
+import fs from 'fs-extra';
+import path from 'path';
+import { UseCaseExecutor } from './src/utils/use_case_executor.js';
+
+async function findUseCaseFiles(directory) {
+  const files = [];
+  
+  if (await fs.pathExists(directory)) {
+    const items = await fs.readdir(directory);
+    for (const item of items) {
+      const fullPath = path.join(directory, item);
+      const stat = await fs.stat(fullPath);
+      
+      if (stat.isDirectory()) {
+        files.push(...await findUseCaseFiles(fullPath));
+      } else if (item.endsWith('.json')) {
+        files.push(fullPath);
+      }
+    }
+  }
+  
+  return files;
+}
+
+async function listUseCaseFiles() {
+  const useCaseFiles = await findUseCaseFiles('./use_cases');
+  
+  if (useCaseFiles.length === 0) {
+    console.log('No use case files found in ./use_cases directory');
+    return;
+  }
+  
+  console.log('Found use case files:');
+  useCaseFiles.forEach(file => console.log(\`  - \${file}\`));
+}
+
+async function runUseCases() {
+  const useCaseFiles = await findUseCaseFiles('./use_cases');
+  
+  if (useCaseFiles.length === 0) {
+    console.log('No use case files found');
+    return;
+  }
+  
+  const executor = new UseCaseExecutor();
+  await executor.loadAgent();
+  
+  for (const file of useCaseFiles) {
+    console.log(\`\\nRunning use cases from: \${file}\`);
+    await executor.executeUseCasesFromFile(file);
+  }
+  
+  executor.printReport();
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  
+  if (args.includes('--list') || args.includes('-l')) {
+    await listUseCaseFiles();
+  } else if (args.includes('--help') || args.includes('-h')) {
+    console.log('Use Case Runner');
+    console.log('Usage: node run_use_cases.js [options]');
+    console.log('Options:');
+    console.log('  --list, -l    List available use case files');
+    console.log('  --help, -h    Show this help message');
+    console.log('');
+    console.log('Without options, runs all use cases found in ./use_cases directory');
+  } else {
+    await runUseCases();
+  }
+}
+
+// Check if this file is being run directly
+if (import.meta.url === 'file://' + process.argv[1]) {
+  main().catch(console.error);
+}
+
+export { findUseCaseFiles, listUseCaseFiles, runUseCases };`;
+
+    await fs.writeFile(path.join(targetPath, 'run_use_cases.js'), runnerContent);
   }
 }
 
