@@ -117,4 +117,54 @@ async function runSimpleInkSetup(options = {}) {
   }
 }
 
-module.exports = { runSimpleInkSetup };
+/**
+ * Simple Ink setup flow for agentic create command
+ * Creates project scaffolding using the agentic create wizard
+ */
+async function runAgenticCreateSetup(options = {}) {
+  const chalk = require('chalk');
+  
+  const config = {
+    dev: options.dev || false,
+    projectRoot: process.cwd(),
+    ...options
+  };
+
+  try {
+    console.log('\n'); // Add some space
+    
+    // Use the agentic create wizard
+    const { showModularAgenticCreateWizard } = require('./ModularInkAgenticCreateWizard.js');
+    const projectInfo = await showModularAgenticCreateWizard(config);
+    
+    // Handle the result
+    if (projectInfo && (projectInfo.projectName || projectInfo.codeLanguage || projectInfo.llmNodes || projectInfo.tools || projectInfo.llmProvider)) {
+      console.log(chalk.green.bold('✅ Agentic project configuration completed!'));
+      console.log(`Project name: ${chalk.blue(projectInfo.projectName || 'my-agentic-project')}`);
+      console.log(`Language: ${chalk.blue(projectInfo.codeLanguage || 'python')}`);
+      console.log(`LLM Nodes: ${chalk.blue(projectInfo.llmNodes || 'reason, act, assistant_composer')}`);
+      console.log(`Tools: ${chalk.blue(projectInfo.tools || 'http_fetch, web_search, calculator')}`);
+      console.log(`LLM Provider: ${chalk.blue(projectInfo.llmProvider || 'ChatGPT')}`);
+      
+      // Show configuration file information
+      if (projectInfo.configGenerated && projectInfo.configPath) {
+        console.log(chalk.green(`📄 Configuration file saved: ${chalk.blue(projectInfo.configPath)}`));
+      } else if (projectInfo.configGenerated === false && projectInfo.error) {
+        console.log(chalk.yellow(`⚠️  Configuration file could not be saved: ${projectInfo.error}`));
+      }
+      
+      console.log(chalk.gray('Project configuration is ready.'));
+    } else {
+      console.log(chalk.yellow('Agentic create cancelled'));
+    }
+
+  } catch (error) {
+    if (error.message === 'Agentic create cancelled by user') {
+      console.log(chalk.yellow('\nAgentic create cancelled by user'));
+      process.exit(0); // Clean exit
+    }
+    throw new Error(`Agentic create failed: ${error.message}`);
+  }
+}
+
+module.exports = { runSimpleInkSetup, runAgenticCreateSetup };

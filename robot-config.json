@@ -1,0 +1,23 @@
+{
+  "project": {
+    "name": "robot",
+    "language": "javascript",
+    "default_llm_provider": "gpt4o"
+  },
+  "tools": [
+    {
+      "node_name": [
+        "rag",
+        "web_search"
+      ]
+    }
+  ],
+  "llm_nodes": [
+    {
+      "node_name": [
+        "reason",
+        "act"
+      ]
+    }
+  ]
+}
