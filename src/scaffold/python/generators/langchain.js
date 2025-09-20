@@ -279,6 +279,7 @@ from .main import ${config.project.name.replace(/\s+/g, '').replace(/-/g, '')}Ch
 __all__ = ["${config.project.name.replace(/\s+/g, '').replace(/-/g, '')}Chain", "create_chain"]
 `;
 
+    const chainsPath = path.join(targetPath, 'src/chains');
     await fs.writeFile(path.join(chainsPath, '__init__.py'), chainsInitContent);
   }
 
