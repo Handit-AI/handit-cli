@@ -5,9 +5,8 @@ const React = require('react');
 const path = require('path');
 const fs = require('fs-extra');
 
-async function showModularAgenticCreateWizard(config) {
-  const { render } = await import('ink');
-  const { Box, Text, useInput } = await import('ink');
+async function showModularAICreateWizard(config) {
+  const { render, Box, Text, useInput } = require('ink');
 
   // Import the components
   const { WelcomeHeaderScaffolding } = require('./components/WelcomeHeaderScaffolding');
@@ -16,6 +15,7 @@ async function showModularAgenticCreateWizard(config) {
   const { AgentStep } = require('./components/AgentStep');
   const { ToolsStep } = require('./components/ToolsStep');
   const { ModelStep } = require('./components/ModelStep');
+  const { ProjectSuccessStep } = require('./components/ProjectSuccessStep');
 
   return new Promise((resolve, reject) => {
     function ModularAICreateWizard() {
@@ -28,6 +28,8 @@ async function showModularAgenticCreateWizard(config) {
       const [tools, setTools] = React.useState('');
       const [llmProvider, setLlmProvider] = React.useState('');
       const [error, setError] = React.useState(null);
+      const [projectCreated, setProjectCreated] = React.useState(false);
+      const [projectPath, setProjectPath] = React.useState('');
       
       const languages = ['Python', 'Typescript/JavaScript'];
       
@@ -37,6 +39,20 @@ async function showModularAgenticCreateWizard(config) {
         if (key.ctrl && input === 'c') {
           reject(new Error('AI project creation cancelled by user'));
           return;
+        }
+        
+        // Handle success step - Enter to exit
+        if (projectCreated && key.return) {
+          resolve({
+            projectName: projectName,
+            codeLanguage: codeLanguage,
+            llmNodes: llmNodes,
+            tools: tools,
+            llmProvider: llmProvider,
+            configGenerated: true,
+            scaffoldingCompleted: true,
+            projectPath: projectPath
+          });
         }
 
         // Handle project name input (step 1)
@@ -173,16 +189,21 @@ async function showModularAgenticCreateWizard(config) {
                       "language": codeLanguageSafe,
                       "default_llm_provider": llmProviderSafe.toLowerCase()
                     },
-                    "tools": [
-                      {
-                        "node_name": parsedTools
+                    "agent": {
+                      "stages": parsedLlmNodes,
+                      "subAgents": 0
+                    },
+                    "tools": parsedTools.map(toolName => ({
+                      "node_name": toolName.toLowerCase().replace(/\s+/g, '_'),
+                      "selected": [toolName.toLowerCase().replace(/\s+/g, '_')]
+                    })),
+                    "llm_nodes": parsedLlmNodes.map(nodeName => ({
+                      "node_name": nodeName.toLowerCase().replace(/\s+/g, '_'),
+                      "model": {
+                        "provider": llmProviderSafe.toLowerCase(),
+                        "name": "gpt-4"
                       }
-                    ],
-                    "llm_nodes": [
-                      {
-                        "node_name": parsedLlmNodes
-                      }
-                    ]
+                    }))
                   };
                   
                   // Save JSON file to project root
@@ -190,10 +211,7 @@ async function showModularAgenticCreateWizard(config) {
                   const configPath = path.join(process.cwd(), fileName);
                   await fs.writeJson(configPath, configData, { spaces: 2 });
                   
-                  console.log(`\n✅ Configuration saved to: ${configPath}`);
-                  
-                  // Execute scaffolding after config generation
-                  console.log(`\n🏗️  Starting project scaffolding...`);
+                  // Execute scaffolding after config generation (silent mode)
                   try {
                     const { ScaffoldingService } = require('../scaffold/index.js');
                     const scaffoldingService = new ScaffoldingService();
@@ -201,23 +219,12 @@ async function showModularAgenticCreateWizard(config) {
                     // Create target directory path
                     const targetPath = path.join(process.cwd(), projectNameSafe.toLowerCase().replace(/\s+/g, '-'));
                     
-                    // Generate the project
-                    await scaffoldingService.generateProject(configData, targetPath);
+                    // Generate the project (silent mode)
+                    await scaffoldingService.generateProject(configData, targetPath, { silent: true });
                     
-                    console.log(`\n🎉 Project generated successfully at: ${targetPath}`);
-                    
-                    // Resolve with the collected data and scaffolding info
-                    resolve({
-                      projectName: projectNameSafe,
-                      codeLanguage: codeLanguageSafe,
-                      llmNodes: llmNodesSafe,
-                      tools: toolsSafe,
-                      llmProvider: llmProviderSafe,
-                      configPath: configPath,
-                      configGenerated: true,
-                      scaffoldingCompleted: true,
-                      projectPath: targetPath
-                    });
+                    // Set success state instead of resolving immediately
+                    setProjectPath(targetPath);
+                    setProjectCreated(true);
                   } catch (scaffoldingError) {
                     console.error(`\n❌ Scaffolding failed: ${scaffoldingError.message}`);
                     // Still resolve with config generation success
@@ -338,13 +345,21 @@ async function showModularAgenticCreateWizard(config) {
           })
         ) : null,
         
+        // Success Step: Show when project is created
+        projectCreated ? React.createElement(Box, { key: 'success-step' },
+          ProjectSuccessStep({
+            projectName: projectName,
+            projectPath: projectPath
+          })
+        ) : null,
+        
         // Error message
         error ? React.createElement(Box, { key: 'error', marginTop: 2 }, [
           React.createElement(Text, { key: 'error-text', color: 'red' }, `❌ ${error}`),
         ]) : null,
         
-        // Instructions
-        (currentStep === 1 || currentStep === 2 || currentStep === 3 || currentStep === 4 || currentStep === 5) ? React.createElement(Box, { key: 'instructions', marginTop: 3 }, [
+        // Instructions (don't show when project is created)
+        (!projectCreated && (currentStep === 1 || currentStep === 2 || currentStep === 3 || currentStep === 4 || currentStep === 5)) ? React.createElement(Box, { key: 'instructions', marginTop: 3 }, [
           React.createElement(Text, { key: 'help-text', color: 'gray', dimColor: true }, 
             currentStep === 1 ? 'Enter project name, then press Enter to continue' :
             currentStep === 2 ? 'Use arrow keys to select language, then press Enter to continue' :
@@ -368,4 +383,4 @@ async function showModularAgenticCreateWizard(config) {
   });
 }
 
-module.exports = { showModularAgenticCreateWizard };
+module.exports = { showModularAICreateWizard };

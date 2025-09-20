@@ -11,11 +11,14 @@ class LangGraphJSGenerator extends BaseJSGenerator {
    * @param {Object} config - Configuration object
    * @param {string} targetPath - Target directory path
    */
-  static async generate(config, targetPath) {
-    console.log('🕸️ Generating LangGraph JavaScript project...');
+  static async generate(config, targetPath, options = {}) {
+    const { silent = false } = options;
+    if (!silent) {
+      console.log('🕸️ Generating LangGraph JavaScript project...');
+    }
 
     // Generate base structure first
-    await super.generate(config, targetPath);
+    await super.generate(config, targetPath, { silent });
 
     // Generate LangGraph-specific files
     await this.generateLangGraphFiles(config, targetPath);
@@ -23,7 +26,9 @@ class LangGraphJSGenerator extends BaseJSGenerator {
     // Update package.json with LangGraph dependencies
     await this.updatePackageJson(config, targetPath);
 
-    console.log('✅ LangGraph JavaScript project generated');
+    if (!silent) {
+      console.log('✅ LangGraph JavaScript project generated');
+    }
   }
 
   /**
