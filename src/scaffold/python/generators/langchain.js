@@ -12,7 +12,6 @@ class LangChainPythonGenerator extends BasePythonGenerator {
    * @param {string} targetPath - Target directory path
    */
   static async generate(config, targetPath) {
-    console.log('🔗 Generating LangChain Python project...');
 
     // Generate base structure first
     await super.generate(config, targetPath);
@@ -23,7 +22,6 @@ class LangChainPythonGenerator extends BasePythonGenerator {
     // Update requirements with LangChain dependencies
     await this.updateRequirements(config, targetPath);
 
-    console.log('✅ LangChain Python project generated');
   }
 
   /**

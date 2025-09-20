@@ -36,11 +36,7 @@ class BaseJSGenerator {
    * @param {Object} config - Configuration object
    * @param {string} targetPath - Target directory path
    */
-  static async generate(config, targetPath, options = {}) {
-    const { silent = false } = options;
-    if (!silent) {
-      console.log('🟨 Generating base JavaScript project...');
-    }
+  static async generate(config, targetPath) {
 
     // Generate main application file
     await this.generateMainFile(config, targetPath);
@@ -68,10 +64,6 @@ class BaseJSGenerator {
 
     // Generate use case runner
     await this.generateUseCaseRunner(config, targetPath);
-
-    if (!silent) {
-      console.log('✅ Base JavaScript project generated');
-    }
   }
 
   /**
@@ -115,7 +107,6 @@ class AgentPipeline {
         
         // Execute each stage in sequence
         for (const stage of this.config.agentStages) {
-            console.log(\`Executing stage: \${stage}\`);
             result = await this.nodes[stage].execute(result);
         }
         

@@ -173,16 +173,21 @@ async function showModularAgenticCreateWizard(config) {
                       "language": codeLanguageSafe,
                       "default_llm_provider": llmProviderSafe.toLowerCase()
                     },
-                    "tools": [
-                      {
-                        "node_name": parsedTools
+                    "agent": {
+                      "stages": parsedLlmNodes,
+                      "subAgents": 0
+                    },
+                    "tools": parsedTools.map(toolName => ({
+                      "node_name": toolName.toLowerCase().replace(/\s+/g, '_'),
+                      "selected": [toolName.toLowerCase().replace(/\s+/g, '_')]
+                    })),
+                    "llm_nodes": parsedLlmNodes.map(nodeName => ({
+                      "node_name": nodeName.toLowerCase().replace(/\s+/g, '_'),
+                      "model": {
+                        "provider": llmProviderSafe.toLowerCase(),
+                        "name": "gpt-4"
                       }
-                    ],
-                    "llm_nodes": [
-                      {
-                        "node_name": parsedLlmNodes
-                      }
-                    ]
+                    }))
                   };
                   
                   // Save JSON file to project root
@@ -190,10 +195,8 @@ async function showModularAgenticCreateWizard(config) {
                   const configPath = path.join(process.cwd(), fileName);
                   await fs.writeJson(configPath, configData, { spaces: 2 });
                   
-                  console.log(`\n✅ Configuration saved to: ${configPath}`);
                   
                   // Execute scaffolding after config generation
-                  console.log(`\n🏗️  Starting project scaffolding...`);
                   try {
                     const { ScaffoldingService } = require('../scaffold/index.js');
                     const scaffoldingService = new ScaffoldingService();

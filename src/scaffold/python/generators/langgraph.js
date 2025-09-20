@@ -12,7 +12,6 @@ class LangGraphPythonGenerator extends BasePythonGenerator {
    * @param {string} targetPath - Target directory path
    */
   static async generate(config, targetPath) {
-    console.log('🕸️ Generating LangGraph Python project...');
 
     // Generate base structure first (including node classes)
     await super.generate(config, targetPath);
@@ -23,7 +22,6 @@ class LangGraphPythonGenerator extends BasePythonGenerator {
     // Update requirements with LangGraph dependencies
     await this.updateRequirements(config, targetPath);
 
-    console.log('✅ LangGraph Python project generated');
   }
 
   /**

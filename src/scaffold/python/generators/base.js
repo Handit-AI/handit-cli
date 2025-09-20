@@ -136,7 +136,6 @@ class BasePythonGenerator {
    * @param {string} targetPath - Target directory path
    */
   static async generate(config, targetPath) {
-    console.log('🐍 Generating base Python project...');
 
     // Generate main application file
     await this.generateMainFile(config, targetPath);
@@ -156,7 +155,6 @@ class BasePythonGenerator {
     // Generate use cases and runner script
     await this.generateUseCases(config, targetPath);
 
-    console.log('✅ Base Python project generated');
   }
 
   /**

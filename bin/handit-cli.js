@@ -112,10 +112,10 @@ program
     }
   });
 
-// Agentic create command
+// AI project create command
 program
-  .command('agentic create')
-  .description('Create the scaffolding for your agentic project')
+  .command('new')
+  .description('Create the scaffolding for your AI project')
   .option('-d, --dev', 'Enable development mode with verbose logging')
   .action(async (options) => {
     try {

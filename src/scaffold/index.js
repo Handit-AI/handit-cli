@@ -18,8 +18,6 @@ class ScaffoldingService {
    */
   async generateProject(config, outputPath = null) {
     try {
-      console.log(chalk.blue.bold('\n🏗️  Handit Agent Scaffolding Service'));
-      console.log(chalk.gray('Generating project structure based on configuration...\n'));
 
       // Validate configuration
       this.validateConfig(config);
@@ -43,15 +41,6 @@ class ScaffoldingService {
 
       // Generate README and configuration files
       await this.generateProjectFiles(config, targetPath);
-
-      console.log(chalk.green.bold('\n✅ Project generated successfully!'));
-      console.log(chalk.gray(`📁 Project location: ${targetPath}`));
-      console.log(chalk.yellow('\n📋 Next steps:'));
-      console.log(chalk.white('1. cd into the project directory'));
-      console.log(chalk.white('2. Install dependencies'));
-      console.log(chalk.white('3. Set up your environment variables'));
-      console.log(chalk.white('4. Customize the prompts and logic in each node'));
-      console.log(chalk.white('5. Run your agent!'));
 
       return targetPath;
     } catch (error) {
@@ -81,7 +70,6 @@ class ScaffoldingService {
     // Set default framework if not provided
     if (!config.project.framework) {
       config.project.framework = 'langgraph';
-      console.log(chalk.yellow('ℹ️  No framework specified, defaulting to langgraph'));
     }
     
     // Set default runtime if not provided
@@ -99,8 +87,6 @@ class ScaffoldingService {
         type: defaultRuntime,
         port: defaultPort
       };
-      
-      console.log(chalk.yellow(`ℹ️  No runtime specified, defaulting to ${defaultRuntime} (port ${defaultPort})`));
     }
     
     // Set default orchestration if not provided
@@ -110,8 +96,6 @@ class ScaffoldingService {
       config.orchestration = {
         style: defaultOrchestration
       };
-      
-      console.log(chalk.yellow(`ℹ️  No orchestration specified, defaulting to ${defaultOrchestration} for ${config.project.framework}`));
     }
     
     // Set default storage if not provided
@@ -119,14 +103,10 @@ class ScaffoldingService {
       const defaultStorage = this.getDefaultStorage(config.project.framework);
       
       config.storage = defaultStorage;
-      
-      console.log(chalk.yellow(`ℹ️  No storage specified, defaulting to ${config.project.framework} optimized storage`));
     }
     
     // Derive stages from node configurations or set defaults
     config.agent = this.deriveAgentConfig(config);
-    
-    console.log(chalk.blue(`📋 Detected stages: ${config.agent.stages.join(', ')}`));
 
     // Validate supported values
     const supportedLanguages = ['python', 'typescript', 'javascript'];
@@ -167,7 +147,6 @@ class ScaffoldingService {
         provider: config.project.default_llm_provider || 'mock',
         name: 'mock-llm'
       };
-      console.log(chalk.yellow(`ℹ️  No model configuration specified, defaulting to ${config.model.provider}/${config.model.name}`));
     }
 
     // Validate LLM nodes (new structure) or model (legacy structure)
@@ -189,8 +168,6 @@ class ScaffoldingService {
         throw new Error('Model section must include: provider, name');
       }
     }
-
-    console.log(chalk.green('✅ Configuration validated successfully'));
   }
 
   /**
@@ -280,7 +257,6 @@ class ScaffoldingService {
    * @param {string} targetPath - Target directory path
    */
   async generatePythonProject(config, targetPath) {
-    console.log(chalk.blue('🐍 Generating Python project structure...'));
 
     // Import Python generators
     const PythonGenerator = require('./python/generators/base');
@@ -301,8 +277,6 @@ class ScaffoldingService {
       default:
         await PythonGenerator.generate(config, targetPath);
     }
-
-    console.log(chalk.green('✅ Python project structure created'));
   }
 
   /**
@@ -311,7 +285,6 @@ class ScaffoldingService {
    * @param {string} targetPath - Target directory path
    */
   async generateJavaScriptProject(config, targetPath) {
-    console.log(chalk.blue('🟨 Generating JavaScript/TypeScript project structure...'));
 
     // Import JS generators
     const JSGenerator = require('./js/generators/base');
@@ -332,8 +305,6 @@ class ScaffoldingService {
       default:
         await JSGenerator.generate(config, targetPath);
     }
-
-    console.log(chalk.green('✅ JavaScript/TypeScript project structure created'));
   }
 
   /**
@@ -392,7 +363,6 @@ class ScaffoldingService {
    * @param {string} targetPath - Target directory path
    */
   async generateProjectFiles(config, targetPath) {
-    console.log(chalk.blue('📄 Generating project files...'));
 
     // Generate README
     await this.generateREADME(config, targetPath);
@@ -402,8 +372,6 @@ class ScaffoldingService {
 
     // Generate gitignore
     await this.generateGitignore(config, targetPath);
-
-    console.log(chalk.green('✅ Project files generated'));
   }
 
   /**

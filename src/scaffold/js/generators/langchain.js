@@ -12,7 +12,6 @@ class LangChainJSGenerator extends BaseJSGenerator {
    * @param {string} targetPath - Target directory path
    */
   static async generate(config, targetPath) {
-    console.log('🔗 Generating LangChain JavaScript project...');
 
     // Generate base structure first
     await super.generate(config, targetPath);
@@ -23,7 +22,6 @@ class LangChainJSGenerator extends BaseJSGenerator {
     // Update package.json with LangChain dependencies
     await this.updatePackageJson(config, targetPath);
 
-    console.log('✅ LangChain JavaScript project generated');
   }
 
   /**
