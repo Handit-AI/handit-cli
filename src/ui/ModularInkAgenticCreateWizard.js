@@ -16,6 +16,7 @@ async function showModularAgenticCreateWizard(config) {
   const { AgentStep } = require('./components/AgentStep');
   const { ToolsStep } = require('./components/ToolsStep');
   const { ModelStep } = require('./components/ModelStep');
+  const { ProjectSuccessClosing } = require('./components/ProjectSuccessClosing');
 
   return new Promise((resolve, reject) => {
     function ModularAICreateWizard() {
@@ -28,6 +29,8 @@ async function showModularAgenticCreateWizard(config) {
       const [tools, setTools] = React.useState('');
       const [llmProvider, setLlmProvider] = React.useState('');
       const [error, setError] = React.useState(null);
+      const [projectCreated, setProjectCreated] = React.useState(false);
+      const [projectPath, setProjectPath] = React.useState('');
       
       const languages = ['Python', 'Typescript/JavaScript'];
       
@@ -37,6 +40,20 @@ async function showModularAgenticCreateWizard(config) {
         if (key.ctrl && input === 'c') {
           reject(new Error('AI project creation cancelled by user'));
           return;
+        }
+        
+        // Handle success step - Enter to exit
+        if (projectCreated && key.return) {
+          resolve({
+            projectName: projectName,
+            codeLanguage: codeLanguage,
+            llmNodes: llmNodes,
+            tools: tools,
+            llmProvider: llmProvider,
+            configGenerated: true,
+            scaffoldingCompleted: true,
+            projectPath: projectPath
+          });
         }
 
         // Handle project name input (step 1)
@@ -207,22 +224,10 @@ async function showModularAgenticCreateWizard(config) {
                     // Generate the project
                     await scaffoldingService.generateProject(configData, targetPath);
                     
-                    console.log(`\n🎉 Project generated successfully at: ${targetPath}`);
-                    
-                    // Resolve with the collected data and scaffolding info
-                    resolve({
-                      projectName: projectNameSafe,
-                      codeLanguage: codeLanguageSafe,
-                      llmNodes: llmNodesSafe,
-                      tools: toolsSafe,
-                      llmProvider: llmProviderSafe,
-                      configPath: configPath,
-                      configGenerated: true,
-                      scaffoldingCompleted: true,
-                      projectPath: targetPath
-                    });
+                    // Set success state instead of resolving immediately
+                    setProjectPath(targetPath);
+                    setProjectCreated(true);
                   } catch (scaffoldingError) {
-                    console.error(`\n❌ Scaffolding failed: ${scaffoldingError.message}`);
                     // Still resolve with config generation success
                     resolve({
                       projectName: projectNameSafe,
@@ -237,7 +242,6 @@ async function showModularAgenticCreateWizard(config) {
                     });
                   }
                 } catch (error) {
-                  console.error(`\n❌ Failed to save configuration: ${error.message}`);
                   // Still resolve but without config generation
                   resolve({
                     projectName: projectName || 'my-ai-project',
@@ -341,13 +345,18 @@ async function showModularAgenticCreateWizard(config) {
           })
         ) : null,
         
+        // Success Step: Show when project is created
+        projectCreated ? React.createElement(Box, { key: 'success-step', marginTop: 2 }, 
+          ProjectSuccessClosing(React, Box, Text, projectName || 'my-ai-project', projectPath)
+        ) : null,
+        
         // Error message
         error ? React.createElement(Box, { key: 'error', marginTop: 2 }, [
           React.createElement(Text, { key: 'error-text', color: 'red' }, `❌ ${error}`),
         ]) : null,
         
-        // Instructions
-        (currentStep === 1 || currentStep === 2 || currentStep === 3 || currentStep === 4 || currentStep === 5) ? React.createElement(Box, { key: 'instructions', marginTop: 3 }, [
+        // Instructions (don't show when project is created)
+        (!projectCreated && (currentStep === 1 || currentStep === 2 || currentStep === 3 || currentStep === 4 || currentStep === 5)) ? React.createElement(Box, { key: 'instructions', marginTop: 3 }, [
           React.createElement(Text, { key: 'help-text', color: 'gray', dimColor: true }, 
             currentStep === 1 ? 'Enter project name, then press Enter to continue' :
             currentStep === 2 ? 'Use arrow keys to select language, then press Enter to continue' :

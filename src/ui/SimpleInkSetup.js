@@ -137,22 +137,13 @@ async function runAgenticCreateSetup(options = {}) {
     const { showModularAgenticCreateWizard } = require('./ModularInkAgenticCreateWizard.js');
     const projectInfo = await showModularAgenticCreateWizard(config);
     
-    // Handle the result
-    if (projectInfo && (projectInfo.projectName || projectInfo.codeLanguage || projectInfo.llmNodes || projectInfo.tools || projectInfo.llmProvider)) {
-      console.log(chalk.green.bold('✅ AI project configuration completed!'));
-      console.log(`Project name: ${chalk.blue(projectInfo.projectName || 'my-ai-project')}`);
-      console.log(`Language: ${chalk.blue(projectInfo.codeLanguage || 'python')}`);
-      console.log(`LLM Nodes: ${chalk.blue(projectInfo.llmNodes || 'reason, act, assistant_composer')}`);
-      console.log(`Tools: ${chalk.blue(projectInfo.tools || 'http_fetch, web_search, calculator')}`);
-      console.log(`LLM Provider: ${chalk.blue(projectInfo.llmProvider || 'ChatGPT')}`);
-      
-      // Show configuration file information
-      if (projectInfo.configGenerated && projectInfo.configPath) {
-      } else if (projectInfo.configGenerated === false && projectInfo.error) {
-        console.log(chalk.yellow(`⚠️  Configuration file could not be saved: ${projectInfo.error}`));
-      }
-      
-      console.log(chalk.gray('Project configuration is ready.'));
+    // Handle the result - success is now handled by Ink component
+    if (projectInfo && projectInfo.scaffoldingCompleted) {
+      // Project was successfully created - exit cleanly
+      process.exit(0);
+    } else if (projectInfo && (projectInfo.projectName || projectInfo.codeLanguage || projectInfo.llmNodes || projectInfo.tools || projectInfo.llmProvider)) {
+      // Configuration completed but scaffolding failed
+      console.log(chalk.yellow('AI project creation cancelled'));
     } else {
       console.log(chalk.yellow('AI project creation cancelled'));
     }
